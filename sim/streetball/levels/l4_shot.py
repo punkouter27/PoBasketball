@@ -61,6 +61,11 @@ class L4JumpShot(L2Dribble):
         vz = -torch.sqrt(2 * 9.81 * (1.0 - h)) * torch.where(env.rand(k) < 0.5, 1.0, -1.0)
         env.set_ball(ids, torch.cat([spot, h[:, None]], -1), torch.cat([torch.zeros(k, 2, device=self.dev), vz[:, None]], -1))
         self.start_xy[ids] = xy
+        # Grant ball control at the start (mirrors the Unreal director): a ball not touched by a palm
+        # within 0.6 s becomes loose and the 3 s countdown ends the episode. This rules out foot/shin
+        # juggling, which the first queue run learned instead of a hand dribble.
+        env.in_control[ids] = 1.0
+        env.last_palm_contact_t[ids] = env.time[ids]
         self.streak[ids] = 0; self.bounces[ids] = 0; self.switches[ids] = 0
         self.apex[ids] = h; self.palm_since[ids] = True; self.near_since[ids] = True; self.prev_floor[ids] = False
         self.last_apex[ids] = 1.0

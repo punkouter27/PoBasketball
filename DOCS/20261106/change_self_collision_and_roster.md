@@ -48,3 +48,7 @@ L2b (first stage with the dense apex term) still tapped at 25 cm: the tap was pa
 ## 03:00 — third dribble reward fix (monotonic shaping)
 
 L2c still tapped at 23 cm: the tap penalty was a step at 0.5 m and the dense apex term a narrow bell around 1 m, so bounces between 0.2 and 0.5 m earned nothing. Now p_tap = relu(0.6 - apex)/0.6 per bounce and the dense term is linear in predicted apex up to the target with a penalty above 1.3 m. Dribble family only.
+
+## 04:05 — ball control granted at reset (dribble, moving dribble, shot)
+
+l3a metrics showed 216 bounces per episode with control fraction 0.00: the policies juggled the ball with feet/shins. The loose-ball countdown only armed after control had once been held, so hands were never required. Levels now grant control at reset (as the Unreal director does); a ball not palm-touched within 0.6 s goes loose and the 3 s countdown terminates the episode. Dribble + shot families only.

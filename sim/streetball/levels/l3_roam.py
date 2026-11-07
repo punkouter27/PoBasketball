@@ -52,6 +52,8 @@ class L3MovingDribble(L1Traverse):
         h = env.rand(k, lo=0.4, hi=0.95)
         vz = -torch.sqrt(2 * 9.81 * (1.0 - h)) * torch.where(env.rand(k) < 0.5, 1.0, -1.0)
         env.set_ball(ids, torch.cat([spot, h[:, None]], -1), torch.cat([torch.zeros(k, 2, device=self.dev), vz[:, None]], -1))
+        env.in_control[ids] = 1.0                      # control granted at reset (see l2_dribble.py)
+        env.last_palm_contact_t[ids] = env.time[ids]
         self.dist_travelled[ids] = 0.0; self.control_steps[ids] = 0.0
         self.prev_xy[ids] = xy; self.prev_floor[ids] = False; self.apex[ids] = h; self.bounces[ids] = 0
 
