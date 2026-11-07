@@ -61,7 +61,7 @@ void UStreetballDirector::InstallDefaultTable()
 		Rows.Add(S, R);
 	};
 	Row(EStreetballState::Stand, TEXT("balance"), 1, TEXT("balance"), 0, 0, false, FIntPoint(0, 0));
-	Row(EStreetballState::Roam, TEXT("locomotion"), 2, TEXT("locomotion"), 0.8, 3.0, true, FIntPoint(0, 0));
+	Row(EStreetballState::Roam, TEXT("locomotion"), 2, TEXT("locomotion"), 1.2, 3.0, true, FIntPoint(0, 0));
 	Row(EStreetballState::DribbleStationary, TEXT("dribble"), 3, TEXT("dribble"), 0.0, 0.0, true, FIntPoint(2, 4));
 	Row(EStreetballState::DribbleMoving, TEXT("dribble"), 4, TEXT("dribble"), 1.5, 2.5, true, FIntPoint(0, 0));
 	Row(EStreetballState::JumpShot, TEXT("shot"), 5, TEXT("shot"), 0, 0, false, FIntPoint(0, 0));

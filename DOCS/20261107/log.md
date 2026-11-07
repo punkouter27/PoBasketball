@@ -149,3 +149,12 @@ Unreal `-StreetballStartTier=2 -StreetballMaxTier=2`: 0 falls in 60 s, 5 waypoin
 
 Open: (a) the policy still carries the right arm across the chest — posture, not penetration; needs an arm-posture
 reward term (locomotion only) — awaiting approval; (b) broadcast camera loses the athlete in Tier 2.
+
+## 14:00 — locomotion reward change: arm carry + speed floor (user: "continue" on the proposal)
+
+Policies touched: **locomotion only** (reward + command range; physics and interface unchanged). Balance untouched.
+- `l1_traverse.py`: new `p_arm_carry` (weight 0.5) = mean squared deviation from nominal of shoulder abduction/rotation
+  (both arms) + 0.2 x elbow; shoulder pitch (fore-aft swing) stays free. Logged as `m/arm_carry`.
+- Commanded speed 0.8–3.0 → **1.2–3.0 m/s** in the level, `shared/transition_table.json` ROAM row, the Unreal copy, and
+  the director's built-in fallback table (mirror rule).
+Run `l1_v3_armcarry`: 90 min fine-tune from `l1_v2_armstop/model.pt` (runner `sim/runs/l1_armcarry.ps1`, via WMI).

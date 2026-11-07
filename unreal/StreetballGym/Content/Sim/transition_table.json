@@ -17,7 +17,7 @@
   },
   "states": {
     "STAND":              {"policy": "balance",    "tier": 1, "task": {"layout": "balance"}},
-    "ROAM":               {"policy": "locomotion", "tier": 2, "task": {"layout": "locomotion", "speed_cmd": [0.8, 3.0]}},
+    "ROAM":               {"policy": "locomotion", "tier": 2, "task": {"layout": "locomotion", "speed_cmd": [1.2, 3.0]}},
     "DRIBBLE_STATIONARY": {"policy": "dribble",    "tier": 3, "task": {"layout": "dribble", "speed_cmd": 0.0, "hand_switch_every": [2, 4]}},
     "DRIBBLE_MOVING":     {"policy": "dribble",    "tier": 4, "task": {"layout": "dribble", "speed_cmd": [1.5, 2.5]}},
     "JUMP_SHOT":          {"policy": "shot",       "tier": 5, "task": {"layout": "shot"}},

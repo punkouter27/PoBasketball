@@ -19,7 +19,11 @@ class L1Traverse(Level):
     pass_fraction = 0.90
     n_waypoints = 10
     reach_radius = 0.5
-    speed_range = (0.8, 3.0)
+    speed_range = (1.2, 3.0)     # floor raised from 0.8 (2026-11-07): slow jogging satisfied the task
+    # arm carry (2026-11-07): the policy held the right forearm across the chest. Shoulder pitch (fore-aft
+    # swing) stays free; adduction/rotation and, lightly, elbow bend are pulled toward the nominal pose.
+    arm_carry_idx = (1, 2, 7, 8)          # shoulder_abd_l, shoulder_rot_l, shoulder_abd_r, shoulder_rot_r
+    elbow_idx = (3, 9)
     court = (13.0, 6.5)          # keep waypoints a metre inside the lines
 
     def setup(self) -> None:
@@ -96,16 +100,21 @@ class L1Traverse(Level):
             - 0.05 * self.p_action_rate()
             - 0.001 * self.p_joint_vel()
             - 0.02 * self.p_pose()
+            - 0.5 * self.p_arm_carry()
             - 1e-5 * self.p_torque()
             + 0.1
         )
         self.track_action()
         return r
 
+    def p_arm_carry(self) -> torch.Tensor:
+        dev = self.env.joint_pos() - self.env.nominal
+        return (dev[:, list(self.arm_carry_idx)] ** 2).mean(dim=1) + 0.2 * (dev[:, list(self.elbow_idx)] ** 2).mean(dim=1)
+
     def metrics(self):
         dist, _, _ = self._rel()
         return {"m/waypoints": self.reached.float(), "m/wp_dist": dist,
-                "m/speed": self.env.v_pelvis[:, :2].norm(dim=-1)}
+                "m/speed": self.env.v_pelvis[:, :2].norm(dim=-1), "m/arm_carry": self.p_arm_carry()}
 
     def episode_success(self) -> torch.Tensor:
         return (self.reached >= self.n_waypoints) & ~self.env.fallen
