@@ -91,9 +91,12 @@ def two_sample_acc(pol: torch.Tensor, demo: torch.Tensor, device, steps: int = 4
         loss = 0.5 * (bce(la, torch.zeros_like(la)) + bce(ld, torch.ones_like(ld)))
         opt.zero_grad(); loss.backward(); opt.step()
     with torch.no_grad():
-        acc_p = (D(norm(pol[h:])) < 0).float().mean().item()
-        acc_d = (D(norm(demo[h:])) > 0).float().mean().item()
-    return 0.5 * (acc_p + acc_d)
+        lp, ld = D(norm(pol[h:])), D(norm(demo[h:]))
+        acc = 0.5 * ((lp < 0).float().mean().item() + (ld > 0).float().mean().item())
+        # held-out cross-entropy relative to chance (ln 2): 1.0 = classifier is guessing (indistinguishable),
+        # 0.0 = perfectly confident. Unlike accuracy it keeps ranking policies once accuracy saturates at 100 %.
+        bce = 0.5 * (torch.nn.functional.softplus(lp).mean() + torch.nn.functional.softplus(-ld).mean()).item()
+    return acc, min(1.0, bce / float(np.log(2)))
 
 
 def filmstrip(qs: np.ndarray, start: int, frames: int = 6, step: int = 6) -> str:
@@ -166,20 +169,22 @@ def main():
     ap.add_argument("--amp", required=True)
     ap.add_argument("--demo", default=str(ROOT / "data" / "mocap" / "amp_demo.npz"))
     ap.add_argument("--out", required=True)
+    ap.add_argument("--interim", action="store_true", help="AMP still training: no eval.json yet; fewer rollout envs")
     args = ap.parse_args()
     runs = {"baseline": pathlib.Path(args.baseline), "amp": pathlib.Path(args.amp)}
     demo = torch.as_tensor(np.load(args.demo)["pairs"], dtype=torch.float32)
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     res = {}
     for k, run in runs.items():
-        r = rollout(run / "model.pt")
-        r["human_acc"] = two_sample_acc(r["pairs"], demo, dev)
-        r["eval"] = json.loads((run / "eval.json").read_text(encoding="utf-8"))
+        r = rollout(run / "model.pt", n=256 if args.interim else 1024)
+        r["human_acc"], r["human_score"] = two_sample_acc(r["pairs"], demo, dev)
+        ev_path = run / "eval.json"
+        r["eval"] = json.loads(ev_path.read_text(encoding="utf-8")) if ev_path.exists() else {"success_rate": float("nan"), "fall_rate": float("nan"), "holds_100_straight": "pending"}
         res[k] = r
-        print(f"{k}: classifier acc {r['human_acc']:.3f}, arm carry {r['arm_carry']:.3f}, swing L/R {r['swing_l_deg']:.1f}/{r['swing_r_deg']:.1f} deg, "
+        print(f"{k}: classifier acc {r['human_acc']:.3f}, human score {r['human_score']:.3f}, arm carry {r['arm_carry']:.3f}, swing L/R {r['swing_l_deg']:.1f}/{r['swing_r_deg']:.1f} deg, "
               f"success {r['eval']['success_rate']:.3f}", flush=True)
     perm = torch.randperm(len(demo), generator=torch.Generator().manual_seed(1))
-    mocap_self = two_sample_acc(demo[perm[: len(demo) // 2]], demo[perm[len(demo) // 2:]], dev)
+    mocap_self, mocap_self_score = two_sample_acc(demo[perm[: len(demo) // 2]], demo[perm[len(demo) // 2:]], dev)
     print(f"mocap vs mocap (sanity, should be ~0.5): {mocap_self:.3f}")
 
     mocap_q = np.load(ROOT / "data" / "mocap" / "default_walk_seg0_qpos.npz")["qpos"]
@@ -198,29 +203,38 @@ def main():
                    "AMP style reward", "per step", "What the motion-capture discriminator pays AMP per step. Rising = moving more like the mocap.", 4),
     ]
     ev = {k: r["eval"] for k, r in res.items()}
-    bars = [
+    pending = args.interim or ev['amp']['holds_100_straight'] == 'pending'
+    bars = [] if pending else [
         bar_pair("Task success (200 episodes)", {k: 100 * ev[k]["success_rate"] for k in runs}, "{:.1f} %",
                  "Episodes that reached all 10 waypoints in 90 s without falling. The graduation gate is 90 %.", 0, 100, 90, "gate 90 %"),
         bar_pair("Falls (200 episodes)", {k: 100 * ev[k]["fall_rate"] for k in runs}, "{:.1f} %", "Lower is better.", 0, max(5.0, max(100 * ev[k]["fall_rate"] for k in runs) * 1.3)),
-        bar_pair("Human-likeness: can a fresh classifier tell it from mocap?", {k: 100 * res[k]["human_acc"] for k in runs}, "{:.1f} %",
-                 f"Accuracy of a classifier trained from scratch to separate the policy's motion from the LocoMuJoCo motion capture. 50 % means it cannot tell them apart (most human-like); 100 % means trivially different. Mocap against itself scores {100*mocap_self:.1f} %.",
-                 50, 100, 50, "indistinguishable"),
+    ]
+    bars += [
+        bar_pair("Human-likeness score", {k: 100 * res[k]["human_score"] for k in runs}, "{:.1f}",
+                 f"A classifier trained from scratch tries to tell the policy's motion from the LocoMuJoCo motion capture. The score is how unsure it stays on held-out data: 100 = it is guessing (moves like the mocap), 0 = completely sure it is not mocap. Higher is more human-like. Mocap against itself scores {100*mocap_self_score:.0f}; classifier accuracy is {100*res['baseline']['human_acc']:.0f} % original vs {100*res['amp']['human_acc']:.0f} % AMP.",
+                 0, 100),
         bar_pair("Arm-carry penalty (rollouts)", {k: res[k]["arm_carry"] for k in runs}, "{:.3f}", "Lower = shoulders and elbows nearer a relaxed pose.", 0),
         bar_pair("Arm swing left/right symmetry", {k: 100 * res[k]["swing_symmetry"] for k in runs}, "{:.0f} %",
                  "Smaller arm swing divided by the larger one. 100 % = both arms swing equally (the original policy favoured carrying the right arm).", 0, 100),
     ]
     rows = "".join(f"<tr><td>{n}</td><td>{100*ev['baseline'][f]:.1f} %</td><td>{100*ev['amp'][f]:.1f} %</td></tr>" for n, f in (("Success", "success_rate"), ("Falls", "fall_rate")))
     rows += "".join(f"<tr><td>{n}</td><td>{fmt.format(res['baseline'][f])}</td><td>{fmt.format(res['amp'][f])}</td></tr>" for n, f, fmt in (
-        ("Human-likeness classifier accuracy (50 % best)", "human_acc", "{:.3f}"), ("Arm-carry penalty", "arm_carry", "{:.3f}"),
+        ("Human-likeness score (100 best)", "human_score", "{:.3f}"), ("Classifier accuracy vs mocap (50 % best)", "human_acc", "{:.3f}"), ("Arm-carry penalty", "arm_carry", "{:.3f}"),
         ("Arm swing left (deg, std)", "swing_l_deg", "{:.1f}"), ("Arm swing right (deg, std)", "swing_r_deg", "{:.1f}"),
         ("Arm swing symmetry", "swing_symmetry", "{:.2f}"), ("Speed in style rollouts (m/s)", "speed", "{:.2f}")))
     rows += f"<tr><td>Holds 100 straight</td><td>{ev['baseline']['holds_100_straight']}</td><td>{ev['amp']['holds_100_straight']}</td></tr>"
     better_task = "AMP" if ev["amp"]["success_rate"] > ev["baseline"]["success_rate"] else "the original RL"
-    better_style = "AMP" if res["amp"]["human_acc"] < res["baseline"]["human_acc"] else "the original RL"
-    tldr = (f"Task: {better_task} scores higher ({100*ev['baseline']['success_rate']:.0f} % original vs {100*ev['amp']['success_rate']:.0f} % AMP, gate 90 %). "
-            f"Style: {better_style} moves more like the motion capture (classifier accuracy {100*res['baseline']['human_acc']:.0f} % vs {100*res['amp']['human_acc']:.0f} %; 50 % = indistinguishable).")
+    better_style = "AMP" if res["amp"]["human_score"] > res["baseline"]["human_score"] else "the original RL"
+    if pending:
+        amp_steps = logs["amp"][-1]["steps"] / 1e6 if logs["amp"] else 0
+        tldr = (f"Interim snapshot: AMP is still training ({amp_steps:.0f} M steps so far) and has no 200-episode evaluation yet. "
+                f"Style so far: human-likeness {100*res['baseline']['human_score']:.0f} original vs {100*res['amp']['human_score']:.0f} AMP (100 = indistinguishable from mocap); "
+                f"arm-swing symmetry {100*res['baseline']['swing_symmetry']:.0f} % vs {100*res['amp']['swing_symmetry']:.0f} %.")
+    else:
+        tldr = (f"Task: {better_task} scores higher ({100*ev['baseline']['success_rate']:.0f} % original vs {100*ev['amp']['success_rate']:.0f} % AMP, gate 90 %). "
+                f"Style: {better_style} moves more like the motion capture (human-likeness {100*res['baseline']['human_score']:.0f} vs {100*res['amp']['human_score']:.0f}; 100 = indistinguishable).")
     (pathlib.Path(args.out).with_suffix(".json")).write_text(json.dumps({k: {kk: (vv if not isinstance(vv, (np.ndarray, torch.Tensor)) else None)
-        for kk, vv in r.items() if kk not in ("pairs", "film")} for k, r in res.items()} | {"mocap_self_acc": mocap_self}, indent=2, default=float), encoding="utf-8")
+        for kk, vv in r.items() if kk not in ("pairs", "film")} for k, r in res.items()} | {"mocap_self_acc": mocap_self, "mocap_self_score": mocap_self_score}, indent=2, default=float), encoding="utf-8")
     page = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Original RL vs AMP</title><style>
 :root{{--surface:#fcfcfb;--text:#0b0b0b;--text2:#52514e;--grid:#e6e5e1;--c1:{COL['baseline'][0]};--c2:{COL['amp'][0]}}}

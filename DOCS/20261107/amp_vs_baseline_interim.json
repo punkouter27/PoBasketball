@@ -1,0 +1,50 @@
+{
+  "baseline": {
+    "arm_carry": 0.0688986834629318,
+    "swing_l_deg": 13.191783820506668,
+    "swing_r_deg": 34.071626863232396,
+    "swing_symmetry": 0.38717798458700176,
+    "speed": 1.9419497066855556,
+    "human_acc": 0.999910295009613,
+    "human_score": 0.0007172612032546802,
+    "eval": {
+      "level": "l1_traverse",
+      "checkpoint": "runs\\l1_v3_armcarry\\model.pt",
+      "episodes": 200,
+      "push_scale": 1.0,
+      "push_max_N": 150.0,
+      "success_rate": 0.9699999690055847,
+      "pass_fraction": 0.9,
+      "passed": true,
+      "holds_100_straight": true,
+      "nan_grads": 0,
+      "interface_sha": "ccfa18d6f9aaf2a5",
+      "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
+      "fall_rate": 0.02499999850988388,
+      "mean_episode_s": 59.31669616699219,
+      "metrics": {
+        "m/waypoints": 4.4627532958984375,
+        "m/wp_dist": 7.371339321136475,
+        "m/speed": 1.8686981201171875,
+        "m/arm_carry": 0.06844513863325119
+      },
+      "wall_s": 156.36873529999866
+    }
+  },
+  "amp": {
+    "arm_carry": 0.23247841883007167,
+    "swing_l_deg": 17.227065558565727,
+    "swing_r_deg": 25.32877811239368,
+    "swing_symmetry": 0.6801380422743848,
+    "speed": 1.9920583393098934,
+    "human_acc": 0.9999700784683228,
+    "human_score": 0.0001968979026174003,
+    "eval": {
+      "success_rate": NaN,
+      "fall_rate": NaN,
+      "holds_100_straight": "pending"
+    }
+  },
+  "mocap_self_acc": 0.4996113181114197,
+  "mocap_self_score": 1.0
+}
