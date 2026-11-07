@@ -1,0 +1,3 @@
+TensorFlow installation not found - running with reduced feature set.
+E1106 21:47:17.215579 26816 program.py:300] TensorBoard could not bind to port 6006, it was already in use
+ERROR: TensorBoard could not bind to port 6006, it was already in use
