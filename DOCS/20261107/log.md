@@ -178,3 +178,25 @@ Run `l1_v3_armcarry`: 90 min fine-tune from `l1_v2_armstop/model.pt` (runner `si
 | Arm-carry penalty | ~0.30 | 0.068 |
 Exported → `shared/policies/locomotion.onnx`, `runs/production/locomotion.*`, Unreal. NaN grads 0.
 This is the hand-tuned-reward **baseline** for the AMP comparison requested next.
+
+## 15:40 — AMP (MimicKit) + LocoMuJoCo mocap, alongside the original RL (user request: compare the two)
+
+Approach: MimicKit's AMP agent (xbpeng/MimicKit `learning/amp_agent.py`, `amp_model.py`) ported into our trainer as a
+**second driver** `sim/streetball/train_amp.py`; the baseline `train.py` is untouched. MimicKit itself runs on Isaac
+Gym/Lab/Newton and its policies would not fit the frozen 119-float interface Unreal uses, so only its method is ported.
+Same env, PPO, policy interface and checkpoint format → evaluate/export/Unreal unchanged.
+
+- `streetball/amp.py`: style features (pelvis height, pelvis tilt, heading-frame velocities, 21 joint angles + velocities,
+  hands/feet/head relative to the pelvis), discriminator (1024-512), MimicKit losses (BCE + gradient penalty 5 + logit reg),
+  style reward `-log(1-sigmoid(D)) x 2`, replay buffer. Two-frame transitions at 50 Hz.
+- `tools/retarget_loco_mujoco.py`: LocoMuJoCo **SkeletonTorque** clips → our humanoid by joint name, signs calibrated
+  functionally (effector displacement), elbow by convention, wrists zeroed; root re-framed and scaled (0.965); floor re-levelled;
+  resampled 40/30 Hz → 50 Hz. 14 clips, 55 min (walk, run, sprint, walkturn, random walk, balance, step-in-place).
+  Visual check `tools/render_mocap.py`. Wrists and ankle roll are excluded from the features (constant in the mocap; the first
+  smoke test showed the discriminator separating on them instantly).
+- Level `l1_traverse_amp` = `l1_traverse` without the hand-written pose/arm-carry penalties (style comes from AMP).
+- **Data licence**: LocoMuJoCo datasets are CC BY-NC-ND 4.0 — non-commercial; retargeted data in `sim/data/mocap/` is
+  git-ignored and must not be redistributed or shipped. Raw clips/models live outside the repo in `../ext/`.
+
+Comparison run `l1_amp_v1`: 90 min from `l1_v2_armstop/model.pt` (same init, budget, envs, pushes, speeds as the
+baseline `l1_v3_armcarry`), evaluated with the same `l1_traverse` success test.

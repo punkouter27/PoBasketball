@@ -21,3 +21,6 @@ unreal/StreetballGym/Content/Sim/policies/
 
 # Local scratch
 SCREENSHOTS/*.png
+
+# AMP mocap (LocoMuJoCo data, CC BY-NC-ND 4.0: never commit or ship)
+sim/data/mocap/

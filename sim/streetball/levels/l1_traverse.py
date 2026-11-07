@@ -24,6 +24,7 @@ class L1Traverse(Level):
     # swing) stays free; adduction/rotation and, lightly, elbow bend are pulled toward the nominal pose.
     arm_carry_idx = (1, 2, 7, 8)          # shoulder_abd_l, shoulder_rot_l, shoulder_abd_r, shoulder_rot_r
     elbow_idx = (3, 9)
+    style_penalty_w = 1.0        # 0 in the AMP variant: style comes from the motion-capture discriminator instead
     court = (13.0, 6.5)          # keep waypoints a metre inside the lines
 
     def setup(self) -> None:
@@ -99,8 +100,8 @@ class L1Traverse(Level):
             + 0.3 * self.r_height(width=0.1)
             - 0.05 * self.p_action_rate()
             - 0.001 * self.p_joint_vel()
-            - 0.02 * self.p_pose()
-            - 0.5 * self.p_arm_carry()
+            - 0.02 * self.style_penalty_w * self.p_pose()
+            - 0.5 * self.style_penalty_w * self.p_arm_carry()
             - 1e-5 * self.p_torque()
             + 0.1
         )
@@ -123,3 +124,10 @@ class L1Traverse(Level):
         done = self.reached >= self.n_waypoints
         off = (self.env.p_pelvis[:, 0].abs() > 15.5) | (self.env.p_pelvis[:, 1].abs() > 9.0)
         return done | off
+
+
+class L1TraverseAMP(L1Traverse):
+    """Same task, resets, commands and success test as L1Traverse; the hand-written style penalties (pose, arm carry)
+    are off because train_amp.py adds the AMP style reward learned from LocoMuJoCo motion capture."""
+    name = "l1_traverse_amp"
+    style_penalty_w = 0.0
