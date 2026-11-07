@@ -40,3 +40,7 @@ Goldens regenerated: `shared/golden/obs_golden.npz`, `obs_golden.bin`, `replay_r
 Observed in `l2a_dribble_r_q1` at 59 M steps: 50 bounces per episode but apex 0.20 m (a low "tap" dribble); the apex bonus only fired inside a 0.15 m band around 1.0 m, so there was no gradient toward waist height. Change in `sim/streetball/levels/l2_dribble.py`: apex-bonus band widened to 0.25 m and a dense term added, 0.5 x exp(-((apex_pred - 1.0)/0.25)^2) while the ball rises, with apex_pred = z + vz^2/2g.
 
 Policies touched: dribble family only (untrained; the running l2a stage keeps the old reward, later stages and the l2a retry import the new one). Interface unchanged.
+
+## 02:30 — second dribble reward fix
+
+L2b (first stage with the dense apex term) still tapped at 25 cm: the tap was paid by the "near the spot" and "in control" terms. Now `r_spot` is scaled by 0.3 + 0.7 x [last apex >= 0.6 m], micro-bounces (apex < 0.5 m) cost -1.0 each, dense apex weight 0.5 -> 2.0. Dribble family only.

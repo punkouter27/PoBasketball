@@ -46,6 +46,7 @@ class L2Dribble(Level):
         self.prev_floor = z(N, dtype=torch.bool)
         self.bounce_event = z(N, dtype=torch.bool)
         self.clean_event = z(N, dtype=torch.bool)
+        self.last_apex = torch.full((N,), 1.0, device=dev)   # apex of the most recent completed flight
 
     def _set_hand(self, ids: torch.Tensor):
         env = self.env
@@ -85,6 +86,7 @@ class L2Dribble(Level):
         self.streak[ids] = 0; self.bounces[ids] = 0; self.switches[ids] = 0
         self.apex[ids] = h; self.palm_since[ids] = True; self.near_since[ids] = True
         self.prev_floor[ids] = False
+        self.last_apex[ids] = 1.0
         self._last_action[ids] = 0.0
 
     def task_block(self, ids):
@@ -114,6 +116,9 @@ class L2Dribble(Level):
         self.prev_floor = floor
         apex_before = self.apex.clone()                        # apex of the flight that just ended
         self.apex = torch.where(self.bounce_event, ball_z, torch.maximum(self.apex, ball_z))
+        self.last_apex = torch.where(self.bounce_event, apex_before, self.last_apex)
+        healthy = (self.last_apex >= 0.6).float()              # a real dribble, not a micro-bounce tap
+        p_tap = (self.bounce_event & (apex_before < 0.5)).float()
         self.palm_since |= self._active_palm_contact()
         self.near_since &= horiz < 0.6
         clean = self.bounce_event & self.palm_since & self.near_since & (apex_before >= self.apex_band[0]) & (apex_before <= self.apex_band[1])
@@ -132,7 +137,7 @@ class L2Dribble(Level):
         self.near_since = torch.where(self.bounce_event, torch.ones_like(self.near_since), self.near_since)
 
         # ---- shaping
-        r_spot = torch.exp(-(spot_d / 0.25) ** 2)
+        r_spot = torch.exp(-(spot_d / 0.25) ** 2) * (0.3 + 0.7 * healthy)   # staying near the spot pays mostly for real dribbles
         r_palm = torch.exp(-(self._active_palm_dist() / 0.25) ** 2) * (ball_z > 0.5).float()
         r_apex = torch.exp(-((apex_before - self.apex_target) / 0.25) ** 2) * self.bounce_event.float()
         # Dense shaping (added after the first queue run learned a 20 cm "tap" dribble): while the ball
@@ -147,8 +152,9 @@ class L2Dribble(Level):
             1.0 * r_spot
             + 0.5 * r_palm
             + 5.0 * r_apex
-            + 0.5 * r_apex_dense
+            + 2.0 * r_apex_dense
             + 3.0 * clean.float()
+            - 1.0 * p_tap                                             # micro-bounces (< 0.5 m apex) cost
             + 0.5 * self.r_upright()
             + 0.3 * self.r_height(width=0.1)
             - 2.0 * p_high

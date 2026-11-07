@@ -63,6 +63,7 @@ class L4JumpShot(L2Dribble):
         self.start_xy[ids] = xy
         self.streak[ids] = 0; self.bounces[ids] = 0; self.switches[ids] = 0
         self.apex[ids] = h; self.palm_since[ids] = True; self.near_since[ids] = True; self.prev_floor[ids] = False
+        self.last_apex[ids] = 1.0
         self.trigger_t[ids] = env.rand(k, lo=1.0, hi=3.0)
         for t in (self.triggered, self.released, self.scored, self.missed, self.jumped, self.gathered):
             t[ids] = False
