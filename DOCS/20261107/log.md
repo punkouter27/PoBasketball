@@ -120,3 +120,15 @@ Next session, in order:
 3. Regenerate goldens on the new physics (`replay_recorder.py`, obs golden) and add an "upright at end" assertion to the Step 4 gate.
 4. Locomotion below 90 %: more steps with the commanded-speed floor at 1.2 m/s.
 5. Dribble family from the locomotion checkpoint with the fixed reward.
+
+## 12:15 (local) — balance re-graduated on the arm-collision physics
+
+The first runner was killed with the agent session at 43.5 of 45 min (model.pt saved at 12:02); evaluation run by hand.
+| Checkpoint | Success (200 ep, 100 N pushes) | Holds 100 straight | Falls (now counted correctly) | NaN grads |
+|---|---|---|---|---|
+| `l0_v5_armstop/model.pt` (63.9 M steps) | **100 %** | yes | 0 % | 0 |
+Exported → `shared/policies/balance.onnx`, `runs/production/balance.*`, Unreal `Content/Sim/policies/balance.onnx`
+(physics_sha `ac1c8d03c1e036df`, ORT vs torch 1.0e-6).
+
+Locomotion fine-tune `l1_v2_armstop` (90 min) restarted at 12:16 via WMI `Win32_Process.Create` so it survives the agent
+session (Start-Process children die with it). Runner `sim/runs/l1_armstop_finetune.ps1`; log `sim/runs/armstop_log.txt`.
