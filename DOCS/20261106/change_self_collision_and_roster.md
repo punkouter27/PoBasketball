@@ -34,3 +34,9 @@ Goldens regenerated: `shared/golden/obs_golden.npz`, `obs_golden.bin`, `replay_r
 
 - Unreal headless group (B2–B7 + gates) on the new assets and goldens.
 - L0 evaluation on `l0_v4` once trained.
+
+## 01:45 — dribble reward shaping change (during the 8 h queue)
+
+Observed in `l2a_dribble_r_q1` at 59 M steps: 50 bounces per episode but apex 0.20 m (a low "tap" dribble); the apex bonus only fired inside a 0.15 m band around 1.0 m, so there was no gradient toward waist height. Change in `sim/streetball/levels/l2_dribble.py`: apex-bonus band widened to 0.25 m and a dense term added, 0.5 x exp(-((apex_pred - 1.0)/0.25)^2) while the ball rises, with apex_pred = z + vz^2/2g.
+
+Policies touched: dribble family only (untrained; the running l2a stage keeps the old reward, later stages and the l2a retry import the new one). Interface unchanged.

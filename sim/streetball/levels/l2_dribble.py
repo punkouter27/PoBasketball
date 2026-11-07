@@ -134,13 +134,20 @@ class L2Dribble(Level):
         # ---- shaping
         r_spot = torch.exp(-(spot_d / 0.25) ** 2)
         r_palm = torch.exp(-(self._active_palm_dist() / 0.25) ** 2) * (ball_z > 0.5).float()
-        r_apex = torch.exp(-((apex_before - self.apex_target) / 0.15) ** 2) * self.bounce_event.float()
+        r_apex = torch.exp(-((apex_before - self.apex_target) / 0.25) ** 2) * self.bounce_event.float()
+        # Dense shaping (added after the first queue run learned a 20 cm "tap" dribble): while the ball
+        # rises, reward the apex it is heading for, apex_pred = z + vz^2 / 2g, against the target.
+        vz = env.v_ball[:, 2]
+        apex_pred = ball_z + (vz.clamp(min=0.0) ** 2) / (2 * 9.81)
+        rising = (vz > 0.2) & (ball_z > 0.13)
+        r_apex_dense = torch.exp(-((apex_pred - self.apex_target) / 0.25) ** 2) * rising.float()
         p_high = (ball_z - 1.25).clamp(min=0.0)                   # carrying / holding
         p_drift = (env.p_pelvis[:, :2] - self.start_xy).norm(dim=-1)
         r = (
             1.0 * r_spot
             + 0.5 * r_palm
             + 5.0 * r_apex
+            + 0.5 * r_apex_dense
             + 3.0 * clean.float()
             + 0.5 * self.r_upright()
             + 0.3 * self.r_height(width=0.1)
