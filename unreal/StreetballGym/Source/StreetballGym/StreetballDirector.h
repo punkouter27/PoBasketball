@@ -101,6 +101,9 @@ public:
 	/** Tiers 1-2 never use the ball: park it where training parks it (l0_stand / l1_traverse on_reset). */
 	static void ParkBallForTier(int32 Tier, FStreetballResetSpec& Spec);
 
+	/** Skip ahead (command line -StreetballStartTier=N): earlier tiers are marked mastered. */
+	void StartAtTier(int32 Tier);
+
 	/** Fill State/PolicyName/Task for the current state without advancing any logic. */
 	void Describe(const FTrackedState& S, FStreetballDirectorOutput& Out) const;
 

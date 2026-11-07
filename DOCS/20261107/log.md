@@ -84,3 +84,26 @@ Policies touched: none (Unreal director reset rule only; physics, interface and 
 
 Still open from the diagnosis: `info["fallen"]` cleared by the auto-reset (reported fall rates read 0 %), and the
 Step 4 gate needs an "athlete still upright" assertion.
+
+## 16:30 — physics change: forearm/torso self-collision + shoulder stop (user: "right arm intersecting body during locomotion, fix")
+
+Cause: `humanoid.xml` excluded torso-lowerarm and pelvis-hand from self-collision ("overlap in the A-pose", which no longer
+holds: 8.4 cm clearance at the stand keyframe). Measured on CPU with the locomotion candidate: right forearm 15.5 cm inside the torso.
+
+Policies touched (UU_AGENT §3): **balance** (production), **locomotion** (candidate). Dribble/scramble/shot untrained.
+| Change | Kind | Action |
+|---|---|---|
+| Removed excludes torso-lowerarm_l/r, pelvis-hand_l/r (pelvis-calf kept) | body physics | re-evaluate + fine-tune balance and locomotion |
+| shoulder_abd physical stop at -5 deg anatomical (was -30); actuator ctrlrange and obs spec **unchanged** | body physics | same; interface sha unchanged |
+| `env_base.step`: `info["fallen"]` is now a clone (was cleared by the auto-reset; all past fall rates read 0 %) | tooling | evaluations now report real falls |
+
+Results on the new physics: walking forearm-torso min distance -3 mm (contact, was -155 mm); locomotion still walks.
+New humanoid.xml sha `ac1c8d03c1e036df`. Tests: 13/14 pass; `test_warp_vs_cpu_drift` fails on the OLD model too (Warp worlds diverge 2.7e-2) — pre-existing, open.
+
+Balance re-evaluation with real fall counting (200 episodes, 100 N pushes):
+| Physics | Success | Falls |
+|---|---|---|
+| old (frozen 01a3f59b) | 91.5 % | 5.5 % |
+| new (arm collision) | 87.5 % | 9.0 % |
+Balance was already below its 95 % gate once falls were counted correctly; the 98 % graduation figure did not reproduce.
+Plan: fine-tune balance 45 min (`l0_v5_armstop`) then locomotion 90 min (`l1_v2_armstop`) from their checkpoints, evaluate both.

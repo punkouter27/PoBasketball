@@ -99,10 +99,11 @@ def main() -> None:
     joints: list[dict] = []     # ordered joint spec rows for humanoid_spec.json
     actuators: list[str] = []
 
-    def hinge(name, group, axis, lo, hi, nominal, offset_deg=0.0) -> str:
+    def hinge(name, group, axis, lo, hi, nominal, offset_deg=0.0, stop_lo=None) -> str:
         """Add a hinge joint. lo/hi/nominal are anatomical degrees; offset_deg is the
         anatomical angle already present in the reference pose, so the joint range
-        stored in the model is shifted by -offset."""
+        stored in the model is shifted by -offset. stop_lo (anatomical degrees) tightens only
+        the physical joint stop; the actuator ctrlrange and the policy interface keep lo."""
         lo_m, hi_m, nom_m = lo - offset_deg, hi - offset_deg, nominal - offset_deg
         kp, kv, tq = GAINS[group]
         joints.append(dict(name=name, group=group, axis=[float(a) for a in axis],
@@ -112,7 +113,8 @@ def main() -> None:
             f'    <position name="{name}" joint="{name}" kp="{kp}" kv="{kv}" '
             f'ctrlrange="{lo_m * D2R:.4f} {hi_m * D2R:.4f}" forcerange="{-tq} {tq}"/>'
         )
-        return (f'<joint name="{name}" axis="{f3(axis)}" range="{lo_m:.2f} {hi_m:.2f}"/>')
+        stop_m = lo_m if stop_lo is None else stop_lo - offset_deg
+        return (f'<joint name="{name}" axis="{f3(axis)}" range="{stop_m:.2f} {hi_m:.2f}"/>')
 
     def capsule(name, a, b, r, mass, origin) -> str:
         return (f'<geom name="{name}" type="capsule" fromto="{f3(a - origin)} {f3(b - origin)}" '
@@ -139,7 +141,8 @@ def main() -> None:
         palm_c = wr + 0.07 * hand_dir
 
         j_pitch = hinge(f"shoulder_pitch_{s}", "shoulder", [0, -1, 0], -60, 180, 15)
-        j_abd = hinge(f"shoulder_abd_{s}", "shoulder", [sgn, 0, 0], -30, 150, 10, offset_deg=abd_now)
+        j_abd = hinge(f"shoulder_abd_{s}", "shoulder", [sgn, 0, 0], -30, 150, 10, offset_deg=abd_now,
+                      stop_lo=-5)   # physical stop before the forearm reaches the torso (contact at ~-8 deg)
         j_rot = hinge(f"shoulder_rot_{s}", "shoulder", [0, 0, sgn], -90, 90, 0)
         j_elb = hinge(f"elbow_{s}", "elbow", elbow_axis, 0, 145, 30, offset_deg=elbow_now)
         j_wf = hinge(f"wrist_flex_{s}", "wrist", elbow_axis, -70, 80, 0)
@@ -260,13 +263,11 @@ def main() -> None:
   </worldbody>
 
   <contact>
-    <!-- Non-adjacent pairs that touch or overlap in the A-pose; everything else self-collides. -->
+    <!-- Non-adjacent pairs excluded from self-collision; everything else self-collides.
+         Forearm-torso and hand-pelvis collide (2026-11-07): the locomotion policy pushed the right forearm
+         15 cm into the torso while the pairs were excluded. They have >= 8 cm clearance at the stand keyframe. -->
     <exclude body1="pelvis" body2="calf_l"/>
     <exclude body1="pelvis" body2="calf_r"/>
-    <exclude body1="torso" body2="lowerarm_l"/>
-    <exclude body1="torso" body2="lowerarm_r"/>
-    <exclude body1="pelvis" body2="hand_l"/>
-    <exclude body1="pelvis" body2="hand_r"/>
   </contact>
 
   <actuator>

@@ -197,6 +197,12 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		int32 MaxTier = 5;
 		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballMaxTier="), MaxTier)) Director->MaxTier = FMath::Clamp(MaxTier, 1, 5);
 		if (Director->MaxTier < 5) UE_LOG(LogStreetball, Log, TEXT("Director: tiers capped at %d"), Director->MaxTier);
+		int32 StartTier = 1;
+		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballStartTier="), StartTier) && StartTier > 1)
+		{
+			Director->StartAtTier(FMath::Min(StartTier, Director->MaxTier));
+			UE_LOG(LogStreetball, Log, TEXT("Director: starting at tier %d"), Director->GetProgress().ActiveTier);
+		}
 	}
 
 	// ---- policies: one per state, trained file if present else the dummy ----

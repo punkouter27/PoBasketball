@@ -30,7 +30,7 @@
         <body name="chest_anchor" pos="-0.02799 0.00000 0.34862"><inertial pos="0 0 0" mass="0.001" diaginertia="1e-6 1e-6 1e-6"/>
         <body name="upperarm_l" pos="-0.03082 0.19010 0.02481">
           <joint name="shoulder_pitch_l" axis="0.00000 -1.00000 0.00000" range="-60.00 180.00"/>
-          <joint name="shoulder_abd_l" axis="1.00000 0.00000 0.00000" range="-65.21 114.79"/>
+          <joint name="shoulder_abd_l" axis="1.00000 0.00000 0.00000" range="-40.21 114.79"/>
           <joint name="shoulder_rot_l" axis="0.00000 0.00000 1.00000" range="-90.00 90.00"/>
           <geom name="upperarm_l" type="capsule" fromto="0.00000 0.00000 0.00000 0.00650 0.15997 -0.22692" size="0.045" mass="2.24"/>
           <body name="lowerarm_l" pos="0.00650 0.15997 -0.22692">
@@ -46,7 +46,7 @@
         </body>
         <body name="upperarm_r" pos="-0.03082 -0.19010 0.02481">
           <joint name="shoulder_pitch_r" axis="0.00000 -1.00000 0.00000" range="-60.00 180.00"/>
-          <joint name="shoulder_abd_r" axis="-1.00000 0.00000 0.00000" range="-65.21 114.79"/>
+          <joint name="shoulder_abd_r" axis="-1.00000 0.00000 0.00000" range="-40.21 114.79"/>
           <joint name="shoulder_rot_r" axis="0.00000 0.00000 -1.00000" range="-90.00 90.00"/>
           <geom name="upperarm_r" type="capsule" fromto="0.00000 0.00000 0.00000 0.00650 -0.15997 -0.22691" size="0.045" mass="2.24"/>
           <body name="lowerarm_r" pos="0.00650 -0.15997 -0.22691">
@@ -98,13 +98,11 @@
   </worldbody>
 
   <contact>
-    <!-- Non-adjacent pairs that touch or overlap in the A-pose; everything else self-collides. -->
+    <!-- Non-adjacent pairs excluded from self-collision; everything else self-collides.
+         Forearm-torso and hand-pelvis collide (2026-11-07): the locomotion policy pushed the right forearm
+         15 cm into the torso while the pairs were excluded. They have >= 8 cm clearance at the stand keyframe. -->
     <exclude body1="pelvis" body2="calf_l"/>
     <exclude body1="pelvis" body2="calf_r"/>
-    <exclude body1="torso" body2="lowerarm_l"/>
-    <exclude body1="torso" body2="lowerarm_r"/>
-    <exclude body1="pelvis" body2="hand_l"/>
-    <exclude body1="pelvis" body2="hand_r"/>
   </contact>
 
   <actuator>

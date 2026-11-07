@@ -241,6 +241,14 @@ void UStreetballDirector::ParkBallForTier(int32 Tier, FStreetballResetSpec& Spec
 	else if (Tier == 2) { Spec.bPlaceBall = true; Spec.BallPos = FVector3d(0.0, 8.0, BallR); }            // l1_traverse: off court
 }
 
+void UStreetballDirector::StartAtTier(int32 Tier)
+{
+	Tier = FMath::Clamp(Tier, 1, 5);
+	for (int32 i = 0; i < Tier - 1; ++i) P.Mastered[i] = true;
+	FTrackedState S;
+	EnterTier(Tier, S);
+}
+
 void UStreetballDirector::RequestShotReset(FStreetballDirectorOutput& Out)
 {
 	// Random spot inside the 6.75 m arc, facing the east rim; ball under the right hand.

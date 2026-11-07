@@ -415,7 +415,8 @@ class StreetballEnv:
         done = term | trunc
         self.ep_return += reward
         self.ep_len += 1
-        info = {"terminated": term, "truncated": trunc, "fallen": self.fallen, "nan": nan,
+        # clone: the auto-reset below clears self.fallen in place before the caller reads info
+        info = {"terminated": term, "truncated": trunc, "fallen": self.fallen.clone(), "nan": nan,
                 "time_outs": trunc & ~term}
         info.update(self.level.metrics())
         info["success"] = done & self.level.episode_success()   # evaluated before the auto-reset
