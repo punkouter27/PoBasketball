@@ -132,3 +132,20 @@ Exported → `shared/policies/balance.onnx`, `runs/production/balance.*`, Unreal
 
 Locomotion fine-tune `l1_v2_armstop` (90 min) restarted at 12:16 via WMI `Win32_Process.Create` so it survives the agent
 session (Start-Process children die with it). Runner `sim/runs/l1_armstop_finetune.ps1`; log `sim/runs/armstop_log.txt`.
+
+## 13:50 — locomotion fine-tune on the arm-collision physics (`l1_v2_armstop`, 90 min, ~170 M steps)
+
+| Metric (200 episodes) | Before (`l1_traverse_q2`) | After |
+|---|---|---|
+| Success (10 waypoints in 90 s) | 82 % | **86.5 %** (gate 90 %, not passed) |
+| Falls (counted correctly) | n/a (counter bug) | 4 % |
+| Speed | 1.6 m/s | 1.66 m/s |
+| Right forearm vs torso, 10 s CPU walk | 155 mm inside | 6 mm contact |
+
+Exported as an Unreal preview (`Content/Sim/policies/locomotion.onnx`), candidate checkpoint updated; not production.
+Unreal `-StreetballStartTier=2 -StreetballMaxTier=2`: 0 falls in 60 s, 5 waypoints. Screenshots:
+`SCREENSHOTS/20261107_tier2_arm_collision.png` (right forearm carried across the chest, resting on it, no deep clipping),
+`SCREENSHOTS/20261107_tier2_camera_lost.png` (broadcast camera framed the fence, athlete out of shot).
+
+Open: (a) the policy still carries the right arm across the chest — posture, not penetration; needs an arm-posture
+reward term (locomotion only) — awaiting approval; (b) broadcast camera loses the athlete in Tier 2.
