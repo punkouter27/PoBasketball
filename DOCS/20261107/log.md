@@ -166,3 +166,15 @@ Run `l1_v3_armcarry`: 90 min fine-tune from `l1_v2_armstop/model.pt` (runner `si
 - Headless `Automation RunTests Streetball`: **15/15 pass**. Step 4 live-physics gate with the re-graduated balance policy
   on the arm-collision physics: root 0.0000 cm, joints 0.00002°, obs 8.2e-7, 0/250 foot mismatches, 0.054 ms inference,
   **lowest pelvis 0.929 m** (new upright requirement ≥ 0.70 m). Report: `DOCS/phase_reports/Step4_gate_unreal.md`.
+
+## 15:26 — locomotion GRADUATED (`l1_v3_armcarry`, arm-carry penalty + 1.2 m/s floor, 90 min from `l1_v2_armstop`)
+
+| Metric (200 episodes) | `l1_v2_armstop` | `l1_v3_armcarry` |
+|---|---|---|
+| Success (10 waypoints, 90 s) | 86.5 % | **97 %** (gate 90 %) |
+| Holds 100 straight | no | **yes** |
+| Falls | 4 % | 2.5 % |
+| Speed | 1.66 m/s | 1.87 m/s |
+| Arm-carry penalty | ~0.30 | 0.068 |
+Exported → `shared/policies/locomotion.onnx`, `runs/production/locomotion.*`, Unreal. NaN grads 0.
+This is the hand-tuned-reward **baseline** for the AMP comparison requested next.

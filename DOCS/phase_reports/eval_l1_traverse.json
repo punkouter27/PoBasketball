@@ -1,22 +1,23 @@
 {
   "level": "l1_traverse",
-  "checkpoint": "C:\\Users\\punko\\Downloads\\CODE_MATT\\PoBasketball\\sim\\runs\\l1_traverse_q2\\model.pt",
+  "checkpoint": "runs\\l1_v3_armcarry\\model.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 150.0,
-  "success_rate": 0.8199999928474426,
+  "success_rate": 0.9699999690055847,
   "pass_fraction": 0.9,
-  "passed": false,
-  "holds_100_straight": false,
+  "passed": true,
+  "holds_100_straight": true,
   "nan_grads": 0,
   "interface_sha": "ccfa18d6f9aaf2a5",
-  "physics_sha": "01a3f59b037ef5e7+1eba556a91fae556",
-  "fall_rate": 0.0,
-  "mean_episode_s": 65.97978973388672,
+  "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
+  "fall_rate": 0.02499999850988388,
+  "mean_episode_s": 59.31669616699219,
   "metrics": {
-    "m/waypoints": 4.2291460037231445,
-    "m/wp_dist": 7.546487331390381,
-    "m/speed": 1.687703251838684
+    "m/waypoints": 4.4627532958984375,
+    "m/wp_dist": 7.371339321136475,
+    "m/speed": 1.8686981201171875,
+    "m/arm_carry": 0.06844513863325119
   },
-  "wall_s": 89.22384149998834
+  "wall_s": 156.36873529999866
 }
