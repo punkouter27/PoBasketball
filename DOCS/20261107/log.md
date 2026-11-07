@@ -47,3 +47,27 @@ Zero falls and zero NaN-gradient batches in every evaluation.
   pruned after 2026-11-08.
 - One operational mistake during the night: I killed the pre-fix l3a stage early on purpose; the clock in my notes
   was ~20 min ahead of the real time, so the DOCS timestamps for the 03:xx/04:xx entries are approximate.
+
+## 15:50 — "play scene": athlete falls every 1.4 s in Tier 1 (diagnosed, not yet fixed)
+
+Observed in `-game`: `HARD_RESET (fallen) in tier 1` every 41 frames with the production balance policy.
+
+| Start condition (same policy, 64 envs, no pushes, 10 s) | Falls |
+|---|---|
+| Training reset (ball 3 m away, joint noise, randomisation) | 1.6 % |
+| Exact `stand` keyframe, ball moved 3 m away | 0 % |
+| Exact `stand` keyframe, ball left beside the right foot (what Unreal Tier 1 does) | **100 %**, at 1.36 s |
+
+Root cause: Unreal's Tier 1/2 hard reset leaves the ball at its keyframe spot (0.45 m ahead, 0.35 m right, on the floor).
+L0 always trained with the ball parked 3 m away, so the athlete trips over a ball it has never seen. Sim/Unreal
+mismatch in reset rules, not physics: obs (5e-8), ONNX vs PyTorch actions (3e-7) and CPU vs Warp trajectories agree.
+
+Two tooling defects found on the way:
+1. `shared/golden/replay_l0.json` (the Step 4 live-physics golden) itself falls at 1.4 s. The gate checked Unreal-vs-Python
+   parity only, so it passed while both sides fell. The gate needs an "athlete still upright" assertion.
+2. `env_base.step()` returns `info["fallen"]` as a reference to `self.fallen`, which the auto-reset clears in place.
+   Every reported fall rate (evaluate.py, queue reports) therefore reads 0 %. Success rates are unaffected
+   (computed before the reset). Fix: clone the flag in `info`.
+
+Proposed fix (awaiting approval): park the ball 3 m away on Tier 1/2 resets in the Unreal director (mirror of
+`l0_stand.on_reset`), clone `fallen` in `info`, add the upright assertion to the gate, re-run eval + gate.
