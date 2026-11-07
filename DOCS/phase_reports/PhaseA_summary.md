@@ -27,8 +27,7 @@ Any change to the generators must bump these in this file and re-run A5, A6, A8.
 
 1. **Ball contact uses the direct spring-damper `solref` form** (negative values) because the
    time-constant form gave speed-dependent restitution at 500 Hz. Contact lasts ~20 ms (10 steps).
-2. **Self-collision is ON for non-adjacent parts** since the UU_AGENT adoption (see `DOCS/20261106/change_self_collision_and_roster.md`). Originally off; the next line is historical:
-   training exploits it.
+2. **Self-collision is ON for non-adjacent parts** since the UU_AGENT adoption (see `DOCS/20261106/change_self_collision_and_roster.md`). Originally off.
 3. **Sim zero pose = Manny's A-pose**, not an arms-at-sides pose. Joint ranges in the model are
    anatomical ranges shifted by the A-pose offset (recorded in `humanoid_spec.json`).
 4. **A3 "done when" relaxed**: PD-only free standing is physically impossible with realistic
