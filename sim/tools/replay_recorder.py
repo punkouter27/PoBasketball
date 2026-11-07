@@ -63,6 +63,12 @@ def main() -> None:
     d = mujoco.MjData(m)
     key = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "stand")
     mujoco.mj_resetDataKeyframe(m, d, key)
+    if args.mode == "policy":
+        # Tier 1 start as in training (l0_stand.on_reset) and the Unreal director: ball parked 3 m away,
+        # not at its keyframe spot beside the right foot (the athlete trips over it).
+        root = m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "root")]
+        ball = m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "ball")]
+        d.qpos[ball:ball + 3] = [d.qpos[root] + 3.0, d.qpos[root + 1], 0.1205]
     mujoco.mj_forward(m, d)
     T = int(round(args.seconds / (m.opt.timestep * SUBSTEPS)))
     rec = {"mode": args.mode, "xml": "scene.xml", "dt": float(m.opt.timestep), "substeps": SUBSTEPS, "steps": T,
@@ -99,6 +105,10 @@ def main() -> None:
     out.write_text(json.dumps(rec), encoding="utf-8")
     root = m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "root")]
     print(f"wrote {out}: {T} control steps, final pelvis z {rec['qpos'][-1][root + 2]:.3f} m")
+    min_z = min(q[root + 2] for q in rec["qpos"])
+    if args.mode == "policy" and min_z < 0.7:
+        # a golden where the athlete falls makes the Unreal gate meaningless (it passed that way on 2026-11-06)
+        raise SystemExit(f"FAIL: pelvis dropped to {min_z:.3f} m (< 0.70 m); the policy does not stay upright from the keyframe")
 
 
 if __name__ == "__main__":

@@ -76,6 +76,7 @@ namespace
 		double MaxRootCm = 0, MaxJointDeg = 0, MaxObs = 0, MaxAction = 0;
 		int32 FootMismatchSteps = 0, Steps = 0;
 		double RootCmAt1s = 0, RootCmAt5s = 0;
+		double MinPelvisZ = 1e9;   // athlete must stay upright: parity alone passed while both sides fell (2026-11-07)
 		FString Note;
 	};
 
@@ -229,8 +230,9 @@ bool FStreetballGateLiveTest::RunTest(const FString&)
 		Sim->Step(R.Substeps);
 		Prev = Act;
 		CompareQ(Sim, R.QPos[t], RootQ, JAdr, G, t, R.Steps);
+		G.MinPelvisZ = FMath::Min(G.MinPelvisZ, Sim->QPos()[RootQ + 2]);
 	}
-	const bool bPass = G.MaxRootCm < 2.0 && G.MaxJointDeg < 1.0;
+	const bool bPass = G.MaxRootCm < 2.0 && G.MaxJointDeg < 1.0 && G.MinPelvisZ >= 0.7;
 	const FString Body = FString::Printf(
 		TEXT("Replay: `%s`, policy: `%s` (%d steps x %d substeps = %.1f s, closed loop in Unreal with NNE ORT-CPU)\n\n")
 		TEXT("| Metric | Value | Gate |\n|---|---|---|\n")
@@ -240,15 +242,17 @@ bool FStreetballGateLiveTest::RunTest(const FString&)
 		TEXT("| Max abs obs diff (C++ builder vs Python) | %.3e (slot %d, step %d) | report |\n")
 		TEXT("| Max abs action diff (NNE vs onnxruntime) | %.3e | report |\n")
 		TEXT("| Foot-contact flag mismatched steps | %d / %d | report |\n")
-		TEXT("| Mean inference | %.3f ms | < 2 ms |\n\n**%s**"),
+		TEXT("| Mean inference | %.3f ms | < 2 ms |\n")
+		TEXT("| Lowest pelvis height (athlete upright) | %.3f m | >= 0.70 m |\n\n**%s**"),
 		*ReplayPath, *PolicyPath, R.Steps, R.Substeps, R.Steps * R.Substeps * 0.002,
 		G.MaxRootCm, G.MaxJointDeg, G.RootCmAt1s, G.RootCmAt5s, G.MaxObs, WorstObsSlot, WorstObsStep, G.MaxAction,
-		G.FootMismatchSteps, R.Steps, InferenceMs / FMath::Max(1, R.Steps), bPass ? TEXT("PASS") : TEXT("FAIL"));
+		G.FootMismatchSteps, R.Steps, InferenceMs / FMath::Max(1, R.Steps), G.MinPelvisZ, bPass ? TEXT("PASS") : TEXT("FAIL"));
 	WriteGateReport(TEXT("Live physics (closed loop)"), Body);
 	AddInfo(FString::Printf(TEXT("closed loop %d steps: root %.4f cm, joints %.5f deg, obs %.3e, action %.3e, foot mismatches %d -> %s"),
 		R.Steps, G.MaxRootCm, G.MaxJointDeg, G.MaxObs, G.MaxAction, G.FootMismatchSteps, bPass ? TEXT("PASS") : TEXT("FAIL")));
 	TestTrue(TEXT("root < 2 cm"), G.MaxRootCm < 2.0);
 	TestTrue(TEXT("joints < 1 deg"), G.MaxJointDeg < 1.0);
+	TestTrue(TEXT("athlete upright (pelvis >= 0.7 m)"), G.MinPelvisZ >= 0.7);
 	Policy->RemoveFromRoot(); Sim->Unload(); Sim->RemoveFromRoot();
 	return true;
 }
