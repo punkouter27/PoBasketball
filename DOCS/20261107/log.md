@@ -158,3 +158,11 @@ Policies touched: **locomotion only** (reward + command range; physics and inter
 - Commanded speed 0.8–3.0 → **1.2–3.0 m/s** in the level, `shared/transition_table.json` ROAM row, the Unreal copy, and
   the director's built-in fallback table (mirror rule).
 Run `l1_v3_armcarry`: 90 min fine-tune from `l1_v2_armstop/model.pt` (runner `sim/runs/l1_armcarry.ps1`, via WMI).
+
+## 14:25 — camera fix + Unreal re-gate of balance on the new physics
+
+- Broadcast camera framed the athlete–ball midpoint; with the ball parked off court in Tier 2 it pointed at empty court.
+  `FBroadcastLogic::TargetFor` now frames only the athlete in STAND/ROAM; new assertions in `Streetball.B8.CameraCuts`.
+- Headless `Automation RunTests Streetball`: **15/15 pass**. Step 4 live-physics gate with the re-graduated balance policy
+  on the arm-collision physics: root 0.0000 cm, joints 0.00002°, obs 8.2e-7, 0/250 foot mismatches, 0.054 ms inference,
+  **lowest pelvis 0.929 m** (new upright requirement ≥ 0.70 m). Report: `DOCS/phase_reports/Step4_gate_unreal.md`.

@@ -59,8 +59,12 @@ bool FBroadcastLogic::Decide(const FBroadcastInputs& In)
 FBroadcastTarget FBroadcastLogic::TargetFor(EBroadcastShot Shot, const FBroadcastInputs& In) const
 {
 	FBroadcastTarget T;
-	const FVector3d Mid = 0.5 * (In.Character + In.Ball);
-	const double Spread = (In.Character - In.Ball).Length();
+	// Tiers 1-2 park the ball away from the athlete (3 m / off court); framing the athlete-ball midpoint
+	// then pointed the camera at empty court. Only frame the ball when it is in play.
+	const bool bBallInPlay = In.State != EStreetballState::Stand && In.State != EStreetballState::Roam;
+	const FVector3d Ball = bBallInPlay ? In.Ball : In.Character;
+	const FVector3d Mid = 0.5 * (In.Character + Ball);
+	const double Spread = (In.Character - Ball).Length();
 	switch (Shot)
 	{
 	case EBroadcastShot::Sideline:

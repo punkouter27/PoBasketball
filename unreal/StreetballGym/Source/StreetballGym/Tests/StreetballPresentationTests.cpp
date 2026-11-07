@@ -215,6 +215,14 @@ bool FStreetballCameraTest::RunTest(const FString&)
 	L.ForcedShot = 0; In.Time = 17.0;
 	TestTrue(TEXT("forced CVar value wins"), L.Decide(In) && L.Current == EBroadcastShot::Sideline);
 
+	// ROAM with the ball parked off court: the sideline shot frames the athlete, not the athlete-ball midpoint
+	In.State = EStreetballState::Roam; In.Character = FVector3d(-8.0, -3.0, 0.95); In.Ball = FVector3d(0.0, 8.0, 0.12);
+	T = L.TargetFor(EBroadcastShot::Sideline, In);
+	TestTrue(TEXT("ROAM: sideline looks at the athlete (UE x = -800 cm)"), FMath::IsNearlyEqual(T.LookAt.X, -800.f, 1.f) && FMath::IsNearlyEqual(T.LookAt.Y, 300.f, 1.f));
+	In.State = EStreetballState::DribbleMoving; In.Ball = FVector3d(-7.0, -3.0, 0.5);
+	T = L.TargetFor(EBroadcastShot::Sideline, In);
+	TestTrue(TEXT("ball in play: sideline frames the athlete-ball midpoint"), FMath::IsNearlyEqual(T.LookAt.X, -750.f, 1.f));
+
 	// smoothing converges without overshoot
 	FVector V = FVector::ZeroVector, P = FVector(0, 0, 0);
 	const FVector Target(100, 0, 0);
