@@ -8,6 +8,7 @@
 #include "SimClock.h"
 #include "MuJoCoBoneMapper.h"
 #include "PolicyRunner.h"
+#include "Misc/CommandLine.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -192,6 +193,11 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		Director->LoadTransitionTable(TP);          // falls back to the built-in v1 table
 	}
 	Director->Initialize(DirectorSeed);
+	{
+		int32 MaxTier = 5;
+		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballMaxTier="), MaxTier)) Director->MaxTier = FMath::Clamp(MaxTier, 1, 5);
+		if (Director->MaxTier < 5) UE_LOG(LogStreetball, Log, TEXT("Director: tiers capped at %d"), Director->MaxTier);
+	}
 
 	// ---- policies: one per state, trained file if present else the dummy ----
 	ObsBuilder.Initialize(Sim, Streetball::ObsSpecPath());
@@ -223,6 +229,12 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	Clock->Initialize(Sim, 10);
 	Clock->OnControlStep.BindUObject(this, &AStreetballWorld::OnControlStep);
 	Clock->OnPhysicsStep.BindUObject(this, &AStreetballWorld::OnPhysicsStep);
+	{
+		// first episode starts like every later one: tiers 1-2 keep the ball away from the feet
+		FStreetballResetSpec Start; Start.Reason = TEXT("startup");
+		UStreetballDirector::ParkBallForTier(Director->GetProgress().ActiveTier, Start);
+		if (Start.bPlaceBall) ApplyReset(Start);
+	}
 	bReady = true;
 	UpdateVisuals();
 	UE_LOG(LogStreetball, Log, TEXT("World ready: %d geom actors, %d trained policies (%s), fallback %s"),

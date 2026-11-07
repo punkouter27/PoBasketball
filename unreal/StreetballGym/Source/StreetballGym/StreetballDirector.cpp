@@ -10,6 +10,7 @@ namespace
 	constexpr double RimH = 3.05;
 	constexpr double RimR = 0.2286;
 	constexpr double KeyBallX = 0.45, KeyBallY = -0.35, BallR = 0.1205;   // ball offset in the 'stand' keyframe
+	constexpr double KeyRootX = 0.02281, KeyRootY = 0.0;                  // root xy in the 'stand' keyframe
 	const TArray<FString> EmptyLayout;
 }
 
@@ -227,8 +228,17 @@ void UStreetballDirector::RequestHardReset(const TCHAR* Reason, FStreetballDirec
 	Out.Reset.bRequested = true;
 	Out.Reset.Reason = Reason;
 	if (P.ActiveTier == 5) { Out.Reset = FStreetballResetSpec(); RequestShotReset(Out); Out.Reset.Reason = Reason; }
+	ParkBallForTier(P.ActiveTier, Out.Reset);
 	State = EStreetballState::HardReset;
 	UE_LOG(LogStreetball, Log, TEXT("Director: HARD_RESET (%s) in tier %d"), Reason, P.ActiveTier);
+}
+
+void UStreetballDirector::ParkBallForTier(int32 Tier, FStreetballResetSpec& Spec)
+{
+	// The keyframe leaves the ball on the floor beside the right foot. Balance never trained with a ball
+	// there and trips over it (100 % falls at 1.4 s), so tiers 1-2 mirror the sim resets instead.
+	if (Tier == 1) { Spec.bPlaceBall = true; Spec.BallPos = FVector3d(KeyRootX + 3.0, KeyRootY, BallR); }   // l0_stand: 3 m away
+	else if (Tier == 2) { Spec.bPlaceBall = true; Spec.BallPos = FVector3d(0.0, 8.0, BallR); }            // l1_traverse: off court
 }
 
 void UStreetballDirector::RequestShotReset(FStreetballDirectorOutput& Out)
@@ -366,7 +376,7 @@ void UStreetballDirector::Update(const FTrackedState& S, double Dt, FStreetballD
 		if (Stepped) { P.BalanceTime = 0.0; FootStart[0] = S.FootPos[0]; FootStart[1] = S.FootPos[1]; }
 		else P.BalanceTime += Dt;
 		P.Progress01 = (float)FMath::Clamp(P.BalanceTime / BalanceGoalS, 0.0, 1.0);
-		if (P.BalanceTime >= BalanceGoalS) { P.Mastered[0] = true; EnterTier(2, S); }
+		if (P.BalanceTime >= BalanceGoalS) { P.Mastered[0] = true; EnterTier(MaxTier >= 2 ? 2 : 1, S); }
 		break;
 	}
 	case EStreetballState::Roam:
@@ -376,6 +386,7 @@ void UStreetballDirector::Update(const FTrackedState& S, double Dt, FStreetballD
 		if (P.Waypoints >= WaypointGoal)
 		{
 			P.Mastered[1] = true;
+			if (MaxTier < 3) { EnterTier(2, S); break; }
 			EnterTier(3, S);
 			Out.Reset.bRequested = true; Out.Reset.Reason = TEXT("tier 3 start: ball to hand");
 		}
@@ -389,6 +400,7 @@ void UStreetballDirector::Update(const FTrackedState& S, double Dt, FStreetballD
 		if (P.CleanStreak >= StreakGoal)
 		{
 			P.Mastered[2] = true;
+			if (MaxTier < 4) { EnterTier(3, S); break; }
 			EnterTier(4, S);
 			Out.Reset.bRequested = true; Out.Reset.Reason = TEXT("tier 4 start");
 		}
@@ -404,6 +416,7 @@ void UStreetballDirector::Update(const FTrackedState& S, double Dt, FStreetballD
 		if (P.CourseDistance >= CourseGoal && P.Saves >= SavesGoal)
 		{
 			P.Mastered[3] = true;
+			if (MaxTier < 5) { EnterTier(4, S); break; }
 			EnterTier(5, S);
 			RequestShotReset(Out);
 		}

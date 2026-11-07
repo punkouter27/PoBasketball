@@ -98,6 +98,9 @@ public:
 	/** Must be called by the world after it applied a requested reset (so bookkeeping restarts cleanly). */
 	void NotifyResetApplied(const FTrackedState& S);
 
+	/** Tiers 1-2 never use the ball: park it where training parks it (l0_stand / l1_traverse on_reset). */
+	static void ParkBallForTier(int32 Tier, FStreetballResetSpec& Spec);
+
 	/** Fill State/PolicyName/Task for the current state without advancing any logic. */
 	void Describe(const FTrackedState& S, FStreetballDirectorOutput& Out) const;
 
@@ -121,6 +124,8 @@ public:
 
 	// ---- tunables (PRD / blueprint) ----
 	double BalanceGoalS = 60.0;
+	/** Highest tier the run may advance to (command line -StreetballMaxTier=N). A mastered tier at the cap restarts its goal. */
+	int32 MaxTier = 5;
 	double FootDriftLimit = 0.15;
 	int32 WaypointGoal = 10;
 	double ReachRadius = 0.5;

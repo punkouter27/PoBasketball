@@ -71,3 +71,16 @@ Two tooling defects found on the way:
 
 Proposed fix (awaiting approval): park the ball 3 m away on Tier 1/2 resets in the Unreal director (mirror of
 `l0_stand.on_reset`), clone `fallen` in `info`, add the upright assertion to the gate, re-run eval + gate.
+
+## 16:00 — fix applied: ball parked away from the feet (user: "focus on balance; ball has nothing to do with it")
+
+Policies touched: none (Unreal director reset rule only; physics, interface and weights unchanged).
+- `UStreetballDirector::ParkBallForTier`: tier 1 parks the ball 3 m from the start spot (mirror of `l0_stand.on_reset`),
+  tier 2 parks it off court at (0, 8) (mirror of `l1_traverse.on_reset`). Applied on hard resets and at startup.
+- New launch switch `-StreetballMaxTier=N`: the run never advances past tier N; a mastered tier at the cap restarts its goal.
+- Verified in `-game -StreetballMaxTier=1`: 0 falls in 150 s (two full 60 s balance goals), T1 mastered.
+  Screenshot `SCREENSHOTS/20261107_tier1_ball_parked.png`.
+- Without the cap the run advances to tier 2, which has no trained locomotion policy in Unreal yet and falls every 2 s.
+
+Still open from the diagnosis: `info["fallen"]` cleared by the auto-reset (reported fall rates read 0 %), and the
+Step 4 gate needs an "athlete still upright" assertion.
