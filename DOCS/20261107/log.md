@@ -200,3 +200,13 @@ Same env, PPO, policy interface and checkpoint format → evaluate/export/Unreal
 
 Comparison run `l1_amp_v1`: 90 min from `l1_v2_armstop/model.pt` (same init, budget, envs, pushes, speeds as the
 baseline `l1_v3_armcarry`), evaluated with the same `l1_traverse` success test.
+
+## 15:53 — AMP restarted on clean mocap (`l1_amp_v2`)
+
+`l1_amp_v1` was stopped at ~8 M steps: its arm-carry measure rose 0.30 → 0.62. Cause in the data, not the method: the
+**LAFAN1** SkeletonTorque clips use a different arm-rotation convention (mean shoulder rotation −76° vs ~0° in LocoMuJoCo's
+own walk), which retargets as a "phone at the ear" arm during plain walking (render checked). The Default **balance** clip is
+one-leg yoga-style balancing (arms flung out), not walking style. Both dropped.
+Demo now: LocoMuJoCo Default walk, run, walkturn, random_walk, stepinplace1 = 22 min, 66,890 transitions.
+Arm-carry measure on these clips: 0.05–0.09 (walks), 0.39 (run). Same init/budget as the baseline; run dir of the discarded
+attempt kept as `runs/l1_amp_v1_lafanarms_discarded`. Expected finish ~17:25 incl. evaluation.
