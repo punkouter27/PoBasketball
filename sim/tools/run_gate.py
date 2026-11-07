@@ -69,7 +69,8 @@ def main() -> int:
     runner = UE / "Scripts" / "run_headless.ps1"
     log = UE / "Saved" / "Logs" / f"gate_{args.level}.log"
     rc = run(["pwsh", "-NoProfile", "-File", runner, "-TimeoutSec", "420", "-LogFile", log,
-              f"-GateReplay={replay}", f"-GatePolicy={onnx}",
+              # paths relative to shared/ (absolute Windows paths get truncated at the drive colon by the UE arg parser)
+              f"-GateReplay={replay.relative_to(SHARED).as_posix()}", f"-GatePolicy={onnx.relative_to(SHARED).as_posix()}",
               "-ExecCmds=Automation RunTests Streetball.Gate; Quit"], cwd=UE)
     print(f"[5] unreal gate runner exit code {rc}")
     rep = REPORTS / "Step4_gate_unreal.md"
