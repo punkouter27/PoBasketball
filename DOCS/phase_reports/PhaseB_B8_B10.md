@@ -48,3 +48,39 @@ Headless run: `UnrealEditor-Cmd.exe <uproject> -ExecCmds="Automation RunTests St
 * No frame was rendered and no sound was played (headless only): camera motion, HUD layout and audio playback are verified by logic tests, not by eye/ear. `AudioPlayer.PlayedCount` increments only from `Tick`, which the automation tests do not drive.
 * Tier 4 (course + saves) and tier 5 (shots) transitions are implemented but only exercised through the generic scramble/reset paths; no trained policy exists to drive a real shot or a 100 m course, so those milestones were not observed end-to-end.
 * The HUD countdown ring's `NativePaint` is not exercised without a viewport.
+
+---
+
+## Update 2026-11-06 (late): new physics assets, five-family roster, transition table
+
+Change record: `DOCS/20261106/change_self_collision_and_roster.md`. Full "Streetball" group re-run headlessly through `Scripts/run_headless.ps1` (300 s cap): **15/15 PASS, exit code 0**.
+
+### What changed in the Unreal side
+
+| Area | Change |
+|---|---|
+| Director | `UStreetballDirector::LoadTransitionTable()` reads `Content/Sim/transition_table.json` at BeginPlay (states -> policy family, tier, task layout, speed command range, hand-switch interval; policy files; layouts). Built-in defaults equal table v1, so the director still runs if the file is missing. Policy names are now families: balance, locomotion, dribble, scramble, shot. Task blocks are filled by layout field name, so they mirror `sim/streetball/levels/*.py`: dribble = `[hand, apex_target_m, bounces_to_switch, speed_cmd, dir_x, dir_y, distance_m]` for both DRIBBLE_STATIONARY (speed 0, dir 0, dist 0, switches every 2-4 clean bounces) and DRIBBLE_MOVING (speed 1.5-2.5, no commanded switches); locomotion `[dir_x, dir_y, distance_m, speed_cmd]`; scramble `[countdown_frac]`; shot `[rim_rel_xyz, trigger, time_since_trigger_s]` |
+| World | One `UPolicyRunner` per family, all preloaded from the table's file (`policies/<family>.onnx`), dummy fallback per family. `prev_action` is a single buffer passed through every policy switch unchanged (only a hard reset zeroes it, as the training env does) |
+| HUD | Build stamp bottom-right now size 14 / alpha 0.9; `GetBuildStampText()` getter |
+| Tools | `sim/tools/sync_policies_to_unreal.py` now expects the five families, maps `trained_by_stage` files (e.g. `l0_stand.onnx` -> `balance.onnx`) and copies `transition_table.json` |
+| Plugin | No contact-count limits exist in the wrapper (`mj_makeData` default arena); self-collision roughly doubled the per-step cost (0.036 -> 0.064 ms/step), still far under the 1 ms budget |
+
+### Numbers on the regenerated assets/goldens
+
+| Test | Result |
+|---|---|
+| B2 SimLoad | nq 41 / nv 39 / nu 27; mj_step 0.064 ms/step (budget 1 ms) |
+| B4 ClockDeterminism | hash identical across 10/30/60/144 FPS: `0acd39e43f47ee2a` (new value: new physics) |
+| B5 BoneMapper | reference 0.00000 deg; hip/knee/shoulder directions unchanged; pelvis 0.000 cm |
+| B6 Replay (new `replay_random.json`) | max root 0.0000 cm, max joint 0.00000 deg |
+| B7 ObsGolden (new `obs_golden.bin`) | 1000 samples, max abs diff 4.76e-7 |
+| B7 PolicyRunner | NNE vs onnxruntime 0.0; 0.14 ms |
+| B8 / B9 / B10 | unchanged; HUD stamp `261106` == today, text `build 261106` |
+| C3 ScrambleAndResets | PASS with family names and the 7-field dribble layout |
+| C3 TierProgression | 50 bounces, 16 hand switches |
+| C3 TransitionTable (new) | v1 loaded from `shared/transition_table.json`; all six state->family rows, layouts, DRIBBLE_MOVING and JUMP_SHOT task values checked |
+| C3 WorldLoop | table v1 loaded from Content/Sim; trained families present: [balance] (`balance.onnx` synced from `l0_stand.onnx`); STAND runs `balance`; **hand-over prev_action max diff 0.000e+00** across a balance -> locomotion switch; scramble -> reset after 2.02 s |
+| Gate.LivePhysics / PresetActions | SKIPPED (no `shared/golden/replay_l0.json` yet); PresetActions re-run on the new `replay_random.json`: see `Step4_gate_unreal.md` |
+
+### Still not verified
+* The balance policy is loaded and runs in STAND, but with no rendered frames and no `replay_l0.json` its closed-loop behaviour in Unreal is not yet measured; the gate will do that once the recorder output exists.

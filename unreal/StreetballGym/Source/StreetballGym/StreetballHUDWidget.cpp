@@ -47,12 +47,13 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 		// UU_AGENT build stamp: compile date as YYMMDD, bottom-right corner.
 		UTextBlock* Stamp = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("BuildStamp"));
 		FSlateFontInfo SF = Stamp->GetFont();
-		SF.Size = 12;
+		SF.Size = 14;
 		Stamp->SetFont(SF);
-		Stamp->SetColorAndOpacity(FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.6f)));
+		Stamp->SetColorAndOpacity(FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.9f)));   // readable over the light floor
 		Stamp->SetShadowOffset(FVector2D(1.f, 1.f));
 		Stamp->SetShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.8f));
 		Stamp->SetText(FText::FromString(FString::Printf(TEXT("build %s"), *BuildStampYYMMDD())));
+		StampText = Stamp;
 		UCanvasPanelSlot* StampSlot = Canvas->AddChildToCanvas(Stamp);
 		StampSlot->SetAnchors(FAnchors(1.f, 1.f));
 		StampSlot->SetAlignment(FVector2D(1.f, 1.f));
@@ -106,6 +107,7 @@ FString UStreetballHUDWidget::GetStreakText() const { return CachedStreak; }
 FString UStreetballHUDWidget::GetDistanceText() const { return CachedDistance; }
 FString UStreetballHUDWidget::GetMilestoneText() const { return CachedMilestone; }
 float UStreetballHUDWidget::GetProgressPercent() const { return ProgressPercent; }
+FString UStreetballHUDWidget::GetBuildStampText() const { return StampText ? StampText->GetText().ToString() : FString(); }
 
 int32 UStreetballHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry& Geo, const FSlateRect& Cull,
                                         FSlateWindowElementList& Out, int32 LayerId, const FWidgetStyle& Style, bool bParentEnabled) const

@@ -23,6 +23,8 @@ public:
 	void UpdateFromProgress(const FStreetballProgress& P, EStreetballState State);
 	/** Compile date as YYMMDD for the UU_AGENT build stamp. */
 	static FString BuildStampYYMMDD();
+	/** Text shown bottom-right ("build YYMMDD"); empty until the widget tree exists. */
+	FString GetBuildStampText() const;
 
 	// exposed for tests
 	FString GetTierText() const;
@@ -46,6 +48,7 @@ protected:
 	UPROPERTY() TObjectPtr<UTextBlock> MilestoneText;
 	UPROPERTY() TObjectPtr<UTextBlock> CountdownText;
 	UPROPERTY() TObjectPtr<UProgressBar> ProgressBar;
+	UPROPERTY() TObjectPtr<UTextBlock> StampText;
 
 	bool bLoose = false;
 	float CountdownFrac = 1.f;

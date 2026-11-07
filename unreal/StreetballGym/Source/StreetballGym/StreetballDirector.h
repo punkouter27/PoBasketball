@@ -34,7 +34,7 @@ struct STREETBALLGYM_API FStreetballResetSpec
 struct STREETBALLGYM_API FStreetballDirectorOutput
 {
 	EStreetballState State = EStreetballState::Stand;
-	FString PolicyName;                 // level name, e.g. "l1_traverse"
+	FString PolicyName;                 // policy family, e.g. "locomotion"
 	float Task[12] = {0};
 	FStreetballResetSpec Reset;
 	bool bScoreEvent = false;           // for the net-rattle sound
@@ -61,10 +61,23 @@ struct STREETBALLGYM_API FStreetballProgress
 	float CountdownFrac = 1.f;
 };
 
+/** One row of shared/transition_table.json "states". */
+struct STREETBALLGYM_API FStreetballStateRow
+{
+	FString Policy;                     // family name ("balance", ...); empty for HARD_RESET
+	int32 Tier = 0;
+	FString Layout;                     // key into Layouts
+	bool bHasSpeed = false;
+	FVector2d SpeedRange = FVector2d::ZeroVector;   // [lo, hi]; lo == hi means fixed
+	FIntPoint HandSwitchEvery = FIntPoint(0, 0);     // 0 = no commanded switches
+};
+
 /**
- * The autonomous "coach": picks the active skill policy, builds its 12-float task block
- * (blueprint C.2), tracks PRD tier milestones, runs the scramble countdown and orders
- * hard resets. Pure logic over FTrackedState so it is testable without a sim.
+ * The autonomous "coach": picks the active skill policy family, builds its 12-float task block
+ * from the layout in shared/transition_table.json (mirrors sim/streetball/levels/*.py), tracks
+ * PRD tier milestones, runs the scramble countdown and orders hard resets. Pure logic over
+ * FTrackedState so it is testable without a sim. Built-in defaults equal transition_table.json v1,
+ * so it also works when the table file is absent.
  */
 UCLASS()
 class STREETBALLGYM_API UStreetballDirector : public UObject
@@ -73,6 +86,11 @@ class STREETBALLGYM_API UStreetballDirector : public UObject
 
 public:
 	void Initialize(int32 Seed = 7);
+
+	/** Load states/policies/layouts from the transition table. Returns false (defaults kept) if unreadable. */
+	bool LoadTransitionTable(const FString& JsonPath);
+	bool HasTable() const { return bTableLoaded; }
+	int32 TableVersion() const { return TableVersionNum; }
 
 	/** One control step. S is the tracker state *after* this step; Dt is the control period. */
 	void Update(const FTrackedState& S, double Dt, FStreetballDirectorOutput& Out);
@@ -86,8 +104,16 @@ public:
 	EStreetballState GetState() const { return State; }
 	const FStreetballProgress& GetProgress() const { return P; }
 	static FString StateName(EStreetballState St);
-	static FString PolicyForState(EStreetballState St);
+	static bool StateFromName(const FString& Name, EStreetballState& Out);
 	static int32 TierForState(EStreetballState St);
+
+	/** Policy family for a state (table-driven; HARD_RESET maps to the active tier's state). */
+	FString PolicyFor(EStreetballState St) const;
+	/** Relative file for a family from the table ("policies/balance.onnx"); empty if unknown. */
+	FString PolicyFileFor(const FString& Family) const;
+	const TMap<FString, FString>& GetPolicyFiles() const { return PolicyFiles; }
+	const TArray<FString>& LayoutFor(const FString& Layout) const;
+	const FStreetballStateRow* RowFor(EStreetballState St) const { return Rows.Find(St); }
 
 	/** Test hooks. */
 	void ForceState(EStreetballState St, const FTrackedState& S);
@@ -99,8 +125,6 @@ public:
 	int32 WaypointGoal = 10;
 	double ReachRadius = 0.5;
 	FVector2d CourtHalf = FVector2d(13.0, 6.5);
-	FVector2d SpeedRange = FVector2d(0.8, 3.0);
-	FVector2d RoamSpeedRange = FVector2d(1.5, 2.5);
 	int32 StreakGoal = 50;
 	FVector2d ApexBand = FVector2d(0.80, 1.15);
 	double ApexTarget = 1.0;
@@ -112,6 +136,7 @@ public:
 	double ScrambleS = 3.0;
 
 private:
+	void InstallDefaultTable();
 	void EnterState(EStreetballState St, const FTrackedState& S);
 	void EnterTier(int32 Tier, const FTrackedState& S);
 	void NewWaypoint(const FTrackedState& S);
@@ -120,6 +145,14 @@ private:
 	void RequestHardReset(const TCHAR* Reason, FStreetballDirectorOutput& Out);
 	void RequestShotReset(FStreetballDirectorOutput& Out);
 	void FillTask(const FTrackedState& S, FStreetballDirectorOutput& Out) const;
+	double TaskField(const FString& Field, const FTrackedState& S) const;
+
+	// table
+	TMap<EStreetballState, FStreetballStateRow> Rows;
+	TMap<FString, TArray<FString>> Layouts;
+	TMap<FString, FString> PolicyFiles;
+	bool bTableLoaded = false;
+	int32 TableVersionNum = 0;
 
 	EStreetballState State = EStreetballState::Stand;
 	EStreetballState ReturnState = EStreetballState::DribbleStationary;   // where Scramble returns to
@@ -144,7 +177,5 @@ private:
 	bool bTriggered = false, bGathered = false, bReleased = false, bScored = false;
 	double TriggerT = 0.0, ShotStartT = 0.0, PrevBallZ = 0.0;
 	int32 RimIndex = 0;
-	// scramble
 	double LastStateChangeT = 0.0;
-	bool bPendingReset = false;
 };

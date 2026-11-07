@@ -4,7 +4,7 @@ Written by the Streetball.Gate.* automation tests (libmujoco 4.0.0 in UE 5.8.4).
 
 ## Live physics (closed loop)
 
-SKIPPED - input file(s) absent: replay: C:/Users/punko/Downloads/CODE_MATT/PoBasketball/shared/golden/replay_l0.json policy: C:/Users/punko/Downloads/CODE_MATT/PoBasketball/shared/policies/l0_stand.onnx. Set CVars streetball.GateReplay / streetball.GatePolicy or produce them with sim/tools/replay_recorder.py policy and export_onnx.py.
+SKIPPED - input file(s) absent: replay: C:/Users/punko/Downloads/CODE_MATT/PoBasketball/shared/golden/replay_l0.json. Set CVars streetball.GateReplay / streetball.GatePolicy or produce them with sim/tools/replay_recorder.py policy and export_onnx.py.
 
 ## Preset actions (open loop)
 

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "description": "Single director transition table (UU_AGENT section 3), mirrored by the Unreal director and the Python evaluator. Policies never pick each other; the director switches on physical state.",
+  "policies": {
+    "balance":    {"file": "policies/balance.onnx",    "trained_by_stage": "l0_stand"},
+    "locomotion": {"file": "policies/locomotion.onnx", "trained_by_stage": "l1_traverse"},
+    "dribble":    {"file": "policies/dribble.onnx",    "trained_by_stage": "l3a_moving_dribble", "stages": ["l2a_dribble_r", "l2b_dribble_l", "l2c_crossover", "l3a_moving_dribble"]},
+    "scramble":   {"file": "policies/scramble.onnx",   "trained_by_stage": "l3b_scramble"},
+    "shot":       {"file": "policies/shot.onnx",       "trained_by_stage": "l4_jump_shot"}
+  },
+  "task_block_layouts": {
+    "balance":    ["0"],
+    "locomotion": ["dir_x", "dir_y", "distance_m", "speed_cmd"],
+    "dribble":    ["hand", "apex_target_m", "bounces_to_switch", "speed_cmd", "dir_x", "dir_y", "distance_m"],
+    "scramble":   ["countdown_frac"],
+    "shot":       ["rim_rel_x", "rim_rel_y", "rim_rel_z", "trigger", "time_since_trigger_s"]
+  },
+  "states": {
+    "STAND":              {"policy": "balance",    "tier": 1, "task": {"layout": "balance"}},
+    "ROAM":               {"policy": "locomotion", "tier": 2, "task": {"layout": "locomotion", "speed_cmd": [0.8, 3.0]}},
+    "DRIBBLE_STATIONARY": {"policy": "dribble",    "tier": 3, "task": {"layout": "dribble", "speed_cmd": 0.0, "hand_switch_every": [2, 4]}},
+    "DRIBBLE_MOVING":     {"policy": "dribble",    "tier": 4, "task": {"layout": "dribble", "speed_cmd": [1.5, 2.5]}},
+    "JUMP_SHOT":          {"policy": "shot",       "tier": 5, "task": {"layout": "shot"}},
+    "SCRAMBLE":           {"policy": "scramble",   "tier": null, "task": {"layout": "scramble"}},
+    "HARD_RESET":         {"policy": null,         "tier": null}
+  },
+  "physical_rules": {
+    "fallen": "pelvis_z < 0.55 OR non-foot/palm body touching floor > 0.2 s",
+    "ball_in_control": "horizontal(ball, pelvis) < 0.75 AND ball_z < 1.3 AND time_since_palm_contact < 0.6",
+    "loose_countdown_s": 3.0,
+    "ball_out": "ball beyond the fence perimeter",
+    "handover": "pass prev_action through unchanged; never reset the pose on a policy switch"
+  },
+  "transitions": [
+    {"from": "STAND",              "to": "ROAM",               "when": "balance_time >= 60 AND tier_1_mastered"},
+    {"from": "ROAM",               "to": "DRIBBLE_STATIONARY", "when": "waypoints_reached >= 10"},
+    {"from": "DRIBBLE_STATIONARY", "to": "DRIBBLE_MOVING",     "when": "clean_bounce_streak >= 50"},
+    {"from": "DRIBBLE_MOVING",     "to": "JUMP_SHOT",          "when": "distance_m >= 100 AND saves >= 3"},
+    {"from": "JUMP_SHOT",          "to": "JUMP_SHOT",          "when": "shot_resolved AND shots_taken < 20"},
+    {"from": "ANY_BALL_STATE",     "to": "SCRAMBLE",           "when": "NOT ball_in_control"},
+    {"from": "SCRAMBLE",           "to": "PREVIOUS_STATE",     "when": "ball_in_control"},
+    {"from": "SCRAMBLE",           "to": "HARD_RESET",         "when": "countdown expired"},
+    {"from": "ANY",                "to": "HARD_RESET",         "when": "fallen OR ball_out"},
+    {"from": "HARD_RESET",         "to": "STATE_OF_ACTIVE_TIER","when": "reset applied (keyframe stand, ball at hand for tiers >= 3)"}
+  ]
+}

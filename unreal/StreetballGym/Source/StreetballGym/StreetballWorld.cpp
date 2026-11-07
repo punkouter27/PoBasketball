@@ -99,21 +99,22 @@ bool AStreetballWorld::EnginePrimitiveForGeom(int32 GeomType, const FVector& Siz
 	}
 }
 
-UPolicyRunner* AStreetballWorld::LoadPolicy(const FString& LevelName)
+UPolicyRunner* AStreetballWorld::LoadPolicy(const FString& Family)
 {
-	FString Dir = PolicyDir;
-	if (FPaths::IsRelative(Dir)) Dir = FPaths::Combine(Streetball::SimDir(), Dir);
-	const FString Path = FPaths::Combine(Dir, LevelName + TEXT(".onnx"));
+	// File from the transition table ("policies/<family>.onnx"), else <PolicyDir>/<family>.onnx.
+	FString Rel = Director ? Director->PolicyFileFor(Family) : FString();
+	if (Rel.IsEmpty()) Rel = FPaths::Combine(PolicyDir, Family + TEXT(".onnx"));
+	const FString Path = FPaths::IsRelative(Rel) ? FPaths::Combine(Streetball::SimDir(), Rel) : Rel;
 	if (FPaths::FileExists(Path))
 	{
-		UPolicyRunner* R = NewObject<UPolicyRunner>(this, *FString::Printf(TEXT("Policy_%s"), *LevelName));
+		UPolicyRunner* R = NewObject<UPolicyRunner>(this, *FString::Printf(TEXT("Policy_%s"), *Family));
 		if (R->LoadOnnx(Path, FObsBuilder::NumObs, FObsBuilder::NumAction))
 		{
-			RealPolicies.Add(LevelName);
-			UE_LOG(LogStreetball, Log, TEXT("Policy %s: trained model %s"), *LevelName, *Path);
+			RealPolicies.Add(Family);
+			UE_LOG(LogStreetball, Log, TEXT("Policy %s: trained model %s"), *Family, *Path);
 			return R;
 		}
-		UE_LOG(LogStreetball, Warning, TEXT("Policy %s: %s failed to load, using fallback"), *LevelName, *Path);
+		UE_LOG(LogStreetball, Warning, TEXT("Policy %s: %s failed to load, using fallback"), *Family, *Path);
 	}
 	return Fallback;
 }
@@ -185,6 +186,11 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	for (int32 i = 0; i < HoldCtrl.Num(); ++i) HoldCtrl[i] = Key >= 0 ? (float)Sim->GetModel()->key_ctrl[Key * Sim->NumActuators() + i] : 0.f;
 	Sim->SetCtrl(HoldCtrl);
 	Tracker->Initialize(Sim);
+	{
+		FString TP = TransitionTablePath;
+		if (FPaths::IsRelative(TP)) TP = FPaths::Combine(Streetball::SimDir(), TP);
+		Director->LoadTransitionTable(TP);          // falls back to the built-in v1 table
+	}
 	Director->Initialize(DirectorSeed);
 
 	// ---- policies: one per state, trained file if present else the dummy ----
@@ -200,11 +206,10 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		}
 	}
 	RealPolicies.Reset();
-	for (EStreetballState St : {EStreetballState::Stand, EStreetballState::Roam, EStreetballState::DribbleStationary,
-	                            EStreetballState::DribbleMoving, EStreetballState::JumpShot, EStreetballState::Scramble})
+	Policies.Reset();
+	for (const TPair<FString, FString>& Fam : Director->GetPolicyFiles())   // one runner per family, all preloaded
 	{
-		const FString Name = UStreetballDirector::PolicyForState(St);
-		if (!Policies.Contains(Name)) Policies.Add(Name, LoadPolicy(Name));
+		Policies.Add(Fam.Key, LoadPolicy(Fam.Key));
 	}
 	PrevAction.SetNumZeroed(FObsBuilder::NumJoints);
 
@@ -273,8 +278,10 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 	}
 	UPolicyRunner* Policy = nullptr;
 	if (TObjectPtr<UPolicyRunner>* Found = Policies.Find(DirOut.PolicyName)) Policy = Found->Get();
+	LastPolicyName = DirOut.PolicyName;
 	if (Policy && ObsBuilder.IsInitialized())
 	{
+		// UU_AGENT hand-over rule: PrevAction is passed through unchanged across policy switches.
 		const FTrackedState& T = Tracker->State();
 		ObsBuilder.Compute(InSim, PrevAction, TConstArrayView<float>(DirOut.Task, 12), T.InControl ? 1.f : 0.f, T.CountdownFrac, Obs);
 		if (Policy->Run(Obs, Action))

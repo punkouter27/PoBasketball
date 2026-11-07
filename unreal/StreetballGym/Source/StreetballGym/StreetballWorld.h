@@ -66,6 +66,8 @@ public:
 	/** Directory with <level>.onnx policies; relative paths resolve against Content/Sim. */
 	UPROPERTY(EditAnywhere, Category = "Streetball") FString PolicyDir = TEXT("policies");
 	UPROPERTY(EditAnywhere, Category = "Streetball") FString FallbackPolicy = TEXT("policies/dummy_policy.onnx");
+	/** shared/transition_table.json copy; relative paths resolve against Content/Sim. */
+	UPROPERTY(EditAnywhere, Category = "Streetball") FString TransitionTablePath = TEXT("transition_table.json");
 	UPROPERTY(EditAnywhere, Category = "Streetball") FString AudioBankPath = TEXT("/Game/Audio/DA_CourtAudioBank.DA_CourtAudioBank");
 	UPROPERTY(EditAnywhere, Category = "Streetball") int32 DirectorSeed = 7;
 
@@ -83,6 +85,11 @@ public:
 	int32 GetAudioPlayedCount() const { return AudioPlayer.PlayedCount; }
 	const FStreetballDirectorOutput& GetLastDirectorOutput() const { return DirOut; }
 	int32 GetResetCount() const { return ResetCount; }
+	/** Observation fed to the policy at the last control step and the action it produced (tests). */
+	const TArray<float>& GetLastObs() const { return Obs; }
+	const TArray<float>& GetLastAction() const { return Action; }
+	const TArray<float>& GetPrevAction() const { return PrevAction; }
+	const FString& GetLastPolicyName() const { return LastPolicyName; }
 
 	/** Builds the whole world against an already-loaded sim. Exposed so tests can drive it without a level. */
 	bool Setup(UWorld* InWorld);
@@ -122,6 +129,7 @@ private:
 	TArray<FCourtAudioEvent> RecentEvents;
 	TArray<FString> RealPolicies;
 	FStreetballDirectorOutput DirOut;
+	FString LastPolicyName;
 
 	TArray<float> HoldCtrl;
 	TArray<float> PrevAction;

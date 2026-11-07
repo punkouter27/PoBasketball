@@ -1,13 +1,19 @@
 #include "StreetballDirector.h"
 #include "StreetballGym.h"
+#include "Misc/FileHelper.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 
 namespace
 {
 	constexpr double RimH = 3.05;
 	constexpr double RimR = 0.2286;
 	constexpr double KeyBallX = 0.45, KeyBallY = -0.35, BallR = 0.1205;   // ball offset in the 'stand' keyframe
+	const TArray<FString> EmptyLayout;
 }
 
+// ---------------------------------------------------------------------------- names
 FString UStreetballDirector::StateName(EStreetballState St)
 {
 	switch (St)
@@ -22,18 +28,12 @@ FString UStreetballDirector::StateName(EStreetballState St)
 	}
 }
 
-FString UStreetballDirector::PolicyForState(EStreetballState St)
+bool UStreetballDirector::StateFromName(const FString& Name, EStreetballState& Out)
 {
-	switch (St)
-	{
-	case EStreetballState::Stand: return TEXT("l0_stand");
-	case EStreetballState::Roam: return TEXT("l1_traverse");
-	case EStreetballState::DribbleStationary: return TEXT("l2c_crossover");
-	case EStreetballState::DribbleMoving: return TEXT("l3a_moving_dribble");
-	case EStreetballState::JumpShot: return TEXT("l4_jump_shot");
-	case EStreetballState::Scramble: return TEXT("l3b_scramble");
-	default: return TEXT("l0_stand");
-	}
+	static const EStreetballState All[] = {EStreetballState::Stand, EStreetballState::Roam, EStreetballState::DribbleStationary,
+		EStreetballState::DribbleMoving, EStreetballState::JumpShot, EStreetballState::Scramble, EStreetballState::HardReset};
+	for (EStreetballState S : All) if (StateName(S) == Name) { Out = S; return true; }
+	return false;
 }
 
 int32 UStreetballDirector::TierForState(EStreetballState St)
@@ -49,10 +49,127 @@ int32 UStreetballDirector::TierForState(EStreetballState St)
 	}
 }
 
+// ---------------------------------------------------------------------------- transition table
+void UStreetballDirector::InstallDefaultTable()
+{
+	// Identical to shared/transition_table.json v1 so the director works without the file.
+	Rows.Reset(); Layouts.Reset(); PolicyFiles.Reset();
+	auto Row = [&](EStreetballState S, const TCHAR* Policy, int32 Tier, const TCHAR* Layout, double Lo, double Hi, bool bSpeed, FIntPoint Sw)
+	{
+		FStreetballStateRow R; R.Policy = Policy; R.Tier = Tier; R.Layout = Layout; R.bHasSpeed = bSpeed; R.SpeedRange = FVector2d(Lo, Hi); R.HandSwitchEvery = Sw;
+		Rows.Add(S, R);
+	};
+	Row(EStreetballState::Stand, TEXT("balance"), 1, TEXT("balance"), 0, 0, false, FIntPoint(0, 0));
+	Row(EStreetballState::Roam, TEXT("locomotion"), 2, TEXT("locomotion"), 0.8, 3.0, true, FIntPoint(0, 0));
+	Row(EStreetballState::DribbleStationary, TEXT("dribble"), 3, TEXT("dribble"), 0.0, 0.0, true, FIntPoint(2, 4));
+	Row(EStreetballState::DribbleMoving, TEXT("dribble"), 4, TEXT("dribble"), 1.5, 2.5, true, FIntPoint(0, 0));
+	Row(EStreetballState::JumpShot, TEXT("shot"), 5, TEXT("shot"), 0, 0, false, FIntPoint(0, 0));
+	Row(EStreetballState::Scramble, TEXT("scramble"), 0, TEXT("scramble"), 0, 0, false, FIntPoint(0, 0));
+	Row(EStreetballState::HardReset, TEXT(""), 0, TEXT(""), 0, 0, false, FIntPoint(0, 0));
+	Layouts.Add(TEXT("balance"), {TEXT("0")});
+	Layouts.Add(TEXT("locomotion"), {TEXT("dir_x"), TEXT("dir_y"), TEXT("distance_m"), TEXT("speed_cmd")});
+	Layouts.Add(TEXT("dribble"), {TEXT("hand"), TEXT("apex_target_m"), TEXT("bounces_to_switch"), TEXT("speed_cmd"), TEXT("dir_x"), TEXT("dir_y"), TEXT("distance_m")});
+	Layouts.Add(TEXT("scramble"), {TEXT("countdown_frac")});
+	Layouts.Add(TEXT("shot"), {TEXT("rim_rel_x"), TEXT("rim_rel_y"), TEXT("rim_rel_z"), TEXT("trigger"), TEXT("time_since_trigger_s")});
+	PolicyFiles.Add(TEXT("balance"), TEXT("policies/balance.onnx"));
+	PolicyFiles.Add(TEXT("locomotion"), TEXT("policies/locomotion.onnx"));
+	PolicyFiles.Add(TEXT("dribble"), TEXT("policies/dribble.onnx"));
+	PolicyFiles.Add(TEXT("scramble"), TEXT("policies/scramble.onnx"));
+	PolicyFiles.Add(TEXT("shot"), TEXT("policies/shot.onnx"));
+	bTableLoaded = false;
+	TableVersionNum = 1;
+}
+
+bool UStreetballDirector::LoadTransitionTable(const FString& Path)
+{
+	FString Json;
+	if (!FFileHelper::LoadFileToString(Json, *Path))
+	{
+		UE_LOG(LogStreetball, Warning, TEXT("Director: transition table %s not found; using built-in v1 defaults"), *Path);
+		return false;
+	}
+	TSharedPtr<FJsonObject> J;
+	if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), J) || !J.IsValid())
+	{
+		UE_LOG(LogStreetball, Error, TEXT("Director: bad JSON in %s; using built-in defaults"), *Path);
+		return false;
+	}
+	TMap<EStreetballState, FStreetballStateRow> NewRows;
+	TMap<FString, TArray<FString>> NewLayouts;
+	TMap<FString, FString> NewFiles;
+
+	const TSharedPtr<FJsonObject> Pol = J->GetObjectField(TEXT("policies"));
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& E : Pol->Values)
+	{
+		const TSharedPtr<FJsonObject> O = E.Value->AsObject();
+		if (O.IsValid()) NewFiles.Add(E.Key, O->GetStringField(TEXT("file")));
+	}
+	const TSharedPtr<FJsonObject> Lay = J->GetObjectField(TEXT("task_block_layouts"));
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& E : Lay->Values)
+	{
+		TArray<FString> Fields;
+		for (const TSharedPtr<FJsonValue>& V : E.Value->AsArray()) Fields.Add(V->AsString());
+		if (Fields.Num() > 12) { UE_LOG(LogStreetball, Error, TEXT("Director: layout %s has %d fields (> 12)"), *E.Key, Fields.Num()); return false; }
+		NewLayouts.Add(E.Key, Fields);
+	}
+	const TSharedPtr<FJsonObject> States = J->GetObjectField(TEXT("states"));
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& E : States->Values)
+	{
+		EStreetballState St;
+		if (!StateFromName(E.Key, St)) { UE_LOG(LogStreetball, Warning, TEXT("Director: unknown state %s in table"), *E.Key); continue; }
+		const TSharedPtr<FJsonObject> O = E.Value->AsObject();
+		FStreetballStateRow R;
+		if (O->HasTypedField<EJson::String>(TEXT("policy"))) R.Policy = O->GetStringField(TEXT("policy"));
+		if (O->HasTypedField<EJson::Number>(TEXT("tier"))) R.Tier = (int32)O->GetNumberField(TEXT("tier"));
+		const TSharedPtr<FJsonObject>* Task = nullptr;
+		if (O->TryGetObjectField(TEXT("task"), Task) && Task && Task->IsValid())
+		{
+			R.Layout = (*Task)->GetStringField(TEXT("layout"));
+			const TArray<TSharedPtr<FJsonValue>>* Arr = nullptr;
+			if ((*Task)->HasTypedField<EJson::Number>(TEXT("speed_cmd"))) { R.bHasSpeed = true; const double V = (*Task)->GetNumberField(TEXT("speed_cmd")); R.SpeedRange = FVector2d(V, V); }
+			else if ((*Task)->TryGetArrayField(TEXT("speed_cmd"), Arr) && Arr->Num() == 2) { R.bHasSpeed = true; R.SpeedRange = FVector2d((*Arr)[0]->AsNumber(), (*Arr)[1]->AsNumber()); }
+			if ((*Task)->TryGetArrayField(TEXT("hand_switch_every"), Arr) && Arr->Num() == 2) R.HandSwitchEvery = FIntPoint((int32)(*Arr)[0]->AsNumber(), (int32)(*Arr)[1]->AsNumber());
+		}
+		if (!R.Policy.IsEmpty() && !NewFiles.Contains(R.Policy)) { UE_LOG(LogStreetball, Error, TEXT("Director: state %s uses unknown policy %s"), *E.Key, *R.Policy); return false; }
+		if (!R.Layout.IsEmpty() && !NewLayouts.Contains(R.Layout)) { UE_LOG(LogStreetball, Error, TEXT("Director: state %s uses unknown layout %s"), *E.Key, *R.Layout); return false; }
+		NewRows.Add(St, R);
+	}
+	for (EStreetballState S : {EStreetballState::Stand, EStreetballState::Roam, EStreetballState::DribbleStationary, EStreetballState::DribbleMoving, EStreetballState::JumpShot, EStreetballState::Scramble})
+	{
+		if (!NewRows.Contains(S)) { UE_LOG(LogStreetball, Error, TEXT("Director: table lacks state %s"), *StateName(S)); return false; }
+	}
+	Rows = MoveTemp(NewRows); Layouts = MoveTemp(NewLayouts); PolicyFiles = MoveTemp(NewFiles);
+	TableVersionNum = J->HasField(TEXT("version")) ? (int32)J->GetNumberField(TEXT("version")) : 0;
+	bTableLoaded = true;
+	UE_LOG(LogStreetball, Log, TEXT("Director: loaded transition table v%d from %s (%d states, %d policies, %d layouts)"), TableVersionNum, *Path, Rows.Num(), PolicyFiles.Num(), Layouts.Num());
+	return true;
+}
+
+FString UStreetballDirector::PolicyFor(EStreetballState St) const
+{
+	if (St == EStreetballState::HardReset) St = TierState;
+	const FStreetballStateRow* R = Rows.Find(St);
+	return R ? R->Policy : FString();
+}
+
+FString UStreetballDirector::PolicyFileFor(const FString& Family) const
+{
+	const FString* F = PolicyFiles.Find(Family);
+	return F ? *F : FString();
+}
+
+const TArray<FString>& UStreetballDirector::LayoutFor(const FString& Layout) const
+{
+	const TArray<FString>* L = Layouts.Find(Layout);
+	return L ? *L : EmptyLayout;
+}
+
+// ---------------------------------------------------------------------------- lifecycle
 void UStreetballDirector::Initialize(int32 Seed)
 {
 	Rng.Initialize(Seed);
 	P = FStreetballProgress();
+	if (Rows.Num() == 0) InstallDefaultTable();
 	FTrackedState S;
 	EnterTier(1, S);
 }
@@ -76,29 +193,33 @@ void UStreetballDirector::EnterTier(int32 Tier, const FTrackedState& S)
 	switch (Tier)
 	{
 	case 1: TierState = EStreetballState::Stand; P.TierName = TEXT("Tier 1: Upright Balance"); P.BalanceTime = 0.0; bFootStartValid = false; break;
-	case 2: TierState = EStreetballState::Roam; P.TierName = TEXT("Tier 2: Court Traversal"); P.Waypoints = 0; NewWaypoint(S); break;
-	case 3: TierState = EStreetballState::DribbleStationary; P.TierName = TEXT("Tier 3: Stationary Dribble"); P.CleanStreak = 0; P.HandSwitches = 0; SetHand(true, S); break;
-	case 4: TierState = EStreetballState::DribbleMoving; P.TierName = TEXT("Tier 4: Dynamic Roam & Dribble"); P.CourseDistance = 0.0; P.Saves = 0; P.CleanStreak = 0; SetHand(true, S); NewWaypoint(S); break;
-	default: TierState = EStreetballState::JumpShot; P.TierName = TEXT("Tier 5: Pull-Up Jump Shot"); P.ShotsTaken = 0; P.ShotsMade = 0; P.CleanStreak = 0; SetHand(false, S); break;
+	case 2: TierState = EStreetballState::Roam; P.TierName = TEXT("Tier 2: Court Traversal"); P.Waypoints = 0; break;
+	case 3: TierState = EStreetballState::DribbleStationary; P.TierName = TEXT("Tier 3: Stationary Dribble"); P.CleanStreak = 0; P.HandSwitches = 0; break;
+	case 4: TierState = EStreetballState::DribbleMoving; P.TierName = TEXT("Tier 4: Dynamic Roam & Dribble"); P.CourseDistance = 0.0; P.Saves = 0; P.CleanStreak = 0; break;
+	default: TierState = EStreetballState::JumpShot; P.TierName = TEXT("Tier 5: Pull-Up Jump Shot"); P.ShotsTaken = 0; P.ShotsMade = 0; P.CleanStreak = 0; break;
 	}
+	EnterState(TierState, S);
+	SetHand(Tier == 3 || Tier == 4, S);
+	NewWaypoint(S);
 	bPrevFloor = false; bPalmSince = true; bNearSince = true; Apex = S.BallPos.Z;
 	bTriggered = bGathered = bReleased = bScored = false;
 	ShotStartT = S.Time; TriggerT = Rng.FRandRange(1.0, 3.0); PrevBallZ = S.BallPos.Z;
 	P.Progress01 = 0.f;
-	EnterState(TierState, S);
 }
 
-void UStreetballDirector::NewWaypoint(const FTrackedState& S)
+void UStreetballDirector::NewWaypoint(const FTrackedState&)
 {
 	Waypoint = FVector2d(Rng.FRandRange(-CourtHalf.X, CourtHalf.X), Rng.FRandRange(-CourtHalf.Y, CourtHalf.Y));
-	const FVector2d R = (P.ActiveTier >= 4) ? RoamSpeedRange : SpeedRange;
-	SpeedCmd = Rng.FRandRange(R.X, R.Y);
+	const FStreetballStateRow* R = Rows.Find(TierState);
+	if (R && R->bHasSpeed) SpeedCmd = (R->SpeedRange.X == R->SpeedRange.Y) ? R->SpeedRange.X : Rng.FRandRange(R->SpeedRange.X, R->SpeedRange.Y);
+	else SpeedCmd = 0.0;
 }
 
 void UStreetballDirector::SetHand(bool bRandom, const FTrackedState&)
 {
 	Hand = (bRandom && Rng.FRand() < 0.5) ? -1.0 : 1.0;
-	UntilSwitch = Rng.RandRange(2, 4);
+	const FStreetballStateRow* R = Rows.Find(TierState);
+	UntilSwitch = (R && R->HandSwitchEvery.Y > 0) ? Rng.RandRange(R->HandSwitchEvery.X, R->HandSwitchEvery.Y) : 0;
 }
 
 void UStreetballDirector::RequestHardReset(const TCHAR* Reason, FStreetballDirectorOutput& Out)
@@ -140,14 +261,57 @@ void UStreetballDirector::NotifyResetApplied(const FTrackedState& S)
 	bLastPelvisValid = false;
 }
 
+// ---------------------------------------------------------------------------- task block
+double UStreetballDirector::TaskField(const FString& F, const FTrackedState& S) const
+{
+	const FStreetballStateRow* R = Rows.Find(State == EStreetballState::HardReset ? TierState : State);
+	const bool bMoves = R && R->bHasSpeed && !(R->SpeedRange.X == 0.0 && R->SpeedRange.Y == 0.0);
+	if (F == TEXT("0")) return 0.0;
+	if (F == TEXT("dir_x") || F == TEXT("dir_y") || F == TEXT("distance_m"))
+	{
+		if (!bMoves) return 0.0;                                   // stationary dribble: no waypoint
+		const FVector2d Rel = Waypoint - FVector2d(S.PelvisPos.X, S.PelvisPos.Y);
+		const double Dist = Rel.Length();
+		if (F == TEXT("distance_m")) return FMath::Min(Dist, 10.0);
+		const FVector2d Dir = S.ToHeading(Dist > 1e-6 ? Rel / Dist : FVector2d(1, 0));
+		return F == TEXT("dir_x") ? Dir.X : Dir.Y;
+	}
+	if (F == TEXT("speed_cmd")) return bMoves ? SpeedCmd : 0.0;
+	if (F == TEXT("hand")) return Hand;
+	if (F == TEXT("apex_target_m")) return ApexTarget;
+	if (F == TEXT("bounces_to_switch")) return (R && R->HandSwitchEvery.Y > 0) ? (double)UntilSwitch : 0.0;
+	if (F == TEXT("countdown_frac")) return S.CountdownFrac;
+	if (F == TEXT("trigger")) return bTriggered ? 1.0 : 0.0;
+	if (F == TEXT("time_since_trigger_s")) return bTriggered ? FMath::Max(0.0, S.Time - (ShotStartT + TriggerT)) : 0.0;
+	if (F.StartsWith(TEXT("rim_rel_")))
+	{
+		const FVector3d Rel = S.RimPos[RimIndex] - S.PelvisPos;
+		const FVector2d H = S.ToHeading(FVector2d(Rel.X, Rel.Y));
+		if (F == TEXT("rim_rel_x")) return H.X;
+		if (F == TEXT("rim_rel_y")) return H.Y;
+		return Rel.Z;
+	}
+	return 0.0;
+}
+
+void UStreetballDirector::FillTask(const FTrackedState& S, FStreetballDirectorOutput& Out) const
+{
+	FMemory::Memzero(Out.Task);
+	const FStreetballStateRow* R = Rows.Find(State == EStreetballState::HardReset ? TierState : State);
+	if (!R) return;
+	const TArray<FString>& L = LayoutFor(R->Layout);
+	for (int32 i = 0; i < L.Num() && i < 12; ++i) Out.Task[i] = (float)TaskField(L[i], S);
+}
+
 void UStreetballDirector::Describe(const FTrackedState& S, FStreetballDirectorOutput& Out) const
 {
 	Out = FStreetballDirectorOutput();
 	Out.State = State;
-	Out.PolicyName = PolicyForState(State == EStreetballState::HardReset ? TierState : State);
+	Out.PolicyName = PolicyFor(State);
 	FillTask(S, Out);
 }
 
+// ---------------------------------------------------------------------------- bounce bookkeeping (l2_dribble.py)
 void UStreetballDirector::UpdateBounce(const FTrackedState& S, FStreetballDirectorOutput& Out)
 {
 	const bool Floor = S.BallFloor;
@@ -161,53 +325,17 @@ void UStreetballDirector::UpdateBounce(const FTrackedState& S, FStreetballDirect
 	bPalmSince = bPalmSince || ActivePalm;
 	const bool Clean = Bounce && bPalmSince && bNearSince && ApexBefore >= ApexBand.X && ApexBefore <= ApexBand.Y;
 	if (Clean) ++P.CleanStreak; else if (Bounce) P.CleanStreak = 0;
-	if (Clean && State != EStreetballState::JumpShot)
+	const FStreetballStateRow* R = Rows.Find(State);
+	if (Clean && R && R->HandSwitchEvery.Y > 0)                    // commanded crossover only where the table says so
 	{
-		if (--UntilSwitch <= 0) { Hand = -Hand; ++P.HandSwitches; UntilSwitch = Rng.RandRange(2, 4); }
+		if (--UntilSwitch <= 0) { Hand = -Hand; ++P.HandSwitches; UntilSwitch = Rng.RandRange(R->HandSwitchEvery.X, R->HandSwitchEvery.Y); }
 	}
 	if (Bounce) { bPalmSince = false; bNearSince = true; }
 	Out.bBounceEvent = Bounce;
 	Out.bCleanBounce = Clean;
 }
 
-void UStreetballDirector::FillTask(const FTrackedState& S, FStreetballDirectorOutput& Out) const
-{
-	FMemory::Memzero(Out.Task);
-	switch (State)
-	{
-	case EStreetballState::Roam:
-	case EStreetballState::DribbleMoving:
-	{
-		const FVector2d Rel = Waypoint - FVector2d(S.PelvisPos.X, S.PelvisPos.Y);
-		const double Dist = Rel.Length();
-		const FVector2d Dir = S.ToHeading(Dist > 1e-6 ? Rel / Dist : FVector2d(1, 0));
-		Out.Task[0] = (float)Dir.X; Out.Task[1] = (float)Dir.Y;
-		Out.Task[2] = (float)FMath::Min(Dist, 10.0);
-		Out.Task[3] = (float)SpeedCmd;
-		if (State == EStreetballState::DribbleMoving) Out.Task[4] = (float)Hand;
-		break;
-	}
-	case EStreetballState::DribbleStationary:
-		Out.Task[0] = (float)Hand;
-		Out.Task[1] = (float)ApexTarget;
-		Out.Task[2] = (float)UntilSwitch;
-		break;
-	case EStreetballState::Scramble:
-		Out.Task[0] = S.CountdownFrac;
-		break;
-	case EStreetballState::JumpShot:
-	{
-		const FVector3d Rel = S.RimPos[RimIndex] - S.PelvisPos;
-		const FVector2d H = S.ToHeading(FVector2d(Rel.X, Rel.Y));
-		Out.Task[0] = (float)H.X; Out.Task[1] = (float)H.Y; Out.Task[2] = (float)Rel.Z;
-		Out.Task[3] = bTriggered ? 1.f : 0.f;
-		Out.Task[4] = bTriggered ? (float)FMath::Max(0.0, S.Time - (ShotStartT + TriggerT)) : 0.f;
-		break;
-	}
-	default: break;
-	}
-}
-
+// ---------------------------------------------------------------------------- update
 void UStreetballDirector::Update(const FTrackedState& S, double Dt, FStreetballDirectorOutput& Out)
 {
 	Out = FStreetballDirectorOutput();
@@ -222,14 +350,12 @@ void UStreetballDirector::Update(const FTrackedState& S, double Dt, FStreetballD
 
 	if (State == EStreetballState::HardReset)
 	{
-		// The world applies the reset and calls NotifyResetApplied in the same step; if it did not,
-		// keep asking.
 		Out.Reset.bRequested = true;
-		Out.State = State; Out.PolicyName = PolicyForState(TierState);
+		Out.State = State; Out.PolicyName = PolicyFor(TierState);
 		return;
 	}
-	if (S.Fallen) { RequestHardReset(TEXT("fallen"), Out); Out.State = State; Out.PolicyName = PolicyForState(TierState); return; }
-	if (S.BallOutOfFence) { RequestHardReset(TEXT("ball past fence"), Out); Out.State = State; Out.PolicyName = PolicyForState(TierState); return; }
+	if (S.Fallen) { RequestHardReset(TEXT("fallen"), Out); Out.State = State; Out.PolicyName = PolicyFor(TierState); return; }
+	if (S.BallOutOfFence) { RequestHardReset(TEXT("ball past fence"), Out); Out.State = State; Out.PolicyName = PolicyFor(TierState); return; }
 
 	switch (State)
 	{
@@ -342,6 +468,6 @@ void UStreetballDirector::Update(const FTrackedState& S, double Dt, FStreetballD
 	}
 
 	Out.State = State;
-	Out.PolicyName = PolicyForState(State == EStreetballState::HardReset ? TierState : State);
+	Out.PolicyName = PolicyFor(State);
 	FillTask(S, Out);
 }
