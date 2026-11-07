@@ -44,3 +44,7 @@ Policies touched: dribble family only (untrained; the running l2a stage keeps th
 ## 02:30 — second dribble reward fix
 
 L2b (first stage with the dense apex term) still tapped at 25 cm: the tap was paid by the "near the spot" and "in control" terms. Now `r_spot` is scaled by 0.3 + 0.7 x [last apex >= 0.6 m], micro-bounces (apex < 0.5 m) cost -1.0 each, dense apex weight 0.5 -> 2.0. Dribble family only.
+
+## 03:00 — third dribble reward fix (monotonic shaping)
+
+L2c still tapped at 23 cm: the tap penalty was a step at 0.5 m and the dense apex term a narrow bell around 1 m, so bounces between 0.2 and 0.5 m earned nothing. Now p_tap = relu(0.6 - apex)/0.6 per bounce and the dense term is linear in predicted apex up to the target with a penalty above 1.3 m. Dribble family only.

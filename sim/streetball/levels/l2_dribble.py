@@ -118,7 +118,8 @@ class L2Dribble(Level):
         self.apex = torch.where(self.bounce_event, ball_z, torch.maximum(self.apex, ball_z))
         self.last_apex = torch.where(self.bounce_event, apex_before, self.last_apex)
         healthy = (self.last_apex >= 0.6).float()              # a real dribble, not a micro-bounce tap
-        p_tap = (self.bounce_event & (apex_before < 0.5)).float()
+        # proportional, not a step: every centimetre of extra height reduces the cost
+        p_tap = self.bounce_event.float() * ((0.6 - apex_before) / 0.6).clamp(min=0.0)
         self.palm_since |= self._active_palm_contact()
         self.near_since &= horiz < 0.6
         clean = self.bounce_event & self.palm_since & self.near_since & (apex_before >= self.apex_band[0]) & (apex_before <= self.apex_band[1])
@@ -145,7 +146,8 @@ class L2Dribble(Level):
         vz = env.v_ball[:, 2]
         apex_pred = ball_z + (vz.clamp(min=0.0) ** 2) / (2 * 9.81)
         rising = (vz > 0.2) & (ball_z > 0.13)
-        r_apex_dense = torch.exp(-((apex_pred - self.apex_target) / 0.25) ** 2) * rising.float()
+        # monotonic up to the target (linear), then a penalty above 1.3 m (carrying / throwing)
+        r_apex_dense = ((apex_pred / self.apex_target).clamp(max=1.0) - 2.0 * (apex_pred - 1.3).clamp(min=0.0)) * rising.float()
         p_high = (ball_z - 1.25).clamp(min=0.0)                   # carrying / holding
         p_drift = (env.p_pelvis[:, :2] - self.start_xy).norm(dim=-1)
         r = (

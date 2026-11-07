@@ -1,0 +1,24 @@
+{
+  "level": "l2b_dribble_l",
+  "checkpoint": "C:\\Users\\punko\\Downloads\\CODE_MATT\\PoBasketball\\sim\\runs\\l2b_dribble_l_q1\\model.pt",
+  "episodes": 200,
+  "push_scale": 1.0,
+  "push_max_N": 80.0,
+  "success_rate": 0.0,
+  "pass_fraction": 0.85,
+  "passed": false,
+  "holds_100_straight": false,
+  "nan_grads": 0,
+  "interface_sha": "ccfa18d6f9aaf2a5",
+  "physics_sha": "01a3f59b037ef5e7+1eba556a91fae556",
+  "fall_rate": 0.0,
+  "mean_episode_s": 20.563501358032227,
+  "metrics": {
+    "m/streak": 0.03016328252851963,
+    "m/bounces": 52.78966522216797,
+    "m/apex": 0.3246559798717499,
+    "m/switches": 0.0,
+    "m/in_control": 0.020903076976537704
+  },
+  "wall_s": 30.753975500003435
+}
