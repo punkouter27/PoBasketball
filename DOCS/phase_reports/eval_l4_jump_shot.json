@@ -1,0 +1,24 @@
+{
+  "level": "l4_jump_shot",
+  "checkpoint": "C:\\Users\\punko\\Downloads\\CODE_MATT\\PoBasketball\\sim\\runs\\l4_jump_shot_q1\\model.pt",
+  "episodes": 200,
+  "push_scale": 1.0,
+  "push_max_N": 0.0,
+  "success_rate": 0.0,
+  "pass_fraction": 0.3,
+  "passed": false,
+  "holds_100_straight": false,
+  "nan_grads": 0,
+  "interface_sha": "ccfa18d6f9aaf2a5",
+  "physics_sha": "01a3f59b037ef5e7+1eba556a91fae556",
+  "fall_rate": 0.0,
+  "mean_episode_s": 2.330699920654297,
+  "metrics": {
+    "m/gathered": 0.0,
+    "m/jumped": 0.0,
+    "m/released": 0.0,
+    "m/scored": 0.0,
+    "m/streak": 0.2559497654438019
+  },
+  "wall_s": 5.442031799997494
+}

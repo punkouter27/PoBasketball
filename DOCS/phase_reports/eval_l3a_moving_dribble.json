@@ -1,0 +1,25 @@
+{
+  "level": "l3a_moving_dribble",
+  "checkpoint": "C:\\Users\\punko\\Downloads\\CODE_MATT\\PoBasketball\\sim\\runs\\l3a_moving_dribble_q1\\model.pt",
+  "episodes": 200,
+  "push_scale": 1.0,
+  "push_max_N": 80.0,
+  "success_rate": 0.0,
+  "pass_fraction": 0.75,
+  "passed": false,
+  "holds_100_straight": false,
+  "nan_grads": 0,
+  "interface_sha": "ccfa18d6f9aaf2a5",
+  "physics_sha": "01a3f59b037ef5e7+1eba556a91fae556",
+  "fall_rate": 0.0,
+  "mean_episode_s": 3.3902995586395264,
+  "metrics": {
+    "m/waypoints": 0.007087912410497665,
+    "m/wp_dist": 9.885624885559082,
+    "m/speed": 0.5206212401390076,
+    "m/dist_m": 0.7994294762611389,
+    "m/control_frac": 0.4375946819782257,
+    "m/bounces": 3.2319176197052
+  },
+  "wall_s": 5.161038899997948
+}

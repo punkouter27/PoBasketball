@@ -144,7 +144,7 @@ class Queue:
         prod = RUNS / "production"
         prod.mkdir(exist_ok=True)
         man = {"generated": time.strftime("%Y-%m-%d %H:%M:%S"), "families": {}}
-        for f in sorted(prod.glob("*.json")):
+        for f in sorted(p for p in prod.glob("*.json") if p.name != "production_manifest.json"):
             man["families"][f.stem] = json.loads(f.read_text(encoding="utf-8"))
         man["stages"] = self.state["stages"]
         (prod / "production_manifest.json").write_text(json.dumps(man, indent=2), encoding="utf-8")

@@ -1,0 +1,21 @@
+{
+  "level": "l3b_scramble",
+  "checkpoint": "C:\\Users\\punko\\Downloads\\CODE_MATT\\PoBasketball\\sim\\runs\\l3b_scramble_q1\\model.pt",
+  "episodes": 200,
+  "push_scale": 1.0,
+  "push_max_N": 150.0,
+  "success_rate": 0.0,
+  "pass_fraction": 0.8,
+  "passed": false,
+  "holds_100_straight": false,
+  "nan_grads": 0,
+  "interface_sha": "ccfa18d6f9aaf2a5",
+  "physics_sha": "01a3f59b037ef5e7+1eba556a91fae556",
+  "fall_rate": 0.0,
+  "mean_episode_s": 3.007499933242798,
+  "metrics": {
+    "m/regained": 0.0,
+    "m/ball_dist": 1.7450482845306396
+  },
+  "wall_s": 2.966603100001521
+}
