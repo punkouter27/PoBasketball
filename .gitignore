@@ -1,0 +1,23 @@
+# Python / training
+sim/.venv/
+sim/runs/
+sim/runs_*.log
+sim/runs_*.err
+sim/**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# Unreal
+unreal/StreetballGym/Binaries/
+unreal/StreetballGym/Intermediate/
+unreal/StreetballGym/Saved/
+unreal/StreetballGym/DerivedDataCache/
+unreal/StreetballGym/.vs/
+unreal/StreetballGym/*.sln
+unreal/StreetballGym/Plugins/*/Binaries/
+unreal/StreetballGym/Plugins/*/Intermediate/
+# runtime copies of policies/specs are synced from shared/ by sim/tools/sync_policies_to_unreal.py
+unreal/StreetballGym/Content/Sim/policies/
+
+# Local scratch
+SCREENSHOTS/*.png

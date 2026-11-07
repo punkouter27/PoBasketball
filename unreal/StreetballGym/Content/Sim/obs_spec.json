@@ -1,0 +1,227 @@
+{
+  "n_obs": 119,
+  "n_action": 27,
+  "n_task": 12,
+  "slots": [
+    {
+      "name": "gravity_pelvis",
+      "start": 0,
+      "size": 3,
+      "scale": 1.0
+    },
+    {
+      "name": "pelvis_linvel",
+      "start": 3,
+      "size": 3,
+      "scale": 1.0
+    },
+    {
+      "name": "pelvis_angvel",
+      "start": 6,
+      "size": 3,
+      "scale": 0.25
+    },
+    {
+      "name": "joint_pos_rel",
+      "start": 9,
+      "size": 27,
+      "scale": 1.0
+    },
+    {
+      "name": "joint_vel",
+      "start": 36,
+      "size": 27,
+      "scale": 0.1
+    },
+    {
+      "name": "prev_action",
+      "start": 63,
+      "size": 27,
+      "scale": 1.0
+    },
+    {
+      "name": "ball_pos_rel",
+      "start": 90,
+      "size": 3,
+      "scale": 1.0
+    },
+    {
+      "name": "ball_vel_rel",
+      "start": 93,
+      "size": 3,
+      "scale": 0.5
+    },
+    {
+      "name": "ball_in_control",
+      "start": 96,
+      "size": 1,
+      "scale": 1.0
+    },
+    {
+      "name": "palm_ball_dist",
+      "start": 97,
+      "size": 2,
+      "scale": 1.0
+    },
+    {
+      "name": "foot_contact",
+      "start": 99,
+      "size": 2,
+      "scale": 1.0
+    },
+    {
+      "name": "pelvis_height",
+      "start": 101,
+      "size": 1,
+      "scale": 1.0
+    },
+    {
+      "name": "ball_angvel",
+      "start": 102,
+      "size": 3,
+      "scale": 0.05
+    },
+    {
+      "name": "countdown_frac",
+      "start": 105,
+      "size": 1,
+      "scale": 1.0
+    },
+    {
+      "name": "reserved",
+      "start": 106,
+      "size": 1,
+      "scale": 1.0
+    },
+    {
+      "name": "task",
+      "start": 107,
+      "size": 12,
+      "scale": 1.0
+    }
+  ],
+  "joint_order": [
+    "shoulder_pitch_l",
+    "shoulder_abd_l",
+    "shoulder_rot_l",
+    "elbow_l",
+    "wrist_flex_l",
+    "wrist_dev_l",
+    "shoulder_pitch_r",
+    "shoulder_abd_r",
+    "shoulder_rot_r",
+    "elbow_r",
+    "wrist_flex_r",
+    "wrist_dev_r",
+    "hip_flex_l",
+    "hip_abd_l",
+    "hip_rot_l",
+    "knee_l",
+    "ankle_pitch_l",
+    "ankle_roll_l",
+    "hip_flex_r",
+    "hip_abd_r",
+    "hip_rot_r",
+    "knee_r",
+    "ankle_pitch_r",
+    "ankle_roll_r",
+    "lumbar_flex",
+    "lumbar_lat",
+    "lumbar_twist"
+  ],
+  "nominal_rad": [
+    0.2617993877991494,
+    -0.43991708519952927,
+    0.0,
+    -0.1567100058491367,
+    0.0,
+    0.0,
+    0.2617993877991494,
+    -0.43991708519357764,
+    0.0,
+    -0.15671000584913733,
+    0.0,
+    0.0,
+    0.2617993877991494,
+    0.08726646259971647,
+    0.0,
+    0.3489812969480636,
+    0.17453292519943295,
+    0.0,
+    0.2617993877991494,
+    0.08726646259971647,
+    0.0,
+    0.3489812969480598,
+    0.17453292519943295,
+    0.0,
+    0.08726646259971647,
+    0.0,
+    0.0
+  ],
+  "lo_rad": [
+    -1.0471975511965976,
+    -1.138048785997261,
+    -1.5707963267948966,
+    -0.6803087814474356,
+    -1.2217304763960306,
+    -0.4363323129985824,
+    -1.0471975511965976,
+    -1.1380487859913093,
+    -1.5707963267948966,
+    -0.6803087814474362,
+    -1.2217304763960306,
+    -0.4363323129985824,
+    -0.5235987755982988,
+    -0.5235987755982988,
+    -0.6981317007977318,
+    -0.08735101605051879,
+    -0.7853981633974483,
+    -0.4363323129985824,
+    -0.5235987755982988,
+    -0.5235987755982988,
+    -0.6981317007977318,
+    -0.0873510160505226,
+    -0.7853981633974483,
+    -0.4363323129985824,
+    -0.3490658503988659,
+    -0.5235987755982988,
+    -0.6981317007977318
+  ],
+  "hi_rad": [
+    3.141592653589793,
+    2.003543867592532,
+    1.5707963267948966,
+    1.8504186339443423,
+    1.3962634015954636,
+    0.4363323129985824,
+    3.141592653589793,
+    2.003543867598484,
+    1.5707963267948966,
+    1.8504186339443416,
+    1.3962634015954636,
+    0.4363323129985824,
+    2.0943951023931953,
+    0.7853981633974483,
+    0.6981317007977318,
+    2.5306428619409758,
+    0.4363323129985824,
+    0.4363323129985824,
+    2.0943951023931953,
+    0.7853981633974483,
+    0.6981317007977318,
+    2.5306428619409718,
+    0.4363323129985824,
+    0.4363323129985824,
+    1.0471975511965976,
+    0.5235987755982988,
+    0.6981317007977318
+  ],
+  "action_rule": "ctrl = clip(nominal + a * 0.5*(hi-lo), lo, hi)",
+  "frames": {
+    "pelvis": "full pelvis orientation; gravity/linvel expressed as R^T v",
+    "heading": "yaw-only pelvis frame: fwd = R[:,0] with z zeroed and normalised, left = z x fwd",
+    "angvel_note": "MuJoCo free-joint qvel[3:6] is already in the body frame; used directly"
+  },
+  "ball_in_control_rule": "ball within 0.75 m horizontally of pelvis AND ball z < 1.3 m AND last palm contact < 0.6 s ago",
+  "foot_contact_rule": "any active contact between geom foot_l/foot_r and geom floor"
+}

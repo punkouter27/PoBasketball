@@ -1,0 +1,628 @@
+{
+  "generated_from": "shared/mannequin_bones.json",
+  "frame": {
+    "sim": "metres, right-handed, Z-up, character faces +X at qpos=0, +Y is character left",
+    "ue_from_sim": "pos_ue = (x*100, -y*100, z*100); quat_ue(X,Y,Z,W) = (-qx, qy, -qz, qw)",
+    "ue_mesh_from_ue_sim": "mesh faces +Y in mesh space; sim faces +X; the UE bone mapper captures per-bone offsets at init so no manual yaw is needed"
+  },
+  "timestep": 0.002,
+  "control_dt": 0.02,
+  "nominal_root_height_m": 0.9404420058646101,
+  "n_joints": 27,
+  "joints": [
+    {
+      "name": "shoulder_pitch_l",
+      "group": "shoulder",
+      "axis": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "range_deg": [
+        -60.0,
+        180.0
+      ],
+      "nominal_deg": 15.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 150,
+      "kv": 15,
+      "torque": 100
+    },
+    {
+      "name": "shoulder_abd_l",
+      "group": "shoulder",
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "range_deg": [
+        -65.20539231763007,
+        114.79460768236993
+      ],
+      "nominal_deg": -25.20539231763008,
+      "anatomical_offset_deg": 35.20539231763008,
+      "kp": 150,
+      "kv": 15,
+      "torque": 100
+    },
+    {
+      "name": "shoulder_rot_l",
+      "group": "shoulder",
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range_deg": [
+        -90.0,
+        90.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 150,
+      "kv": 15,
+      "torque": 100
+    },
+    {
+      "name": "elbow_l",
+      "group": "elbow",
+      "axis": [
+        -0.05634164485792343,
+        0.816776028997878,
+        0.5741972984168081
+      ],
+      "range_deg": [
+        -38.97882194262598,
+        106.02117805737402
+      ],
+      "nominal_deg": -8.978821942625977,
+      "anatomical_offset_deg": 38.97882194262598,
+      "kp": 100,
+      "kv": 10,
+      "torque": 80
+    },
+    {
+      "name": "wrist_flex_l",
+      "group": "wrist",
+      "axis": [
+        -0.05634164485792343,
+        0.816776028997878,
+        0.5741972984168081
+      ],
+      "range_deg": [
+        -70.0,
+        80.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 30,
+      "kv": 3,
+      "torque": 20
+    },
+    {
+      "name": "wrist_dev_l",
+      "group": "wrist",
+      "axis": [
+        -0.761202200131162,
+        0.33700777958811823,
+        -0.5540730701022789
+      ],
+      "range_deg": [
+        -25.0,
+        25.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 30,
+      "kv": 3,
+      "torque": 20
+    },
+    {
+      "name": "shoulder_pitch_r",
+      "group": "shoulder",
+      "axis": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "range_deg": [
+        -60.0,
+        180.0
+      ],
+      "nominal_deg": 15.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 150,
+      "kv": 15,
+      "torque": 100
+    },
+    {
+      "name": "shoulder_abd_r",
+      "group": "shoulder",
+      "axis": [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      "range_deg": [
+        -65.20539231728907,
+        114.79460768271093
+      ],
+      "nominal_deg": -25.205392317289075,
+      "anatomical_offset_deg": 35.205392317289075,
+      "kp": 150,
+      "kv": 15,
+      "torque": 100
+    },
+    {
+      "name": "shoulder_rot_r",
+      "group": "shoulder",
+      "axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "range_deg": [
+        -90.0,
+        90.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 150,
+      "kv": 15,
+      "torque": 100
+    },
+    {
+      "name": "elbow_r",
+      "group": "elbow",
+      "axis": [
+        0.056341644883433684,
+        0.8167760289995384,
+        -0.5741972984119433
+      ],
+      "range_deg": [
+        -38.97882194262601,
+        106.02117805737399
+      ],
+      "nominal_deg": -8.978821942626013,
+      "anatomical_offset_deg": 38.97882194262601,
+      "kp": 100,
+      "kv": 10,
+      "torque": 80
+    },
+    {
+      "name": "wrist_flex_r",
+      "group": "wrist",
+      "axis": [
+        0.056341644883433684,
+        0.8167760289995384,
+        -0.5741972984119433
+      ],
+      "range_deg": [
+        -70.0,
+        80.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 30,
+      "kv": 3,
+      "torque": 20
+    },
+    {
+      "name": "wrist_dev_r",
+      "group": "wrist",
+      "axis": [
+        -0.7612022001416886,
+        -0.33700777956104283,
+        -0.5540730701042851
+      ],
+      "range_deg": [
+        -25.0,
+        25.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 30,
+      "kv": 3,
+      "torque": 20
+    },
+    {
+      "name": "hip_flex_l",
+      "group": "hip",
+      "axis": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "range_deg": [
+        -30.0,
+        120.0
+      ],
+      "nominal_deg": 15.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 400,
+      "kv": 40,
+      "torque": 300
+    },
+    {
+      "name": "hip_abd_l",
+      "group": "hip",
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "range_deg": [
+        -30.0,
+        45.0
+      ],
+      "nominal_deg": 5.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 400,
+      "kv": 40,
+      "torque": 300
+    },
+    {
+      "name": "hip_rot_l",
+      "group": "hip",
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range_deg": [
+        -40.0,
+        40.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 400,
+      "kv": 40,
+      "torque": 300
+    },
+    {
+      "name": "knee_l",
+      "group": "knee",
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "range_deg": [
+        -5.004844555874239,
+        144.99515544412577
+      ],
+      "nominal_deg": 19.99515544412576,
+      "anatomical_offset_deg": 5.004844555874239,
+      "kp": 400,
+      "kv": 40,
+      "torque": 300
+    },
+    {
+      "name": "ankle_pitch_l",
+      "group": "ankle",
+      "axis": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "range_deg": [
+        -45.0,
+        25.0
+      ],
+      "nominal_deg": 10.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 200,
+      "kv": 20,
+      "torque": 150
+    },
+    {
+      "name": "ankle_roll_l",
+      "group": "ankle",
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "range_deg": [
+        -25.0,
+        25.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 200,
+      "kv": 20,
+      "torque": 150
+    },
+    {
+      "name": "hip_flex_r",
+      "group": "hip",
+      "axis": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "range_deg": [
+        -30.0,
+        120.0
+      ],
+      "nominal_deg": 15.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 400,
+      "kv": 40,
+      "torque": 300
+    },
+    {
+      "name": "hip_abd_r",
+      "group": "hip",
+      "axis": [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      "range_deg": [
+        -30.0,
+        45.0
+      ],
+      "nominal_deg": 5.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 400,
+      "kv": 40,
+      "torque": 300
+    },
+    {
+      "name": "hip_rot_r",
+      "group": "hip",
+      "axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "range_deg": [
+        -40.0,
+        40.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 400,
+      "kv": 40,
+      "torque": 300
+    },
+    {
+      "name": "knee_r",
+      "group": "knee",
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "range_deg": [
+        -5.004844555874458,
+        144.99515544412554
+      ],
+      "nominal_deg": 19.995155444125544,
+      "anatomical_offset_deg": 5.004844555874458,
+      "kp": 400,
+      "kv": 40,
+      "torque": 300
+    },
+    {
+      "name": "ankle_pitch_r",
+      "group": "ankle",
+      "axis": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "range_deg": [
+        -45.0,
+        25.0
+      ],
+      "nominal_deg": 10.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 200,
+      "kv": 20,
+      "torque": 150
+    },
+    {
+      "name": "ankle_roll_r",
+      "group": "ankle",
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "range_deg": [
+        -25.0,
+        25.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 200,
+      "kv": 20,
+      "torque": 150
+    },
+    {
+      "name": "lumbar_flex",
+      "group": "lumbar",
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "range_deg": [
+        -20.0,
+        60.0
+      ],
+      "nominal_deg": 5.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 300,
+      "kv": 30,
+      "torque": 200
+    },
+    {
+      "name": "lumbar_lat",
+      "group": "lumbar",
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "range_deg": [
+        -30.0,
+        30.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 300,
+      "kv": 30,
+      "torque": 200
+    },
+    {
+      "name": "lumbar_twist",
+      "group": "lumbar",
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "range_deg": [
+        -40.0,
+        40.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 300,
+      "kv": 30,
+      "torque": 200
+    }
+  ],
+  "reference_pose_info": {
+    "elbow_flexion_in_ref_pose_deg": {
+      "l": 38.97882194262598,
+      "r": 38.97882194262601
+    },
+    "shoulder_abduction_in_ref_pose_deg": {
+      "l": 35.20539231763008,
+      "r": 35.205392317289075
+    },
+    "knee_flexion_in_ref_pose_deg": {
+      "l": 5.004844555874239,
+      "r": 5.004844555874458
+    },
+    "foot_yaw_deg": {
+      "l": 6.461836975971767,
+      "r": -6.461615966062423
+    }
+  },
+  "body_bone_map": {
+    "pelvis": {
+      "bones": [
+        "pelvis"
+      ],
+      "rule": "position+rotation"
+    },
+    "torso": {
+      "anchor": "spine_02",
+      "bones": [
+        "spine_01",
+        "spine_02",
+        "spine_03"
+      ],
+      "rule": "lumbar slerp 1/3, 2/3, 1; spine_04, spine_05, clavicle_l, clavicle_r rigid"
+    },
+    "head": {
+      "bones": [
+        "neck_01",
+        "neck_02",
+        "head"
+      ],
+      "rule": "rigid with torso"
+    },
+    "upperarm_l": {
+      "bones": [
+        "upperarm_l"
+      ],
+      "rule": "rotation"
+    },
+    "upperarm_r": {
+      "bones": [
+        "upperarm_r"
+      ],
+      "rule": "rotation"
+    },
+    "lowerarm_l": {
+      "bones": [
+        "lowerarm_l"
+      ],
+      "rule": "rotation"
+    },
+    "lowerarm_r": {
+      "bones": [
+        "lowerarm_r"
+      ],
+      "rule": "rotation"
+    },
+    "hand_l": {
+      "bones": [
+        "hand_l"
+      ],
+      "rule": "rotation; fingers fixed"
+    },
+    "hand_r": {
+      "bones": [
+        "hand_r"
+      ],
+      "rule": "rotation; fingers fixed"
+    },
+    "thigh_l": {
+      "bones": [
+        "thigh_l"
+      ],
+      "rule": "rotation"
+    },
+    "thigh_r": {
+      "bones": [
+        "thigh_r"
+      ],
+      "rule": "rotation"
+    },
+    "calf_l": {
+      "bones": [
+        "calf_l"
+      ],
+      "rule": "rotation"
+    },
+    "calf_r": {
+      "bones": [
+        "calf_r"
+      ],
+      "rule": "rotation"
+    },
+    "foot_l": {
+      "bones": [
+        "foot_l",
+        "ball_l"
+      ],
+      "rule": "rotation"
+    },
+    "foot_r": {
+      "bones": [
+        "foot_r",
+        "ball_r"
+      ],
+      "rule": "rotation"
+    }
+  },
+  "masses_kg": {
+    "pelvis": 11.2,
+    "torso": 28.6,
+    "head": 6.5,
+    "upperarm": 2.24,
+    "lowerarm": 1.28,
+    "hand": 0.48,
+    "thigh": 8.0,
+    "calf": 3.72,
+    "foot": 1.16
+  }
+}

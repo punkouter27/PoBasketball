@@ -1,0 +1,10 @@
+{
+  "checkpoint": "runs\\l0_v2_snapshot.pt",
+  "obs_spec_sha256_16": "85b4b63d5dc3e7fe",
+  "n_obs": 119,
+  "n_action": 27,
+  "opset": 17,
+  "ort_vs_torch_max_abs_diff": 9.834766387939453e-07,
+  "input": "obs[1,119]",
+  "output": "action[1,27] in [-1,1]"
+}

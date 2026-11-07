@@ -1,0 +1,20 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1",
+	"FriendlyName": "MuJoCo Runtime",
+	"Description": "Thin wrapper around libmujoco 4.0.0. The game engine physics is bypassed; this plugin owns all simulation.",
+	"Category": "Physics",
+	"CreatedBy": "Streetball Gym",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "MuJoCoRuntime",
+			"Type": "Runtime",
+			"LoadingPhase": "PreDefault",
+			"PlatformAllowList": [ "Win64" ]
+		}
+	]
+}
