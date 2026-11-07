@@ -71,6 +71,11 @@ def main():
     demo = torch.as_tensor(np.load(args.demo)["pairs"], dtype=torch.float32)
     amp = AMP(demo, env.device)
     print(f"AMP demo: {demo.shape[0]} transitions x {demo.shape[1]} features from {args.demo}", flush=True)
+    if args.init and "amp" in sd:
+        # resuming an AMP run: keep the trained discriminator (the demo normaliser is rebuilt from --demo)
+        amp.disc.load_state_dict(sd["amp"]["disc"])
+        amp.opt.load_state_dict(sd["amp"]["opt"])
+        print("resumed AMP discriminator from the init checkpoint", flush=True)
 
     keyb = torch.as_tensor([mujoco.mj_name2id(env.mjm, mujoco.mjtObj.mjOBJ_BODY, b) for b in KEY_BODIES], device=env.device)
     rq, rv = env.root_q, env.root_v

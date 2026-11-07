@@ -210,3 +210,21 @@ one-leg yoga-style balancing (arms flung out), not walking style. Both dropped.
 Demo now: LocoMuJoCo Default walk, run, walkturn, random_walk, stepinplace1 = 22 min, 66,890 transitions.
 Arm-carry measure on these clips: 0.05–0.09 (walks), 0.39 (run). Same init/budget as the baseline; run dir of the discarded
 attempt kept as `runs/l1_amp_v1_lafanarms_discarded`. Expected finish ~17:25 incl. evaluation.
+
+## 16:55 — AMP stopped on request (resume later)
+
+`l1_amp_v2` stopped at **34.4 M steps** (~55 of 90 min), NaN grads 0. Last trends: arm-carry 0.30 → 0.12 (no hand-written
+penalty), arm-swing symmetry 68 % vs 39 % for the original, style reward plateaued ~0.42, episode length ~57 s, speed 1.86 m/s.
+Not yet evaluated. Preview exported to Unreal as `Content/Sim/policies/locomotion_amp.onnx`.
+`train_amp.py` now restores the discriminator when `--init` points at an AMP checkpoint.
+
+**To resume** (from `sim/`):
+```
+uv run python -m streetball.train_amp --level l1_traverse_amp --init runs/l1_amp_v2/model.pt --run-name l1_amp_v3 --time-budget-min 40 --push-curriculum --init-std 0.3
+uv run python -m streetball.evaluate --level l1_traverse --ckpt runs/l1_amp_v3/model.pt
+copy ..\DOCS\phase_reports\eval_l1_traverse.json runs\l1_amp_v3\eval.json
+uv run python tools/compare_amp.py --baseline runs/l1_v3_armcarry --amp runs/l1_amp_v3 --out ../DOCS/<day>/amp_vs_baseline.html
+```
+Watch in Unreal: `-StreetballStartTier=2 -StreetballMaxTier=2 -StreetballPolicy_locomotion=policies/locomotion_amp.onnx`.
+Launch long jobs without a visible console next time (Windows Terminal ignores -WindowStyle Hidden).
+Mocap data lives in `sim/data/mocap/` (git-ignored, CC BY-NC-ND) and `../ext/`; rebuild with `tools/retarget_loco_mujoco.py`.
