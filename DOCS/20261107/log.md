@@ -107,3 +107,16 @@ Balance re-evaluation with real fall counting (200 episodes, 100 N pushes):
 | new (arm collision) | 87.5 % | 9.0 % |
 Balance was already below its 95 % gate once falls were counted correctly; the 98 % graduation figure did not reproduce.
 Plan: fine-tune balance 45 min (`l0_v5_armstop`) then locomotion 90 min (`l1_v2_armstop`) from their checkpoints, evaluate both.
+
+## Session wrap-up (balance fine-tune ~40 min in)
+
+Still running unattended: `sim/runs/armstop_finetune.ps1` → balance fine-tune `l0_v5_armstop` (45 min) + eval, then locomotion
+`l1_v2_armstop` (90 min) + eval. Progress: `sim/runs/armstop_log.txt`; evals in `sim/runs/*_armstop_eval.txt`.
+
+Next session, in order:
+1. Read both evals. If balance >= 95 % and holds 100 straight: export to `runs/production/balance.*` and Unreal `Content/Sim/policies/`.
+2. Export locomotion to Unreal (preview unless >= 90 %), launch
+   `-game -StreetballStartTier=2 -StreetballMaxTier=2` and check the right arm visually.
+3. Regenerate goldens on the new physics (`replay_recorder.py`, obs golden) and add an "upright at end" assertion to the Step 4 gate.
+4. Locomotion below 90 %: more steps with the commanded-speed floor at 1.2 m/s.
+5. Dribble family from the locomotion checkpoint with the fixed reward.
