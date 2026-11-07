@@ -1,0 +1,25 @@
+{
+  "level": "l0_stand",
+  "checkpoint": "runs\\l0_v4_eval.pt",
+  "episodes": 200,
+  "push_scale": 1.0,
+  "push_max_N": 100.0,
+  "success_rate": 0.9799999594688416,
+  "pass_fraction": 0.95,
+  "passed": true,
+  "holds_100_straight": true,
+  "nan_grads": 0,
+  "interface_sha": "ccfa18d6f9aaf2a5",
+  "physics_sha": "01a3f59b037ef5e7+1eba556a91fae556",
+  "fall_rate": 0.0,
+  "mean_episode_s": 59.24789810180664,
+  "metrics": {
+    "m/sway_cm": 6.0603508949279785,
+    "m/quiet_sway_cm": 4.899169921875,
+    "m/quiet_speed_cm_s": 1.2789158821105957,
+    "m/quiet_jitter_cm": 0.6892232894897461,
+    "m/foot_drift_cm": 5.110401630401611,
+    "m/upright": 0.9990637898445129
+  },
+  "wall_s": 185.71486189999996
+}

@@ -23,10 +23,14 @@ REPORTS = ROOT.parent / "docs" / "phase_reports"
 
 
 def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int = 123,
-             push_scale: float = 1.0) -> dict:
+             push_scale: float = 1.0, push_max: float | None = None) -> dict:
     level = make(level_name)
+    sd = torch.load(ckpt, map_location="cpu")
+    # evaluate under the same push magnitude the checkpoint was trained with unless overridden
+    if push_max is None:
+        push_max = float(sd.get("push_max", 150.0))
     env = StreetballEnv(level, EnvConfig(num_envs=episodes, seed=seed,
-                                         randomization=RandomizationConfig(enabled=True)))
+                                         randomization=RandomizationConfig(enabled=True, push_force=(0.0, push_max))))
     env.push_scale = push_scale
     sd = torch.load(ckpt, map_location=env.device)
     actor = Actor(env.N_OBS, env.N_ACT).to(env.device)
@@ -74,7 +78,7 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
     passed = rate >= level.pass_fraction and holds_100 and nan_grads == 0
     steps_run = ep_len.clamp_min(1)
     res = {
-        "level": level_name, "checkpoint": str(ckpt), "episodes": episodes, "push_scale": push_scale,
+        "level": level_name, "checkpoint": str(ckpt), "episodes": episodes, "push_scale": push_scale, "push_max_N": push_max,
         "success_rate": rate, "pass_fraction": level.pass_fraction, "passed": passed,
         "holds_100_straight": holds_100, "nan_grads": nan_grads,
         "interface_sha": ckpt_sd.get("interface_sha"), "physics_sha": ckpt_sd.get("physics_sha"),
@@ -86,7 +90,7 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
     REPORTS.mkdir(parents=True, exist_ok=True)
     (REPORTS / f"eval_{level_name}.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
     lines = [f"# Evaluation — {level_name}: {'PASS' if passed else 'FAIL'}", "",
-             f"Checkpoint `{ckpt}`, {episodes} randomised episodes, deterministic policy, push scale {push_scale}.", "",
+             f"Checkpoint `{ckpt}`, {episodes} randomised episodes, deterministic policy, pushes up to {push_max:.0f} N x scale {push_scale}.", "",
              "| Metric | Value |", "|---|---|",
              f"| Success rate | {rate*100:.1f} % (need >= {level.pass_fraction*100:.0f} %) |",
              f"| Holds for 100 straight episodes | {'yes' if holds_100 else 'no'} |",
@@ -105,8 +109,9 @@ def main():
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--episodes", type=int, default=200)
     ap.add_argument("--push-scale", type=float, default=1.0)
+    ap.add_argument("--push-max", type=float, default=None, help="override the push force cap (N); default: from checkpoint")
     args = ap.parse_args()
-    res = evaluate(args.level, pathlib.Path(args.ckpt), args.episodes, push_scale=args.push_scale)
+    res = evaluate(args.level, pathlib.Path(args.ckpt), args.episodes, push_scale=args.push_scale, push_max=args.push_max)
     print(json.dumps(res, indent=2))
     raise SystemExit(0 if res["passed"] else 1)
 

@@ -27,12 +27,13 @@ from streetball.ppo import PPO, PPOConfig
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
 SHARED = ROOT.parent / "shared"
+PUSH_MAX = 150.0   # set from args in main() before tags are built
 
 
 def version_tags(level_name: str) -> dict:
     """UU_AGENT: tag every checkpoint with its interface and physics versions."""
     h = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()[:16]
-    return {"level": level_name, "interface_sha": h(SHARED / "obs_spec.json"),
+    return {"level": level_name, "interface_sha": h(SHARED / "obs_spec.json"), "push_max": PUSH_MAX,
             "physics_sha": h(ROOT / "assets" / "humanoid.xml") + "+" + h(ROOT / "assets" / "court.xml")}
 
 
@@ -89,6 +90,8 @@ def main():
     csvf = open(out / "log.csv", "w", newline="", encoding="utf-8")
     csvw = None
 
+    global PUSH_MAX
+    PUSH_MAX = float(args.push_max)
     tags = version_tags(level.name)
     if args.init:
         for k in ("interface_sha", "physics_sha"):
