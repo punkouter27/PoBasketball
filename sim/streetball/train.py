@@ -60,6 +60,8 @@ def parse():
     ap.add_argument("--steps-per-env", type=int, default=24)
     ap.add_argument("--init-std", type=float, default=0.5)
     ap.add_argument("--push-max", type=float, default=150.0, help="max random push force in N")
+    ap.add_argument("--time-budget-min", type=float, default=0.0, help="stop after this many wall-clock minutes (0 = no limit)")
+    ap.add_argument("--ckpt-every-steps", type=float, default=25e6, help="also save ckpt_<Msteps>.pt at these milestones")
     ap.add_argument("--save-every", type=int, default=50, help="iterations")
     return ap.parse_args()
 
@@ -108,6 +110,8 @@ def main():
           f"tags {tags}; ETA ~{args.steps / 30000 / 60:.0f} min at 30k fps", flush=True)
     nan_grads = 0
 
+    next_ckpt = args.ckpt_every_steps
+    stop_reason = "budget of steps reached"
     for it in range(1, n_iters + 1):
         if args.push_curriculum:
             env.push_scale = min(1.0, it / max(1, n_iters // 3))
@@ -151,6 +155,14 @@ def main():
             print(f"it {it:5d} | {total_steps/1e6:7.1f}M steps | {fps/1e3:5.1f}k fps | ret {rec['ep_return']:8.2f} | "
                   f"ep {rec['ep_len_s']:5.1f}s | kl {stats['ppo/kl']:.4f} lr {stats['ppo/lr']:.1e} std {stats['ppo/std']:.3f} | "
                   f"push {env.push_scale:.2f} | {el/60:.1f} min", flush=True)
+        if args.ckpt_every_steps > 0 and total_steps >= next_ckpt:
+            save_ckpt(agent, out / f"ckpt_{total_steps/1e6:.0f}M.pt", tags, {"steps": total_steps, "nan_grads": nan_grads})
+            next_ckpt += args.ckpt_every_steps
+        if args.time_budget_min > 0 and (time.time() - t_start) / 60 >= args.time_budget_min:
+            stop_reason = f"time budget {args.time_budget_min:.0f} min reached at {total_steps/1e6:.1f}M steps"
+            save_ckpt(agent, out / "model.pt", tags, {"steps": total_steps, "nan_grads": nan_grads})
+            print(stop_reason, flush=True)
+            break
         if it % args.save_every == 0 or it == n_iters:
             save_ckpt(agent, out / "model.pt", tags, {"steps": total_steps, "nan_grads": nan_grads})
             if rec["ep_return"] > best and len(ep_returns) > 100:
@@ -158,7 +170,10 @@ def main():
                 save_ckpt(agent, out / "best.pt", tags, {"steps": total_steps, "nan_grads": nan_grads})
     save_ckpt(agent, out / "model.pt", tags, {"steps": total_steps, "nan_grads": nan_grads})
     writer.close(); csvf.close()
-    print(f"done: {out}")
+    (out / "done.json").write_text(json.dumps({"stop_reason": stop_reason, "steps": int(total_steps), "iters": it,
+        "wall_min": (time.time() - t_start) / 60, "nan_grads": nan_grads, "final_ep_return": rec["ep_return"],
+        "final_ep_len_s": rec["ep_len_s"]}), encoding="utf-8")
+    print(f"done: {out} ({stop_reason})", flush=True)
 
 
 if __name__ == "__main__":
