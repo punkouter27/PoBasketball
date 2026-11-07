@@ -180,7 +180,7 @@ def main() -> None:
         foot_c = an * np.array([1, 1, 0]) + foot_dir * (toe_fwd - heel_back) / 2 + np.array([0, 0, 0.025])
 
         j_hf = hinge(f"hip_flex_{s}", "hip", [0, -1, 0], -30, 120, 15)
-        j_ha = hinge(f"hip_abd_{s}", "hip", [sgn, 0, 0], -30, 45, 5)
+        j_ha = hinge(f"hip_abd_{s}", "hip", [sgn, 0, 0], -15, 45, 5)   # adduction capped where the other leg blocks it
         j_hr = hinge(f"hip_rot_{s}", "hip", [0, 0, sgn], -40, 40, 0)
         j_kn = hinge(f"knee_{s}", "knee", [0, 1, 0], 0, 150, 25, offset_deg=knee_now)
         j_ap = hinge(f"ankle_pitch_{s}", "ankle", [0, -1, 0], -45, 25, 10)   # + = dorsiflexion
@@ -229,8 +229,11 @@ def main() -> None:
   <compiler angle="degree" autolimits="true"/>
   <default>
     <default class="humanoid">
-      <!-- contype=1 / conaffinity=0: collides with court and ball (conaffinity 1), never with itself -->
-      <geom contype="1" conaffinity="0" condim="3" friction="0.9 0.01 0.002" rgba="0.75 0.75 0.78 1"/>
+      <!-- contype=1 / conaffinity=1: collides with the court, the ball AND itself. MuJoCo's default
+           filterparent flag removes parent-child pairs (and welded bodies count as their parent), so only
+           NON-ADJACENT parts collide (UU_AGENT section 2). Explicit excludes below cover pairs that
+           overlap in the reference pose. -->
+      <geom contype="1" conaffinity="1" condim="3" friction="0.9 0.01 0.002" solref="0.006 1" solimp="0.95 0.99 0.001" rgba="0.75 0.75 0.78 1"/>
       <joint type="hinge" armature="0.01" damping="0.5" limited="true"/>
       <site size="0.01" group="4"/>
     </default>
@@ -255,6 +258,16 @@ def main() -> None:
       </body>{leg_l}{leg_r}
     </body>
   </worldbody>
+
+  <contact>
+    <!-- Non-adjacent pairs that touch or overlap in the A-pose; everything else self-collides. -->
+    <exclude body1="pelvis" body2="calf_l"/>
+    <exclude body1="pelvis" body2="calf_r"/>
+    <exclude body1="torso" body2="lowerarm_l"/>
+    <exclude body1="torso" body2="lowerarm_r"/>
+    <exclude body1="pelvis" body2="hand_l"/>
+    <exclude body1="pelvis" body2="hand_r"/>
+  </contact>
 
   <actuator>
 {chr(10).join(actuators)}

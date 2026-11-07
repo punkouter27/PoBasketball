@@ -3,8 +3,11 @@
   <compiler angle="degree" autolimits="true"/>
   <default>
     <default class="humanoid">
-      <!-- contype=1 / conaffinity=0: collides with court and ball (conaffinity 1), never with itself -->
-      <geom contype="1" conaffinity="0" condim="3" friction="0.9 0.01 0.002" rgba="0.75 0.75 0.78 1"/>
+      <!-- contype=1 / conaffinity=1: collides with the court, the ball AND itself. MuJoCo's default
+           filterparent flag removes parent-child pairs (and welded bodies count as their parent), so only
+           NON-ADJACENT parts collide (UU_AGENT section 2). Explicit excludes below cover pairs that
+           overlap in the reference pose. -->
+      <geom contype="1" conaffinity="1" condim="3" friction="0.9 0.01 0.002" solref="0.006 1" solimp="0.95 0.99 0.001" rgba="0.75 0.75 0.78 1"/>
       <joint type="hinge" armature="0.01" damping="0.5" limited="true"/>
       <site size="0.01" group="4"/>
     </default>
@@ -61,7 +64,7 @@
       </body>
       <body name="thigh_l" pos="0.00260 0.09969 -0.02354">
         <joint name="hip_flex_l" axis="0.00000 -1.00000 0.00000" range="-30.00 120.00"/>
-        <joint name="hip_abd_l" axis="1.00000 0.00000 0.00000" range="-30.00 45.00"/>
+        <joint name="hip_abd_l" axis="1.00000 0.00000 0.00000" range="-15.00 45.00"/>
         <joint name="hip_rot_l" axis="0.00000 0.00000 1.00000" range="-40.00 40.00"/>
         <geom name="thigh_l" type="capsule" fromto="0.00000 0.00000 0.00000 0.00055 0.02363 -0.43277" size="0.07" mass="8.0"/>
         <body name="calf_l" pos="0.00055 0.02363 -0.43277">
@@ -77,7 +80,7 @@
       </body>
       <body name="thigh_r" pos="0.00269 -0.09969 -0.02353">
         <joint name="hip_flex_r" axis="0.00000 -1.00000 0.00000" range="-30.00 120.00"/>
-        <joint name="hip_abd_r" axis="-1.00000 0.00000 0.00000" range="-30.00 45.00"/>
+        <joint name="hip_abd_r" axis="-1.00000 0.00000 0.00000" range="-15.00 45.00"/>
         <joint name="hip_rot_r" axis="0.00000 0.00000 -1.00000" range="-40.00 40.00"/>
         <geom name="thigh_r" type="capsule" fromto="0.00000 0.00000 0.00000 0.00055 -0.02363 -0.43277" size="0.07" mass="8.0"/>
         <body name="calf_r" pos="0.00055 -0.02363 -0.43277">
@@ -94,6 +97,16 @@
     </body>
   </worldbody>
 
+  <contact>
+    <!-- Non-adjacent pairs that touch or overlap in the A-pose; everything else self-collides. -->
+    <exclude body1="pelvis" body2="calf_l"/>
+    <exclude body1="pelvis" body2="calf_r"/>
+    <exclude body1="torso" body2="lowerarm_l"/>
+    <exclude body1="torso" body2="lowerarm_r"/>
+    <exclude body1="pelvis" body2="hand_l"/>
+    <exclude body1="pelvis" body2="hand_r"/>
+  </contact>
+
   <actuator>
     <position name="shoulder_pitch_l" joint="shoulder_pitch_l" kp="150" kv="15" ctrlrange="-1.0472 3.1416" forcerange="-100 100"/>
     <position name="shoulder_abd_l" joint="shoulder_abd_l" kp="150" kv="15" ctrlrange="-1.1380 2.0035" forcerange="-100 100"/>
@@ -108,13 +121,13 @@
     <position name="wrist_flex_r" joint="wrist_flex_r" kp="30" kv="3" ctrlrange="-1.2217 1.3963" forcerange="-20 20"/>
     <position name="wrist_dev_r" joint="wrist_dev_r" kp="30" kv="3" ctrlrange="-0.4363 0.4363" forcerange="-20 20"/>
     <position name="hip_flex_l" joint="hip_flex_l" kp="400" kv="40" ctrlrange="-0.5236 2.0944" forcerange="-300 300"/>
-    <position name="hip_abd_l" joint="hip_abd_l" kp="400" kv="40" ctrlrange="-0.5236 0.7854" forcerange="-300 300"/>
+    <position name="hip_abd_l" joint="hip_abd_l" kp="400" kv="40" ctrlrange="-0.2618 0.7854" forcerange="-300 300"/>
     <position name="hip_rot_l" joint="hip_rot_l" kp="400" kv="40" ctrlrange="-0.6981 0.6981" forcerange="-300 300"/>
     <position name="knee_l" joint="knee_l" kp="400" kv="40" ctrlrange="-0.0874 2.5306" forcerange="-300 300"/>
     <position name="ankle_pitch_l" joint="ankle_pitch_l" kp="200" kv="20" ctrlrange="-0.7854 0.4363" forcerange="-150 150"/>
     <position name="ankle_roll_l" joint="ankle_roll_l" kp="200" kv="20" ctrlrange="-0.4363 0.4363" forcerange="-150 150"/>
     <position name="hip_flex_r" joint="hip_flex_r" kp="400" kv="40" ctrlrange="-0.5236 2.0944" forcerange="-300 300"/>
-    <position name="hip_abd_r" joint="hip_abd_r" kp="400" kv="40" ctrlrange="-0.5236 0.7854" forcerange="-300 300"/>
+    <position name="hip_abd_r" joint="hip_abd_r" kp="400" kv="40" ctrlrange="-0.2618 0.7854" forcerange="-300 300"/>
     <position name="hip_rot_r" joint="hip_rot_r" kp="400" kv="40" ctrlrange="-0.6981 0.6981" forcerange="-300 300"/>
     <position name="knee_r" joint="knee_r" kp="400" kv="40" ctrlrange="-0.0874 2.5306" forcerange="-300 300"/>
     <position name="ankle_pitch_r" joint="ankle_pitch_r" kp="200" kv="20" ctrlrange="-0.7854 0.4363" forcerange="-150 150"/>

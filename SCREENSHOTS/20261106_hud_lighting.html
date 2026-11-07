@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>UI change report — 2026-11-06</title>
+<style>body{font-family:system-ui,sans-serif;margin:24px;background:#111;color:#eee}figure{display:inline-block;margin:0 16px 16px 0;vertical-align:top}img{max-width:760px;border:1px solid #444}figcaption{font-size:14px;color:#bbb;margin-top:6px}table{border-collapse:collapse}td,th{border:1px solid #444;padding:6px 10px;text-align:left}</style></head>
+<body>
+<h1>Streetball Gym — HUD + lighting change, 2026-11-06</h1>
+<table>
+<tr><th>Change</th><th>Files</th></tr>
+<tr><td>Sun rotation fixed (Python <code>Rotator</code> is roll, pitch, yaw); lights made Movable; auto exposure on</td><td><code>Scripts/make_court_level.py</code>, <code>Config/DefaultEngine.ini</code>, <code>Content/Maps/Court.umap</code></td></tr>
+<tr><td>Sideline camera FOV margin widened (court context)</td><td><code>Source/StreetballGym/BroadcastCamera.cpp</code></td></tr>
+<tr><td>Build stamp YYMMDD bottom-right (UU_AGENT §1)</td><td><code>Source/StreetballGym/StreetballHUDWidget.cpp/.h</code></td></tr>
+</table>
+<h2>Before</h2>
+<figure><img src="20261106_hud_before_black.png" alt="before: black viewport with HUD only"><figcaption>First -game launch: HUD rendered, world black (sun pointing up).</figcaption></figure>
+<h2>After</h2>
+<figure><img src="20261106_scene_lit.png" alt="after lighting fix"><figcaption>Lit court, fence, Manny in stance, ball; 44 M-step L0 policy holding balance.</figcaption></figure>
+<figure><img src="20261106_hud_after.png" alt="after: build stamp"><figcaption>Same scene with the YYMMDD build stamp in the bottom-right corner.</figcaption></figure>
+<p>Captured from the standalone window (<code>UnrealEditor.exe … -game -windowed -ResX=1600 -ResY=900</code>) via a desktop screen grab.</p>
+</body></html>

@@ -167,6 +167,7 @@ class PPO:
         std_old = self.std_buf.reshape(B, -1)
         stats = {"loss/surrogate": 0.0, "loss/value": 0.0, "loss/entropy": 0.0, "ppo/kl": 0.0, "ppo/clip_frac": 0.0}
         n_upd = 0
+        nan_batches = 0
         for _ in range(cfg.epochs):
             perm = torch.randperm(B, device=self.device)
             for i in range(cfg.minibatches):
@@ -197,8 +198,11 @@ class PPO:
 
                 self.opt.zero_grad(set_to_none=True)
                 loss.backward()
-                nn.utils.clip_grad_norm_(self.ac.parameters(), cfg.max_grad_norm)
-                self.opt.step()
+                gn = nn.utils.clip_grad_norm_(self.ac.parameters(), cfg.max_grad_norm)
+                if torch.isfinite(gn):
+                    self.opt.step()
+                else:
+                    nan_batches += 1          # UU_AGENT gate: exported policies must have zero of these
                 stats["loss/surrogate"] += surr.item(); stats["loss/value"] += vloss.item()
                 stats["loss/entropy"] += ent.item(); stats["ppo/kl"] += kl.item(); stats["ppo/clip_frac"] += clip_frac.item()
                 n_upd += 1
@@ -206,6 +210,7 @@ class PPO:
             stats[k] /= n_upd
         stats["ppo/lr"] = self.lr
         stats["ppo/std"] = self.ac.log_std.exp().mean().item()
+        stats["ppo/nan_grad_batches"] = float(nan_batches)
         self.t = 0
         return stats
 

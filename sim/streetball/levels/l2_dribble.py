@@ -1,7 +1,9 @@
 """L2 Stationary dribble (PRD Tier 3): L2a right hand, L2b left hand, L2c crossover.
 
-Task block (12): [hand (+1 right / -1 left), target apex height (m), bounces until the
-next hand switch (crossover only, else 0), 9 zeros].
+Task block (12) -- the DRIBBLE FAMILY layout, shared with L3a moving dribble (one exported
+policy, variants by command): [hand (+1 right / -1 left), target apex height (m), bounces until
+the next hand switch (0 when not commanded), commanded speed (m/s, 0 = stationary),
+waypoint dir x, dir y (heading frame, 0 when stationary), waypoint distance (m, 0), 5 zeros].
 
 A *bounce* is the rising edge of ball-floor contact. It is *clean* when the apex after
 the previous bounce was within the target band, the ball stayed within 0.6 m of the

@@ -20,16 +20,21 @@ RUNS = ROOT / "runs"
 STATE = RUNS / "curriculum.json"
 POLICIES = ROOT.parent / "shared" / "policies"
 
-# level name -> (env steps, extra train args)
-LADDER: list[tuple[str, float, list[str]]] = [
-    ("l0_stand", 150e6, ["--push-curriculum", "--push-max", "100", "--init-std", "0.3"]),
-    ("l1_traverse", 300e6, ["--push-curriculum"]),
-    ("l2a_dribble_r", 400e6, []),
-    ("l2b_dribble_l", 200e6, []),
-    ("l2c_crossover", 300e6, []),
-    ("l3a_moving_dribble", 500e6, []),
-    ("l3b_scramble", 300e6, []),
-    ("l4_jump_shot", 500e6, []),
+# Curriculum stage -> (env steps, extra train args, exported policy family or None).
+# UU_AGENT section 3: a few policies, one per skill family; variants are command inputs. The stages
+# of one family share the task-block layout and are trained in sequence into the SAME policy; only
+# the last stage of a family is exported.
+FAMILIES = {"balance": "l0_stand", "locomotion": "l1_traverse", "dribble": "l3a_moving_dribble",
+            "scramble": "l3b_scramble", "shot": "l4_jump_shot"}
+LADDER: list[tuple[str, float, list[str], str | None]] = [
+    ("l0_stand", 150e6, ["--push-curriculum", "--push-max", "100", "--init-std", "0.3"], "balance"),
+    ("l1_traverse", 300e6, ["--push-curriculum"], "locomotion"),
+    ("l2a_dribble_r", 400e6, [], None),
+    ("l2b_dribble_l", 200e6, [], None),
+    ("l2c_crossover", 300e6, [], None),
+    ("l3a_moving_dribble", 500e6, [], "dribble"),
+    ("l3b_scramble", 300e6, [], "scramble"),
+    ("l4_jump_shot", 500e6, [], "shot"),
 ]
 
 
@@ -49,7 +54,7 @@ def main() -> None:
     prev_ckpt = None
     py = [sys.executable, "-m"]
     started = args.start is None
-    for name, steps, extra in LADDER:
+    for name, steps, extra, family in LADDER:
         if not started:
             started = name == args.start
             if not started:
@@ -68,9 +73,11 @@ def main() -> None:
             print(f"[{name}] training failed"); sys.exit(1)
         ckpt = str(RUNS / run_name / "model.pt")
         ok = run(py + ["streetball.evaluate", "--level", name, "--ckpt", ckpt]) == 0
-        onnx = str(POLICIES / f"{name}.onnx")
-        run(py + ["streetball.export_onnx", ckpt, "--out", onnx])
-        state[name] = {"checkpoint": ckpt, "onnx": onnx, "passed": ok}
+        onnx = None
+        if ok and family:
+            onnx = str(POLICIES / f"{family}.onnx")
+            run(py + ["streetball.export_onnx", ckpt, "--out", onnx])
+        state[name] = {"checkpoint": ckpt, "onnx": onnx, "family": family, "passed": ok}
         STATE.write_text(json.dumps(state, indent=2), encoding="utf-8")
         if not ok:
             print(f"[{name}] FAILED its pass target; ladder stopped. Fix the level and re-run with --from {name}")

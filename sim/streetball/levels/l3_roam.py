@@ -1,8 +1,9 @@
 """L3a Moving dribble and L3b Scramble (PRD Tier 4).
 
-L3a task block: [dir_x, dir_y] to waypoint (heading frame), distance, commanded speed,
-hand (+1/-1), 7 zeros. Success: >= 100 m of waypoint course covered at >= 1.5 m/s mean
-speed with the ball in control >= 90 % of the time, no fall.
+L3a task block uses the DRIBBLE FAMILY layout (see l2_dribble.py): [hand, apex target,
+bounces-to-switch (0), commanded speed, dir_x, dir_y, distance, 5 zeros]. L3a is the last
+curriculum stage of the single exported "dribble" policy. Success: >= 100 m of waypoint course
+covered at >= 1.5 m/s mean speed with the ball in control >= 90 % of the time, no fall.
 
 L3b task block: [countdown remaining fraction, 11 zeros] (ball state is in the base obs).
 Starts from a loose ball 0.5-4 m away, rolling or bouncing, countdown already running.
@@ -55,8 +56,14 @@ class L3MovingDribble(L1Traverse):
         self.prev_xy[ids] = xy; self.prev_floor[ids] = False; self.apex[ids] = h; self.bounces[ids] = 0
 
     def task_block(self, ids):
-        tb = super().task_block(None)
-        tb[:, 4] = self.hand
+        loco = super().task_block(None)                 # [dir_x, dir_y, dist, speed, ...]
+        tb = torch.zeros(self.N, obs_spec.N_TASK, device=self.dev)
+        tb[:, 0] = self.hand
+        tb[:, 1] = 1.0                                  # apex target
+        tb[:, 2] = 0.0                                  # no commanded hand switches while moving
+        tb[:, 3] = loco[:, 3]                           # commanded speed
+        tb[:, 4:6] = loco[:, 0:2]                       # waypoint direction (heading frame)
+        tb[:, 6] = loco[:, 2]                           # waypoint distance
         return tb if ids is None else tb[ids]
 
     def reward(self) -> torch.Tensor:

@@ -29,6 +29,8 @@ SHARED = ROOT.parent / "shared"
 
 def export(ckpt: pathlib.Path, out: pathlib.Path, hidden=(512, 256, 128)) -> float:
     sd = torch.load(ckpt, map_location="cpu")
+    if int(sd.get("nan_grads", 0)) > 0:
+        raise SystemExit(f"refusing to export {ckpt}: {sd['nan_grads']} NaN-gradient batches recorded (UU_AGENT gate)")
     actor = Actor(obs_spec.N_OBS, obs_spec.N_JOINTS, hidden)
     actor.load_state_dict({k[len("actor."):]: v for k, v in sd["ac"].items() if k.startswith("actor.")})
     actor.eval()
@@ -54,6 +56,8 @@ def export(ckpt: pathlib.Path, out: pathlib.Path, hidden=(512, 256, 128)) -> flo
         "checkpoint": str(ckpt), "obs_spec_sha256_16": spec_hash, "n_obs": obs_spec.N_OBS,
         "n_action": obs_spec.N_JOINTS, "opset": 17, "ort_vs_torch_max_abs_diff": diff,
         "input": "obs[1,119]", "output": "action[1,27] in [-1,1]",
+        "level": sd.get("level"), "interface_sha": sd.get("interface_sha"), "physics_sha": sd.get("physics_sha"),
+        "train_steps": sd.get("steps"), "nan_grads": sd.get("nan_grads", 0),
     }, indent=2), encoding="utf-8")
     return diff
 

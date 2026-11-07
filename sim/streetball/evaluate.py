@@ -57,11 +57,27 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
             finished |= just
     dt = time.perf_counter() - t0
     rate = success.float().mean().item()
-    passed = rate >= level.pass_fraction
+    # UU_AGENT graduation gate: the target score must hold for 100 straight episodes. Episodes run in
+    # parallel, so 'straight' is evaluated in finishing order: every window of 100 consecutive finishes
+    # must meet the level's pass fraction.
+    import numpy as np
+    order = torch.argsort(ep_len)
+    succ_sorted = success[order].float().cpu().numpy()
+    window = 100
+    if len(succ_sorted) >= window:
+        rolling = np.convolve(succ_sorted, np.ones(window) / window, mode="valid")
+        holds_100 = bool(rolling.min() >= level.pass_fraction - 1e-9)
+    else:
+        holds_100 = False
+    ckpt_sd = torch.load(ckpt, map_location="cpu")
+    nan_grads = int(ckpt_sd.get("nan_grads", 0))
+    passed = rate >= level.pass_fraction and holds_100 and nan_grads == 0
     steps_run = ep_len.clamp_min(1)
     res = {
         "level": level_name, "checkpoint": str(ckpt), "episodes": episodes, "push_scale": push_scale,
         "success_rate": rate, "pass_fraction": level.pass_fraction, "passed": passed,
+        "holds_100_straight": holds_100, "nan_grads": nan_grads,
+        "interface_sha": ckpt_sd.get("interface_sha"), "physics_sha": ckpt_sd.get("physics_sha"),
         "fall_rate": fell.float().mean().item(),
         "mean_episode_s": (ep_len * env.control_dt).mean().item(),
         "metrics": {k: (v / steps_run).mean().item() for k, v in metrics_sum.items()},
@@ -73,6 +89,8 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
              f"Checkpoint `{ckpt}`, {episodes} randomised episodes, deterministic policy, push scale {push_scale}.", "",
              "| Metric | Value |", "|---|---|",
              f"| Success rate | {rate*100:.1f} % (need >= {level.pass_fraction*100:.0f} %) |",
+             f"| Holds for 100 straight episodes | {'yes' if holds_100 else 'no'} |",
+             f"| NaN-gradient batches in training | {nan_grads} (must be 0) |",
              f"| Fall rate | {res['fall_rate']*100:.1f} % |",
              f"| Mean episode length | {res['mean_episode_s']:.1f} s of {level.episode_s:.0f} s |"]
     for k, v in res["metrics"].items():

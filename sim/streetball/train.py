@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import pathlib
 import time
@@ -25,6 +26,22 @@ from streetball.ppo import PPO, PPOConfig
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
+SHARED = ROOT.parent / "shared"
+
+
+def version_tags(level_name: str) -> dict:
+    """UU_AGENT: tag every checkpoint with its interface and physics versions."""
+    h = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+    return {"level": level_name, "interface_sha": h(SHARED / "obs_spec.json"),
+            "physics_sha": h(ROOT / "assets" / "humanoid.xml") + "+" + h(ROOT / "assets" / "court.xml")}
+
+
+def save_ckpt(agent, path: pathlib.Path, tags: dict, extra: dict | None = None) -> None:
+    sd = agent.state_dict()
+    sd.update(tags)
+    if extra:
+        sd.update(extra)
+    torch.save(sd, path)
 
 
 def parse():
@@ -72,6 +89,11 @@ def main():
     csvf = open(out / "log.csv", "w", newline="", encoding="utf-8")
     csvw = None
 
+    tags = version_tags(level.name)
+    if args.init:
+        for k in ("interface_sha", "physics_sha"):
+            if k in sd and sd[k] != tags[k]:
+                print(f"WARNING: init checkpoint {k}={sd[k]} differs from current {tags[k]} (physics/interface changed)")
     steps_per_iter = env.N * ppo_cfg.steps_per_env
     n_iters = int(args.steps // steps_per_iter)
     obs = env.obs.clone()
@@ -79,7 +101,9 @@ def main():
     ep_returns: list[float] = []
     ep_lens: list[float] = []
     t_start = time.time()
-    print(f"run {run}: {n_iters} iterations x {steps_per_iter} steps; level {level.name}; episode {level.episode_s}s")
+    print(f"run {run}: {n_iters} iterations x {steps_per_iter} steps; level {level.name}; episode {level.episode_s}s; "
+          f"tags {tags}; ETA ~{args.steps / 30000 / 60:.0f} min at 30k fps", flush=True)
+    nan_grads = 0
 
     for it in range(1, n_iters + 1):
         if args.push_curriculum:
@@ -100,6 +124,8 @@ def main():
         agent.compute_returns(obs)
         t_roll = time.time() - t0
         stats = agent.update()
+        nan_grads += int(stats.pop("ppo/nan_grad_batches", 0))
+        stats["ppo/nan_grads_total"] = nan_grads
         t_upd = time.time() - t0 - t_roll
 
         total_steps = it * steps_per_iter
@@ -123,11 +149,11 @@ def main():
                   f"ep {rec['ep_len_s']:5.1f}s | kl {stats['ppo/kl']:.4f} lr {stats['ppo/lr']:.1e} std {stats['ppo/std']:.3f} | "
                   f"push {env.push_scale:.2f} | {el/60:.1f} min", flush=True)
         if it % args.save_every == 0 or it == n_iters:
-            torch.save(agent.state_dict(), out / "model.pt")
+            save_ckpt(agent, out / "model.pt", tags, {"steps": total_steps, "nan_grads": nan_grads})
             if rec["ep_return"] > best and len(ep_returns) > 100:
                 best = rec["ep_return"]
-                torch.save(agent.state_dict(), out / "best.pt")
-    torch.save(agent.state_dict(), out / "model.pt")
+                save_ckpt(agent, out / "best.pt", tags, {"steps": total_steps, "nan_grads": nan_grads})
+    save_ckpt(agent, out / "model.pt", tags, {"steps": total_steps, "nan_grads": nan_grads})
     writer.close(); csvf.close()
     print(f"done: {out}")
 

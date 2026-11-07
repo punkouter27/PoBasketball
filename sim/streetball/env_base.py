@@ -49,7 +49,7 @@ class EnvConfig:
     device: str = "cuda:0"
     substeps: int = 10
     episode_s: float = 20.0
-    naconmax_per_world: int = 24
+    naconmax_per_world: int = 48
     njmax_per_world: int = 160
     randomization: RandomizationConfig = field(default_factory=RandomizationConfig)
 

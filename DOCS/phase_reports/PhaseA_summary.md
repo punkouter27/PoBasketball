@@ -18,7 +18,7 @@ Date: 2026-11-06
 | File | Hash |
 |---|---|
 | `sim/assets/scene.xml` | `84bec5b08691e5fd` |
-| `sim/assets/humanoid.xml` | `4b8e68bd819c960d` |
+| `sim/assets/humanoid.xml` | `01a3f59b037ef5e7` (self-collision on, 2026-11-06 late; was `4b8e68bd819c960d`) |
 | `sim/assets/court.xml` | `1eba556a91fae556` |
 
 Any change to the generators must bump these in this file and re-run A5, A6, A8.
@@ -27,7 +27,7 @@ Any change to the generators must bump these in this file and re-run A5, A6, A8.
 
 1. **Ball contact uses the direct spring-damper `solref` form** (negative values) because the
    time-constant form gave speed-dependent restitution at 500 Hz. Contact lasts ~20 ms (10 steps).
-2. **Self-collision is off** for the humanoid (limbs never collide with each other). Revisit if
+2. **Self-collision is ON for non-adjacent parts** since the UU_AGENT adoption (see `DOCS/20261106/change_self_collision_and_roster.md`). Originally off; the next line is historical:
    training exploits it.
 3. **Sim zero pose = Manny's A-pose**, not an arms-at-sides pose. Joint ranges in the model are
    anatomical ranges shifted by the A-pose offset (recorded in `humanoid_spec.json`).
