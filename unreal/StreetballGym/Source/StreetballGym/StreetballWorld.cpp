@@ -105,6 +105,13 @@ UPolicyRunner* AStreetballWorld::LoadPolicy(const FString& Family)
 	// File from the transition table ("policies/<family>.onnx"), else <PolicyDir>/<family>.onnx.
 	FString Rel = Director ? Director->PolicyFileFor(Family) : FString();
 	if (Rel.IsEmpty()) Rel = FPaths::Combine(PolicyDir, Family + TEXT(".onnx"));
+	// Side-by-side comparisons: -StreetballPolicy_<family>=<file> (relative to Content/Sim, e.g. policies/locomotion_amp.onnx)
+	FString Override;
+	if (FParse::Value(FCommandLine::Get(), *FString::Printf(TEXT("StreetballPolicy_%s="), *Family), Override) && !Override.IsEmpty())
+	{
+		UE_LOG(LogStreetball, Log, TEXT("Policy %s: command-line override %s"), *Family, *Override);
+		Rel = Override;
+	}
 	const FString Path = FPaths::IsRelative(Rel) ? FPaths::Combine(Streetball::SimDir(), Rel) : Rel;
 	if (FPaths::FileExists(Path))
 	{
