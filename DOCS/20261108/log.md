@@ -119,3 +119,10 @@ Findings that also explain the four failed RL runs:
    needs ~2.8 m/s at release (restitution ~0.87, apex 0.9 m). Commanding past the target (5x error) restores speed and
    did add energy (apex 0.87 -> 1.11 m), but the joint-space path swings the palm 15-20 cm sideways first.
 4. The base leg policy turns/walks while the arm is overridden (pelvis drifted 0.6 m in 2 s).
+
+## 13:25 — Correction to finding 1 (ball hits foot); spot-move retrain NOT started
+Measured in the real GPU env (`l2a_dribble_r`, policy r5q1, 512 envs x 1000 steps): the ball touches a leg on
+**8 % of floor bounces** at the current spot (0.25, 0.35) and 11 % at (0.40, 0.30). Settled-stance CPU drops: 0/10 leg hits
+at both spots. The 3.7 m/s foot deflection seen at 13:00 came from the t = 0 keyframe stance under the balance policy,
+not from normal play. Moving the spot is therefore not the main fix; the approved 2 h retrain was held back and the
+user asked to choose again. Findings 2-4 (reach floor, slow arm servo, leg drift) stand.
