@@ -1,0 +1,68 @@
+{
+  "baseline": {
+    "arm_carry": 0.06775644433353925,
+    "swing_l_deg": 12.750141227452705,
+    "swing_r_deg": 33.21887091516714,
+    "swing_symmetry": 0.3838222334531913,
+    "speed": 1.9096898011337216,
+    "human_acc": 0.9999252259731293,
+    "human_score": 0.0005731095524942514,
+    "eval": {
+      "level": "l1_traverse",
+      "checkpoint": "runs\\l1_v3_armcarry\\model.pt",
+      "episodes": 200,
+      "push_scale": 1.0,
+      "push_max_N": 150.0,
+      "success_rate": 0.9699999690055847,
+      "pass_fraction": 0.9,
+      "passed": true,
+      "holds_100_straight": true,
+      "nan_grads": 0,
+      "interface_sha": "ccfa18d6f9aaf2a5",
+      "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
+      "fall_rate": 0.02499999850988388,
+      "mean_episode_s": 59.31669616699219,
+      "metrics": {
+        "m/waypoints": 4.4627532958984375,
+        "m/wp_dist": 7.371339321136475,
+        "m/speed": 1.8686981201171875,
+        "m/arm_carry": 0.06844513863325119
+      },
+      "wall_s": 156.36873529999866
+    }
+  },
+  "amp": {
+    "arm_carry": 0.11252751750959862,
+    "swing_l_deg": 11.209215545978331,
+    "swing_r_deg": 21.70972895612885,
+    "swing_symmetry": 0.5163222244105388,
+    "speed": 1.8725400326500703,
+    "human_acc": 0.9998803734779358,
+    "human_score": 0.0005092934500482299,
+    "eval": {
+      "level": "l1_traverse",
+      "checkpoint": "runs\\l1_amp_v3\\model.pt",
+      "episodes": 200,
+      "push_scale": 1.0,
+      "push_max_N": 150.0,
+      "success_rate": 0.9699999690055847,
+      "pass_fraction": 0.9,
+      "passed": true,
+      "holds_100_straight": true,
+      "nan_grads": 0,
+      "interface_sha": "ccfa18d6f9aaf2a5",
+      "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
+      "fall_rate": 0.019999999552965164,
+      "mean_episode_s": 62.155696868896484,
+      "metrics": {
+        "m/waypoints": 4.51766300201416,
+        "m/wp_dist": 7.55000638961792,
+        "m/speed": 1.8535922765731812,
+        "m/arm_carry": 0.11253421753644943
+      },
+      "wall_s": 93.28305360000013
+    }
+  },
+  "mocap_self_acc": 0.4996113181114197,
+  "mocap_self_score": 1.0
+}

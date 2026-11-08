@@ -75,3 +75,19 @@ Rest of the window (runner `sim/runs/night_20261108_part2.ps1`, log `night_20261
 1. AMP locomotion resume `l1_amp_v3` (40 min from `l1_amp_v2`, 34 M steps) → `l1_traverse` evaluation → `DOCS/20261108/amp_vs_baseline.html`.
    The baseline's `DOCS/phase_reports/eval_l1_traverse.*` is backed up and restored around the AMP evaluation.
 2. Queue r5 until 10:00: L2a continued from `l2a_dribble_r_r4q1/model.pt` (assist curriculum restarts at 75 %), then the ladder.
+
+## 06:05 — AMP locomotion `l1_amp_v3` finished (~95 min total, same budget as the baseline) and PASSES the gate
+
+| `l1_traverse` test, 200 episodes | Hand-tuned `l1_v3_armcarry` (production) | AMP `l1_amp_v3` |
+|---|---|---|
+| Success (10 waypoints, 90 s) | 97.0 % | **97.0 %** |
+| Holds 100 straight | yes | **yes** |
+| Falls | 2.5 % | 2.0 % |
+| Speed | 1.91 m/s | 1.87 m/s |
+| Arm-swing symmetry (L/R) | 38 % | **52 %** |
+| Arm-carry deviation (lower = more relaxed) | **0.068** | 0.113 |
+| Fresh mocap classifier "human" score | 0.0006 | 0.0005 (both fully separable from mocap) |
+NaN grads 0. Comparison page: `DOCS/20261108/amp_vs_baseline.html`. Verdict: task-equal, mixed on style.
+Exported as a graduated **candidate**, not production: `shared/policies/locomotion_amp.{onnx,json}`, `runs/production/candidates/locomotion_amp.*`,
+Unreal `Content/Sim/policies/locomotion_amp.onnx` (ORT vs torch 1.6e-6). Production `locomotion.onnx` unchanged — user decision.
+Baseline `DOCS/phase_reports/eval_l1_traverse.*` restored after the AMP evaluation (checked).
