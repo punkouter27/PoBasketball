@@ -164,3 +164,9 @@ runs/cycles2_20261108.ps1), then eval on l2a_dribble_r + run report. (Headings a
   - Compared with r5q1: apex 0.47 -> 0.65 m, in-control 0.23 -> 0.42.
 - No ONNX export: the gate failed. `DOCS/phase_reports/eval_l2a_dribble_r.*` now holds this c2 evaluation. HTML report: `DOCS/20261108/report_l2a_cycles_c2.html`.
 - Open issue: chaining the second push. The two-bounce curve was still rising when the time budget ran out.
+
+## 14:42 — l2a_cycles_c3 started (user approved)
+- 120 min full resume from `l2a_cycles_c2`, no code changes. Launcher: `sim/runs/cycles3_20261108.ps1`, started hidden via WMI. Log: `sim/runs/cycles3_20261108.txt`.
+- The run then evaluates on the real gate `l2a_dribble_r` and writes the HTML report. Expected finish around 16:45.
+- Note: K (bounces per episode) is level state and is not saved in the checkpoint, so it starts at 1 again. It should promote back to 2 within minutes, as in c2.
+- Decision rule: if two-bounce success is still under 20 %, change the reward instead of adding GPU time.
