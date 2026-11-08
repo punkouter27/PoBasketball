@@ -241,3 +241,82 @@ class L2Crossover(L2Dribble):
     name = "l2c_crossover"
     mode = "crossover"
     pass_fraction = 0.80
+
+
+class L2DribbleCycles(L2Dribble):
+    """TRAINING-ONLY curriculum for L2a (2026-11-08, dribble approach #6): short episodes of K push->bounce->peak
+    cycles, K doubling 1 -> 16 as the policy succeeds. Why: in L2Dribble a push is only scored at the floor contact
+    after the NEXT flight (~2 bounces, ~1.5 s later), and four runs never linked pushing to reward. Here each cycle is
+    scored at the very next peak (~0.4 s after the push), and short episodes keep the credit horizon short.
+
+    Cycle: starts at a peak (or at reset, ball rising into the palm), ends at the next peak after a floor bounce.
+    Success: the active palm touched the ball during the cycle, the new peak is in the apex band, and the ball is
+    within 0.3 m of the dribble spot. Episode ends after K cycles (success = all K clean) or on the usual loss rules.
+    Same obs/action interface and task block as L2Dribble; graduation is still judged on l2a_dribble_r."""
+    name = "l2a_cycles"
+    k_max = 16
+    promote_at = 0.6           # rolling success rate of finished episodes that doubles K
+
+    def setup(self) -> None:
+        super().setup()
+        N, dev = self.N, self.dev
+        self.armed = torch.zeros(N, dtype=torch.bool, device=dev)      # ball has bounced and is rising again
+        self.touch_cycle = torch.zeros(N, dtype=torch.bool, device=dev)
+        self.peak = torch.zeros(N, device=dev)
+        self.cycles = torch.zeros(N, dtype=torch.long, device=dev)
+        self.cycles_ok = torch.zeros(N, dtype=torch.long, device=dev)
+        self.k = 1
+        self.succ_ema = 0.0
+        self.peak_event = torch.zeros(N, dtype=torch.bool, device=dev)
+
+    def assist_prob(self) -> float:
+        return 1.0                                  # every episode starts with the ball rising into the palm
+
+    def on_reset(self, ids: torch.Tensor) -> None:
+        if self.train_steps != float("inf") and hasattr(self, "cycles"):
+            ran = self.env.step_count[ids] > 0      # skip the initial reset of all envs
+            if ran.any():
+                ok = (self.cycles_ok[ids][ran] >= self.k).float().mean().item()
+                n = int(ran.sum())
+                a = min(1.0, n / 2000.0)
+                self.succ_ema = (1 - a) * self.succ_ema + a * ok
+                if self.succ_ema > self.promote_at and self.k < self.k_max:
+                    self.k *= 2
+                    self.succ_ema = 0.0
+                    print(f"[l2a_cycles] success > {self.promote_at:.0%}: K -> {self.k} cycles per episode", flush=True)
+        super().on_reset(ids)
+        self.armed[ids] = False; self.touch_cycle[ids] = False; self.peak[ids] = 0.0
+        self.cycles[ids] = 0; self.cycles_ok[ids] = 0
+
+    def reward(self) -> torch.Tensor:
+        r = super().reward()
+        env = self.env
+        bz, vz = env.p_ball[:, 2], env.v_ball[:, 2]
+        self.touch_cycle |= self._active_palm_contact()
+        self.armed |= self.bounce_event
+        self.peak = torch.where(self.bounce_event, bz, torch.maximum(self.peak, bz))
+        # the peak after a bounce: ball starts falling, or the palm meets it on the way up
+        ev = self.armed & ~self.bounce_event & ((vz <= 0.0) | self._active_palm_contact())
+        near = (env.p_ball[:, :2] - self._spot()).norm(dim=-1) < 0.3
+        in_band = (self.peak >= self.apex_band[0]) & (self.peak <= self.apex_band[1])
+        ok = ev & self.touch_cycle & in_band & near
+        r_peak = (6.0 * torch.exp(-((self.peak - self.apex_target) / 0.2) ** 2) + 2.0 * near.float()) * (ev & self.touch_cycle).float()
+        self.cycles += ev.long()
+        self.cycles_ok += ok.long()
+        self.peak_event = ev
+        self.armed &= ~ev
+        self.touch_cycle &= ~ev
+        return r + r_peak + 4.0 * ok.float()
+
+    def terminated(self) -> torch.Tensor:
+        return super().terminated() | (self.cycles >= self.k)
+
+    def episode_success(self) -> torch.Tensor:
+        return self.cycles_ok >= self.k
+
+    def metrics(self):
+        m = super().metrics()
+        m["m/k_cycles"] = torch.full((self.N,), float(self.k), device=self.dev)
+        m["m/cycle_ok"] = self.cycles_ok.float()
+        m["m/succ_ema"] = torch.full((self.N,), self.succ_ema, device=self.dev)
+        return m

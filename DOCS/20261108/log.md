@@ -138,3 +138,11 @@ Scripted two-pose and Cartesian stroke dribblers, torso free and pinned, 16 sett
 | 800/15/300 | 2 | 4.4 s |
 Conclusion: arm stiffness is not the blocker; the hand-written controller (contact timing + steering) is. The
 actuator contract stays as is. Scratch harness: scratchpad/bang.py (not committed).
+
+## 14:45 — Dribble approach #6 (user approved): one-bounce curriculum `l2a_cycles`
+Policies touched: dribble (training only). New TRAINING-ONLY level `L2DribbleCycles` (sim/streetball/levels/l2_dribble.py):
+episodes of K push->bounce->peak cycles, K doubles 1 -> 16 when > 60 % of finished episodes are fully clean; each push is
+scored at the very next peak (~0.4 s) instead of at the floor contact two flights later; every episode starts with the
+ball rising into the palm. Obs/action interface and task block unchanged; graduation still judged on `l2a_dribble_r`.
+Run `l2a_cycles_c1`: 120 min, actor from l2a_dribble_r_r5q1 (fresh critic), hidden runner runs/cycles_20261108.ps1,
+then eval on l2a_dribble_r + run report. 3-min smoke test OK (episode 0.8 s, K = 1); smoke run deleted.
