@@ -137,7 +137,8 @@ class L3Scramble(Level):
         env.set_root_pose(ids, xy, yaw)
         env.qpos[ids[:, None], env.qadr[None, :]] += env.randn(k, env.N_ACT) * 0.03
         ang = env.rand(k, lo=-3.1416, hi=3.1416)
-        dist = env.rand(k, lo=0.5, hi=4.0)
+        # curriculum: nearer balls for the first 50 M training steps (evaluation always uses 0.5-4 m)
+        dist = env.rand(k, lo=0.5, hi=2.5 if self.train_steps < 50e6 else 4.0)
         bxy = xy + dist[:, None] * torch.stack([torch.cos(ang), torch.sin(ang)], -1)
         bouncing = env.rand(k) < 0.5
         bz = torch.where(bouncing, env.rand(k, lo=0.2, hi=1.0), torch.full((k,), 0.1205, device=self.dev))

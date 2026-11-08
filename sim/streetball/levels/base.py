@@ -12,6 +12,7 @@ class Level:
     name: str = "base"
     episode_s: float = 20.0
     prd_tier: int = 0
+    train_steps: float = float("inf")   # set by train.py each iteration; stays inf in evaluation (curricula off)
 
     def attach(self, env) -> None:
         self.env = env

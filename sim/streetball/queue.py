@@ -18,6 +18,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -30,11 +31,11 @@ PY = sys.executable
 STAGES = [
     # level, family (export name) or None, minutes, extra train args
     ("l1_traverse", "locomotion", 120, ["--push-curriculum", "--init-std", "0.3"]),
-    ("l2a_dribble_r", None, 70, ["--push-max", "80"]),
-    ("l2b_dribble_l", None, 25, ["--push-max", "80"]),
-    ("l2c_crossover", None, 45, ["--push-max", "80"]),
-    ("l3a_moving_dribble", "dribble", 70, ["--push-max", "80"]),
-    ("l3b_scramble", "scramble", 40, []),
+    ("l2a_dribble_r", None, 150, ["--push-max", "80"]),
+    ("l2b_dribble_l", None, 40, ["--push-max", "80"]),
+    ("l2c_crossover", None, 60, ["--push-max", "80"]),
+    ("l3a_moving_dribble", "dribble", 80, ["--push-max", "80"]),
+    ("l3b_scramble", "scramble", 50, []),
     ("l4_jump_shot", "shot", 60, ["--push-max", "0"]),
 ]
 RESERVE_MIN = 25          # kept free at the end for evaluation/report
@@ -42,8 +43,11 @@ MIN_STAGE_MIN = 12        # never start a stage with less than this
 
 
 class Queue:
-    def __init__(self, hours: float, num_envs: int, start_from: str | None, init_ckpt: str | None):
+    def __init__(self, hours: float, num_envs: int, start_from: str | None, init_ckpt: str | None,
+                 tag: str = "", init_actor_only: bool = False):
         self.t0 = time.time()
+        self.tag = tag
+        self.current_run: str | None = None
         self.deadline = self.t0 + hours * 3600
         self.num_envs = num_envs
         stamp = time.strftime("%Y%m%d_%H%M")
@@ -54,7 +58,7 @@ class Queue:
         self.state = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "hours": hours, "stages": {}, "events": []}
         self.prev_ckpt = init_ckpt
         self.start_from = start_from
-        if init_ckpt and start_from:
+        if init_ckpt and start_from and not init_actor_only:
             # same-level checkpoint: resume with the full optimiser state instead of actor-only
             self.state["stages"][start_from] = {"family": None, "attempts": [], "passed": False, "checkpoint": init_ckpt}
             for lv, fam, _, _ in STAGES:
@@ -84,7 +88,8 @@ class Queue:
 
     # ------------------------------------------------------------------ one stage attempt
     def train_stage(self, level: str, family: str | None, minutes: float, extra: list[str], attempt: int) -> dict:
-        run_name = f"{level}_q{attempt}"
+        run_name = f"{level}_{self.tag}q{attempt}"
+        self.current_run = run_name
         st = self.state["stages"].setdefault(level, {"family": family, "attempts": [], "passed": False, "checkpoint": None})
         steps = 1e9  # the time budget is the real limit
         cmd = [PY, "-m", "streetball.train", "--level", level, "--steps", str(steps), "--num-envs", str(self.num_envs),
@@ -149,8 +154,31 @@ class Queue:
         man["stages"] = self.state["stages"]
         (prod / "production_manifest.json").write_text(json.dumps(man, indent=2), encoding="utf-8")
 
+    # ------------------------------------------------------------------ hourly status (UU_AGENT section 4)
+    def hourly_status(self):
+        day = time.strftime("%Y%m%d")
+        path = DOCS / day / "hourly_status.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        while True:
+            time.sleep(3600)
+            lines = [f"\n## {time.strftime('%H:%M')} - {self.minutes_left():.0f} min left, current run {self.current_run}\n",
+                     "| Stage | Attempts | Passed | Last eval success |", "|---|---|---|---|"]
+            for lv, st in self.state["stages"].items():
+                ev = (st["attempts"][-1].get("eval") or {}) if st["attempts"] else {}
+                lines.append(f"| {lv} | {len(st['attempts'])} | {st['passed']} | {ev.get('success_rate')} |")
+            csvp = RUNS / str(self.current_run) / "log.csv"
+            if csvp.exists():
+                rows = csvp.read_text(encoding="utf-8").splitlines()
+                if len(rows) > 1:
+                    hdr, last = rows[0].split(","), rows[-1].split(",")
+                    keep = [k for k in hdr if k in ("steps", "fps", "ep_return", "ep_len_s") or k.startswith("m/")]
+                    lines.append("\nLatest iteration: " + ", ".join(f"{k}={last[hdr.index(k)][:8]}" for k in keep))
+            with open(path, "a", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+
     # ------------------------------------------------------------------ main loop
     def main(self):
+        threading.Thread(target=self.hourly_status, daemon=True).start()
         started = self.start_from is None
         for level, family, minutes, extra in STAGES:
             if not started:
@@ -188,8 +216,11 @@ def main():
     ap.add_argument("--num-envs", type=int, default=4096)
     ap.add_argument("--start-from", default=None)
     ap.add_argument("--init", default=None, help="checkpoint to initialise the first stage from")
+    ap.add_argument("--init-actor-only", action="store_true",
+                    help="--init is another level's checkpoint (actor weights only, fresh critic)")
+    ap.add_argument("--tag", default="", help="run-name prefix so a new queue never overwrites older runs, e.g. r2")
     args = ap.parse_args()
-    Queue(args.hours, args.num_envs, args.start_from, args.init).main()
+    Queue(args.hours, args.num_envs, args.start_from, args.init, args.tag, args.init_actor_only).main()
 
 
 if __name__ == "__main__":

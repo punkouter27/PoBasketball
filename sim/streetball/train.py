@@ -113,6 +113,7 @@ def main():
     next_ckpt = args.ckpt_every_steps
     stop_reason = "budget of steps reached"
     for it in range(1, n_iters + 1):
+        level.train_steps = (it - 1) * steps_per_iter   # curriculum hook (Level.train_steps, inf in evaluation)
         if args.push_curriculum:
             env.push_scale = min(1.0, it / max(1, n_iters // 3))
         t0 = time.time()
