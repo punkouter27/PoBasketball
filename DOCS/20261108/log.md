@@ -21,3 +21,26 @@ GPU note: an unrelated app (`Maestro\launch.py`, ~5 GB VRAM, ~40 % util) was alr
 
 Command (from `sim/`): `uv run python -m streetball.queue --hours 8 --start-from l2a_dribble_r --init runs/production/locomotion.pt --init-actor-only --tag r2`
 Watch: `DOCS/20261108/hourly_status.md`, `sim/runs/queue/<stamp>/queue_log.md`, TensorBoard `--logdir sim/runs` (port 6006).
+
+## 02:50 — r2 stopped at 40 min: L2a was learning to ignore the ball
+
+| L2a metric (r2, from locomotion) | 1 M steps | 70 M steps | needed |
+|---|---|---|---|
+| apex | 0.71 m | 0.47 m | 0.80–1.15 m |
+| in_control | 0.82 | 0.17 | > 0.8 |
+| episode | 0.4 s | 3.3 s of 30 s | — |
+
+Diagnostic (256 envs, deterministic, 12 s): palm-ball contact registers (46 % of envs touch at least once; contact buffer peak
+900/12,288, no overflow), but the right palm is 0.73 m from the ball on average and touches it in 0.1 % of steps; every episode
+ends by losing the ball (717 countdown, 368 rolled away), none by falling. The existing `r_palm` term is ~0 at that distance and
+is gated on ball z > 0.5 m while the ball averages 0.43 m, so nothing pulled the hand to the ball.
+
+## 03:20 — dribble reward: reach + touch shaping (training only; pass test and gate unchanged)
+
+Policies touched: **dribble** only (L2a/L2b/L2c share `L2Dribble.reward`). No production dribble policy exists.
+- `r_reach` (w 1.0): exp(-(|active palm - (ball + 12 cm up)| / 0.4)^2) while ball z > 0.25 m. Logged `m/reach`.
+- `first_touch` (w 2.0): first active-palm touch per bounce cycle (at most one per bounce). Logged `m/palm_touch`.
+12-min A/B vs r2 at equal steps (20 M): apex/in_control/episode length unchanged, but `m/reach` 0.05 → 0.11 and rising
+(r2 had no such signal). Slow, so L2a gets 240 min first pass in queue r3, resumed from that check run (`runs/l2a_reachcheck`).
+Queue r3: `--tag r3 --start-from l2a_dribble_r --init runs/l2a_reachcheck/model.pt --stage-minutes l2a_dribble_r=240 --hours 6.75`.
+Run `l2a_dribble_r_r2q1` (70 M steps, pre-shaping) kept for the report comparison.

@@ -125,7 +125,9 @@ class L2Dribble(Level):
         healthy = (self.last_apex >= 0.6).float()              # a real dribble, not a micro-bounce tap
         # proportional, not a step: every centimetre of extra height reduces the cost
         p_tap = self.bounce_event.float() * ((0.6 - apex_before) / 0.6).clamp(min=0.0)
-        self.palm_since |= self._active_palm_contact()
+        touch = self._active_palm_contact()
+        first_touch = touch & ~self.palm_since                 # first active-palm touch of this bounce cycle
+        self.palm_since |= touch
         self.near_since &= horiz < 0.6
         clean = self.bounce_event & self.palm_since & self.near_since & (apex_before >= self.apex_band[0]) & (apex_before <= self.apex_band[1])
         self.clean_event = clean
@@ -145,6 +147,12 @@ class L2Dribble(Level):
         # ---- shaping
         r_spot = torch.exp(-(spot_d / 0.25) ** 2) * (0.3 + 0.7 * healthy)   # staying near the spot pays mostly for real dribbles
         r_palm = torch.exp(-(self._active_palm_dist() / 0.25) ** 2) * (ball_z > 0.5).float()
+        # Reach shaping (2026-11-08, queue r3): r_palm is ~0 at the 0.7 m palm-ball gap the policy starts with and
+        # the ball rarely rises above 0.5 m, so nothing pulled the hand to the ball (palm touched it in 0.1 % of
+        # steps). Wide kernel to a point 12 cm ABOVE the ball (pressing from above, not carrying from below).
+        palm_site = torch.where((self.hand > 0)[:, None], self.env.site_xpos[:, self.env.palm_r_s], self.env.site_xpos[:, self.env.palm_l_s])
+        above = env.p_ball + torch.tensor([0.0, 0.0, 0.12], device=self.dev)
+        r_reach = torch.exp(-((palm_site - above).norm(dim=-1) / 0.4) ** 2) * (ball_z > 0.25).float()
         r_apex = torch.exp(-((apex_before - self.apex_target) / 0.25) ** 2) * self.bounce_event.float()
         # Dense shaping (added after the first queue run learned a 20 cm "tap" dribble): while the ball
         # rises, reward the apex it is heading for, apex_pred = z + vz^2 / 2g, against the target.
@@ -158,6 +166,8 @@ class L2Dribble(Level):
         r = (
             1.0 * r_spot
             + 0.5 * r_palm
+            + 1.0 * r_reach
+            + 2.0 * first_touch.float()                               # one touch bonus per bounce cycle at most
             + 5.0 * r_apex
             + 2.0 * r_apex_dense
             + 3.0 * clean.float()
@@ -172,6 +182,7 @@ class L2Dribble(Level):
             - 1e-5 * self.p_torque()
             + 0.1
         )
+        self._m_touch, self._m_reach = touch.float(), r_reach
         self.track_action()
         return r
 
@@ -185,7 +196,9 @@ class L2Dribble(Level):
     def metrics(self):
         return {"m/streak": self.streak.float(), "m/bounces": self.bounces.float(),
                 "m/apex": self.apex, "m/switches": self.switches.float(),
-                "m/in_control": self.env.in_control}
+                "m/in_control": self.env.in_control,
+                "m/palm_touch": getattr(self, "_m_touch", torch.zeros(self.N, device=self.dev)),
+                "m/reach": getattr(self, "_m_reach", torch.zeros(self.N, device=self.dev))}
 
     def episode_success(self) -> torch.Tensor:
         ok = self.streak >= self.target_bounces

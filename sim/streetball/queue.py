@@ -218,8 +218,11 @@ def main():
     ap.add_argument("--init", default=None, help="checkpoint to initialise the first stage from")
     ap.add_argument("--init-actor-only", action="store_true",
                     help="--init is another level's checkpoint (actor weights only, fresh critic)")
+    ap.add_argument("--stage-minutes", default="", help="first-pass overrides, e.g. l2a_dribble_r=240,l4_jump_shot=30")
     ap.add_argument("--tag", default="", help="run-name prefix so a new queue never overwrites older runs, e.g. r2")
     args = ap.parse_args()
+    over = dict(kv.split("=") for kv in args.stage_minutes.split(",") if kv)
+    STAGES[:] = [(lv, fam, float(over.get(lv, mins)), ex) for lv, fam, mins, ex in STAGES]
     Queue(args.hours, args.num_envs, args.start_from, args.init, args.tag, args.init_actor_only).main()
 
 
