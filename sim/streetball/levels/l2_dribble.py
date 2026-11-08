@@ -82,6 +82,7 @@ class L2Dribble(Level):
         pos = torch.cat([spot, h[:, None]], -1)
         vel = torch.cat([torch.zeros(k, 2, device=self.dev), vz[:, None]], -1)
         env.set_ball(ids, pos, vel)
+        self._assist_reset(ids)
         # Grant ball control at the start (mirrors the Unreal director): a ball not touched by a palm
         # within 0.6 s becomes loose and the 3 s countdown ends the episode. This rules out foot/shin
         # juggling, which the first queue run learned instead of a hand dribble.
@@ -93,6 +94,30 @@ class L2Dribble(Level):
         self.prev_floor[ids] = False
         self.last_apex[ids] = 1.0
         self._last_action[ids] = 0.0
+
+    def assist_prob(self) -> float:
+        """Start-state curriculum (2026-11-08, queue r4): share of TRAINING resets that launch the ball up into the
+        active palm, so the policy experiences touches it never found by exploration (r2/r3: palm touched the ball in
+        < 0.1 % of steps after 250 M steps). 75 % -> 15 % over 150 M steps; 0 in evaluation (train_steps = inf)."""
+        if self.train_steps == float("inf"):
+            return 0.0
+        return 0.15 + 0.60 * max(0.0, 1.0 - self.train_steps / 150e6)
+
+    def _assist_reset(self, ids: torch.Tensor) -> None:
+        p = self.assist_prob()
+        if p <= 0.0:
+            return
+        env = self.env
+        aid = ids[env.rand(ids.numel()) < p]
+        if aid.numel() == 0:
+            return
+        env.forward()                                   # palm site positions for the new root pose
+        palm = torch.where((self.hand[aid] > 0)[:, None], env.site_xpos[aid, env.palm_r_s], env.site_xpos[aid, env.palm_l_s])
+        # ball in hand: centre one radius (12 cm) under the palm site, rising 0.8 m/s into it
+        z0 = (palm[:, 2] - 0.15).clamp(min=0.15)          # 3 cm gap: spawning in overlap ejects the ball
+        vel = torch.zeros(aid.numel(), 3, device=self.dev)
+        vel[:, 2] = 0.8
+        env.set_ball(aid, torch.cat([palm[:, :2], z0[:, None]], -1), vel)
 
     def task_block(self, ids):
         tb = torch.zeros(self.N, obs_spec.N_TASK, device=self.dev)

@@ -22,7 +22,7 @@ GPU note: an unrelated app (`Maestro\launch.py`, ~5 GB VRAM, ~40 % util) was alr
 Command (from `sim/`): `uv run python -m streetball.queue --hours 8 --start-from l2a_dribble_r --init runs/production/locomotion.pt --init-actor-only --tag r2`
 Watch: `DOCS/20261108/hourly_status.md`, `sim/runs/queue/<stamp>/queue_log.md`, TensorBoard `--logdir sim/runs` (port 6006).
 
-## 02:50 — r2 stopped at 40 min: L2a was learning to ignore the ball
+## 02:48 — r2 stopped at 40 min: L2a was learning to ignore the ball
 
 | L2a metric (r2, from locomotion) | 1 M steps | 70 M steps | needed |
 |---|---|---|---|
@@ -35,7 +35,7 @@ Diagnostic (256 envs, deterministic, 12 s): palm-ball contact registers (46 % of
 ends by losing the ball (717 countdown, 368 rolled away), none by falling. The existing `r_palm` term is ~0 at that distance and
 is gated on ball z > 0.5 m while the ball averages 0.43 m, so nothing pulled the hand to the ball.
 
-## 03:20 — dribble reward: reach + touch shaping (training only; pass test and gate unchanged)
+## 03:05 — dribble reward: reach + touch shaping (training only; pass test and gate unchanged)
 
 Policies touched: **dribble** only (L2a/L2b/L2c share `L2Dribble.reward`). No production dribble policy exists.
 - `r_reach` (w 1.0): exp(-(|active palm - (ball + 12 cm up)| / 0.4)^2) while ball z > 0.25 m. Logged `m/reach`.
@@ -44,3 +44,21 @@ Policies touched: **dribble** only (L2a/L2b/L2c share `L2Dribble.reward`). No pr
 (r2 had no such signal). Slow, so L2a gets 240 min first pass in queue r3, resumed from that check run (`runs/l2a_reachcheck`).
 Queue r3: `--tag r3 --start-from l2a_dribble_r --init runs/l2a_reachcheck/model.pt --stage-minutes l2a_dribble_r=240 --hours 6.75`.
 Run `l2a_dribble_r_r2q1` (70 M steps, pre-shaping) kept for the report comparison.
+
+## 04:40 — r3 stopped at 93 min (≈180 M steps): hand hovers, never touches
+
+| L2a metric (r3) | 0 M | 180 M |
+|---|---|---|
+| `m/reach` | 0.33 | 0.47 (hand moved toward the ball) |
+| `m/palm_touch` (per step) | 0.0012 | 0.0005 |
+| apex / in_control / episode | 0.73 m / 0.96 / 0.4 s | 0.46 m / 0.18 / 3.4 s |
+Ball contacts by geom (256 envs, 12 s): floor 3.8 %, palm_r 0.09 %, lowerarm_r 0.08 % of env-steps; palm 36 cm above the ball.
+Shaping alone cannot fix a touch the policy never experiences → start-state curriculum.
+
+## 04:45 — dribble start-state curriculum "ball in hand" (training only; evaluation never assisted)
+
+Policies touched: **dribble** (L2a/L2b/L2c). `L2Dribble._assist_reset`: in a share of TRAINING resets the ball starts 15 cm under the
+active palm site rising at 0.8 m/s (first attempts spawned it overlapping the palm box → ejected; or launched it from 45 cm below →
+policy's hand had moved). Share 75 % → 15 % over 150 M steps (`assist_prob`, 0 when `train_steps = inf`, i.e. evaluation).
+Check: palm contact in the first 0.5 s for 69.5 % of envs with the locomotion actor (75 % expected).
+Queue r4 from `production/locomotion.pt` (actor only), 4.75 h: L2a 150, L2b 30, L2c 35, L3a 45 min first pass.
