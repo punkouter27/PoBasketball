@@ -268,13 +268,15 @@ class L2DribbleCycles(L2Dribble):
         self.k = 1
         self.succ_ema = 0.0
         self.peak_event = torch.zeros(N, dtype=torch.bool, device=dev)
+        self.ep_steps = torch.zeros(N, dtype=torch.long, device=dev)
 
     def assist_prob(self) -> float:
         return 1.0                                  # every episode starts with the ball rising into the palm
 
     def on_reset(self, ids: torch.Tensor) -> None:
         if self.train_steps != float("inf") and hasattr(self, "cycles"):
-            ran = self.env.step_count[ids] > 0      # skip the initial reset of all envs
+            # env.reset() zeroes step_count BEFORE calling on_reset, so use the level's own per-episode step count
+            ran = self.ep_steps[ids] > 0             # skip the initial reset of all envs
             if ran.any():
                 ok = (self.cycles_ok[ids][ran] >= self.k).float().mean().item()
                 n = int(ran.sum())
@@ -286,10 +288,11 @@ class L2DribbleCycles(L2Dribble):
                     print(f"[l2a_cycles] success > {self.promote_at:.0%}: K -> {self.k} cycles per episode", flush=True)
         super().on_reset(ids)
         self.armed[ids] = False; self.touch_cycle[ids] = False; self.peak[ids] = 0.0
-        self.cycles[ids] = 0; self.cycles_ok[ids] = 0
+        self.cycles[ids] = 0; self.cycles_ok[ids] = 0; self.ep_steps[ids] = 0
 
     def reward(self) -> torch.Tensor:
         r = super().reward()
+        self.ep_steps += 1
         env = self.env
         bz, vz = env.p_ball[:, 2], env.v_ball[:, 2]
         self.touch_cycle |= self._active_palm_contact()

@@ -106,7 +106,7 @@ same "stand still, let the ball die" optimum as r2–r4. More time on this rewar
 Final report: `DOCS/20261108/night_training_report.html` (tools/night_report.py). Open: dribble teaching method
 (scripted hand–ball reference recommended) and whether to promote `locomotion_amp` — both await the user.
 
-## 13:00 — Dribble approach #5 (user said "go"): scripted hand–ball teacher, feasibility findings
+## 11:49 — Dribble approach #5 (user said "go"): scripted hand–ball teacher, feasibility findings
 Policies touched: none (analysis only). New tool `sim/tools/scripted_dribble.py` (WIP teacher; not used in training yet).
 Legs/torso from `l2a_dribble_r_r5q1` (stands with a ball, 0 % falls); right arm (+lumbar) from IK toward a palm target
 computed from observable ball state. Best result so far: 2 consecutive touched bounces; never sustained.
@@ -120,14 +120,14 @@ Findings that also explain the four failed RL runs:
    did add energy (apex 0.87 -> 1.11 m), but the joint-space path swings the palm 15-20 cm sideways first.
 4. The base leg policy turns/walks while the arm is overridden (pelvis drifted 0.6 m in 2 s).
 
-## 13:25 — Correction to finding 1 (ball hits foot); spot-move retrain NOT started
+## 11:53 — Correction to finding 1 (ball hits foot); spot-move retrain NOT started
 Measured in the real GPU env (`l2a_dribble_r`, policy r5q1, 512 envs x 1000 steps): the ball touches a leg on
 **8 % of floor bounces** at the current spot (0.25, 0.35) and 11 % at (0.40, 0.30). Settled-stance CPU drops: 0/10 leg hits
 at both spots. The 3.7 m/s foot deflection seen at 13:00 came from the t = 0 keyframe stance under the balance policy,
 not from normal play. Moving the spot is therefore not the main fix; the approved 2 h retrain was held back and the
 user asked to choose again. Findings 2-4 (reach floor, slow arm servo, leg drift) stand.
 
-## 14:20 — Stiffer-arm test (sim only, user approved): no meaningful gain
+## 12:11 — Stiffer-arm test (sim only, user approved): no meaningful gain
 Policies touched: none. Shared humanoid spec / Unreal untouched (actuators overridden in memory only).
 Scripted two-pose and Cartesian stroke dribblers, torso free and pinned, 16 settings per arm:
 | Arm shoulder+elbow kp/kv/force | Best consecutive touched bounces | Longest run |
@@ -139,10 +139,18 @@ Scripted two-pose and Cartesian stroke dribblers, torso free and pinned, 16 sett
 Conclusion: arm stiffness is not the blocker; the hand-written controller (contact timing + steering) is. The
 actuator contract stays as is. Scratch harness: scratchpad/bang.py (not committed).
 
-## 14:45 — Dribble approach #6 (user approved): one-bounce curriculum `l2a_cycles`
+## 12:17 — Dribble approach #6 (user approved): one-bounce curriculum `l2a_cycles`
 Policies touched: dribble (training only). New TRAINING-ONLY level `L2DribbleCycles` (sim/streetball/levels/l2_dribble.py):
 episodes of K push->bounce->peak cycles, K doubles 1 -> 16 when > 60 % of finished episodes are fully clean; each push is
 scored at the very next peak (~0.4 s) instead of at the floor contact two flights later; every episode starts with the
 ball rising into the palm. Obs/action interface and task block unchanged; graduation still judged on `l2a_dribble_r`.
 Run `l2a_cycles_c1`: 120 min, actor from l2a_dribble_r_r5q1 (fresh critic), hidden runner runs/cycles_20261108.ps1,
 then eval on l2a_dribble_r + run report. 3-min smoke test OK (episode 0.8 s, K = 1); smoke run deleted.
+
+## 13:20 — l2a_cycles: K-promotion bug fixed, run resumed as l2a_cycles_c2
+Bug: `env.reset()` zeroes `step_count` before calling `level.on_reset`, so the "episode ran" filter was always false and
+K never left 1 (`m/succ_ema` stayed exactly 0). Fix: the level keeps its own per-episode step counter (`ep_steps`).
+c1 stopped at 72 M steps (13:09). Its checkpoint already succeeds on **51.5 %** of one-bounce episodes (200-episode eval
+on l2a_cycles, 0 % falls; eval file removed afterwards so the gate reports stay L2a only). Palm touch 0.2 % (r5) -> 4 %;
+mean apex 0.67 -> 0.78 m; in-control 79 % -> 95 %. Resumed with full optimiser state as `l2a_cycles_c2` (60 min, runner
+runs/cycles2_20261108.ps1), then eval on l2a_dribble_r + run report. (Headings above re-timed from commit times.)
