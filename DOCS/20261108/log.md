@@ -126,3 +126,15 @@ Measured in the real GPU env (`l2a_dribble_r`, policy r5q1, 512 envs x 1000 step
 at both spots. The 3.7 m/s foot deflection seen at 13:00 came from the t = 0 keyframe stance under the balance policy,
 not from normal play. Moving the spot is therefore not the main fix; the approved 2 h retrain was held back and the
 user asked to choose again. Findings 2-4 (reach floor, slow arm servo, leg drift) stand.
+
+## 14:20 — Stiffer-arm test (sim only, user approved): no meaningful gain
+Policies touched: none. Shared humanoid spec / Unreal untouched (actuators overridden in memory only).
+Scripted two-pose and Cartesian stroke dribblers, torso free and pinned, 16 settings per arm:
+| Arm shoulder+elbow kp/kv/force | Best consecutive touched bounces | Longest run |
+|---|---|---|
+| 150/15/100 (current) | 2 | 5.8 s |
+| 300/10/150 | 3 | 5.8 s |
+| 500/10/200 | 2 | 4.2 s |
+| 800/15/300 | 2 | 4.4 s |
+Conclusion: arm stiffness is not the blocker; the hand-written controller (contact timing + steering) is. The
+actuator contract stays as is. Scratch harness: scratchpad/bang.py (not committed).
