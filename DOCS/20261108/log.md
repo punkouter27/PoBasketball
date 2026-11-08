@@ -170,3 +170,12 @@ runs/cycles2_20261108.ps1), then eval on l2a_dribble_r + run report. (Headings a
 - The run then evaluates on the real gate `l2a_dribble_r` and writes the HTML report. Expected finish around 16:45.
 - Note: K (bounces per episode) is level state and is not saved in the checkpoint, so it starts at 1 again. It should promote back to 2 within minutes, as in c2.
 - Decision rule: if two-bounce success is still under 20 %, change the reward instead of adding GPU time.
+
+## 16:00 — l2a_cycles_c3 stopped early (user request), result, Unreal preview
+- Stopped at 54 M steps (about 76 of 120 min) because two-bounce success had been flat at about 15 % for 45 min. `model.pt` was saved at 15:58:13, 35 s before the stop, and it loads cleanly (no NaN gradients).
+- Real gate `l2a_dribble_r` (200 episodes): **0 % success, not passed**. Falls 2 %, mean episode 1.29 s, 0.89 bounces, apex 0.70 m, ball in control 0.60. No improvement over c2. HTML report: `DOCS/20261108/report_l2a_cycles_c3.html`.
+- Unreal preview (user asked to play it): exported a **preview-only** ONNX (not production, nothing in `shared/policies`) to `unreal/StreetballGym/Content/Sim/policies/dribble_c3_preview.onnx`. The onnxruntime-vs-torch check passed.
+  - Launched with `-StreetballStartTier=3 -StreetballMaxTier=3 -StreetballPolicy_dribble=policies/dribble_c3_preview.onnx`.
+  - In Unreal the character **falls about 1.2 s after every reset** (HARD_RESET "fallen", 13 in the first 15 s), against 2 % falls in the sim.
+  - Likely cause: a sim-to-engine reset mismatch. The tier-3 start (ball at the hand, `GrantControl`) does not mirror the sim's L2a reset, the same class of bug as the earlier tier 1/2 ball-placement issue.
+- Conclusion: the l2a_cycles curriculum is stuck at about 15 % two-bounce success. Next: score each push right after the palm contact (dense, immediate credit) instead of at the floor bounce two flights later.

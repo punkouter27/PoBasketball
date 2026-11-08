@@ -1,6 +1,6 @@
 {
   "level": "l2a_dribble_r",
-  "checkpoint": "runs\\l2a_cycles_c2\\model.pt",
+  "checkpoint": "runs\\l2a_cycles_c3\\model.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 80.0,
@@ -11,16 +11,16 @@
   "nan_grads": 0,
   "interface_sha": "ccfa18d6f9aaf2a5",
   "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
-  "fall_rate": 0.004999999888241291,
-  "mean_episode_s": 1.559899926185608,
+  "fall_rate": 0.019999999552965164,
+  "mean_episode_s": 1.2850998640060425,
   "metrics": {
-    "m/streak": 0.11038915067911148,
-    "m/bounces": 1.0496271848678589,
-    "m/apex": 0.6541783213615417,
+    "m/streak": 0.05657293274998665,
+    "m/bounces": 0.8897057771682739,
+    "m/apex": 0.6983000040054321,
     "m/switches": 0.0,
-    "m/in_control": 0.42126867175102234,
-    "m/palm_touch": 0.00120458728633821,
-    "m/reach": 0.34222155809402466
+    "m/in_control": 0.6005532741546631,
+    "m/palm_touch": 0.004307388328015804,
+    "m/reach": 0.4734093248844147
   },
-  "wall_s": 11.592968000004475
+  "wall_s": 60.65215940000053
 }
