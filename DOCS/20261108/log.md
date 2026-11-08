@@ -62,3 +62,16 @@ active palm site rising at 0.8 m/s (first attempts spawned it overlapping the pa
 policy's hand had moved). Share 75 % → 15 % over 150 M steps (`assist_prob`, 0 when `train_steps = inf`, i.e. evaluation).
 Check: palm contact in the first 0.5 s for 69.5 % of envs with the locomotion actor (75 % expected).
 Queue r4 from `production/locomotion.pt` (actor only), 4.75 h: L2a 150, L2b 30, L2c 35, L3a 45 min first pass.
+
+## 05:20 — r4 stopped at 37 min (65 M steps); dribble parked for a method decision
+
+r4 (ball-in-hand assist) repeated the r2/r3 curve: palm touches 1 % → 0.2 % of steps, in_control 0.82 → 0.19, episode → 3.3 s.
+Episode-end analysis with the assist on (512 envs, 15 s): touched episodes last as long as untouched ones (3.63 vs 3.50 s), both
+end on the loose-ball countdown (811/830 and 1171/1232). So touching is not punished; the policy never makes a **second** touch
+after the ball's first bounce. Rhythm/timing credit assignment, not reach, is the blocker. Three shaping/curriculum attempts in
+3.3 h did not move it; the next step is a method choice for the user (see proposal in the final report).
+
+Rest of the window (runner `sim/runs/night_20261108_part2.ps1`, log `night_20261108_part2.txt`):
+1. AMP locomotion resume `l1_amp_v3` (40 min from `l1_amp_v2`, 34 M steps) → `l1_traverse` evaluation → `DOCS/20261108/amp_vs_baseline.html`.
+   The baseline's `DOCS/phase_reports/eval_l1_traverse.*` is backed up and restored around the AMP evaluation.
+2. Queue r5 until 10:00: L2a continued from `l2a_dribble_r_r4q1/model.pt` (assist curriculum restarts at 75 %), then the ladder.
