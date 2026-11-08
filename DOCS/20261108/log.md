@@ -154,3 +154,13 @@ c1 stopped at 72 M steps (13:09). Its checkpoint already succeeds on **51.5 %** 
 on l2a_cycles, 0 % falls; eval file removed afterwards so the gate reports stay L2a only). Palm touch 0.2 % (r5) -> 4 %;
 mean apex 0.67 -> 0.78 m; in-control 79 % -> 95 %. Resumed with full optimiser state as `l2a_cycles_c2` (60 min, runner
 runs/cycles2_20261108.ps1), then eval on l2a_dribble_r + run report. (Headings above re-timed from commit times.)
+
+## 14:20 — l2a_cycles_c2 result (60 min resume, K-promotion fix)
+- Policies touched: none in production. Training-only level `l2a_cycles`; checkpoint `sim/runs/l2a_cycles_c2/model.pt`.
+- The promotion fix works: K went 1 -> 2 early in the run ("success > 60%: K -> 2"). It never reached the next step (4).
+- Two-bounce training success rose from 1 % to 6.5 % (EMA) by the end. Per-peak success (`m/cycle_ok`) is 0.31, mean peak 0.77 m, ball in control 0.71, palm touch 2.9 %.
+- Real gate `l2a_dribble_r` (200 episodes): **0 % success, not passed**. Falls 0.5 %, no NaN gradients. Mean episode 1.56 s; r5q1 lasted 3.78 s.
+  - Mean bounces per episode 1.05: the first push works, then the ball is lost before the second.
+  - Compared with r5q1: apex 0.47 -> 0.65 m, in-control 0.23 -> 0.42.
+- No ONNX export: the gate failed. `DOCS/phase_reports/eval_l2a_dribble_r.*` now holds this c2 evaluation. HTML report: `DOCS/20261108/report_l2a_cycles_c2.html`.
+- Open issue: chaining the second push. The two-bounce curve was still rising when the time budget ran out.
