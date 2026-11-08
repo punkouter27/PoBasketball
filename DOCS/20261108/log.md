@@ -105,3 +105,17 @@ L3a/L3b/L4 skipped (24 min left < reserve). No NaN gradients. Reward rose (168 �
 same "stand still, let the ball die" optimum as r2–r4. More time on this reward will not fix it.
 Final report: `DOCS/20261108/night_training_report.html` (tools/night_report.py). Open: dribble teaching method
 (scripted hand–ball reference recommended) and whether to promote `locomotion_amp` — both await the user.
+
+## 13:00 — Dribble approach #5 (user said "go"): scripted hand–ball teacher, feasibility findings
+Policies touched: none (analysis only). New tool `sim/tools/scripted_dribble.py` (WIP teacher; not used in training yet).
+Legs/torso from `l2a_dribble_r_r5q1` (stands with a ball, 0 % falls); right arm (+lumbar) from IK toward a palm target
+computed from observable ball state. Best result so far: 2 consecutive touched bounces; never sustained.
+Findings that also explain the four failed RL runs:
+1. **Ball lands on the right foot.** Dribble spot (0.25 fwd, 0.35 lat) overlaps the policy's wide stance (foot_r at
+   y = -0.23): a ball dropped there leaves the foot sideways at 3.7 m/s. Every RL run was rewarded for the ball being there.
+2. **Reach floor ~0.85 m standing.** Palm at 0.75 m needs 54 deg lumbar flex + full shoulder rotation; the stroke window
+   between ball top at apex (~1.0 m) and the reach floor is only ~15 cm.
+3. **Arm servo is slow.** kp 150 / kv 15 gives ~0.8 m/s palm speed when commanded straight to a target; a dribble push
+   needs ~2.8 m/s at release (restitution ~0.87, apex 0.9 m). Commanding past the target (5x error) restores speed and
+   did add energy (apex 0.87 -> 1.11 m), but the joint-space path swings the palm 15-20 cm sideways first.
+4. The base leg policy turns/walks while the arm is overridden (pelvis drifted 0.6 m in 2 s).
