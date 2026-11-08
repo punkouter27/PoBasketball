@@ -91,3 +91,17 @@ NaN grads 0. Comparison page: `DOCS/20261108/amp_vs_baseline.html`. Verdict: tas
 Exported as a graduated **candidate**, not production: `shared/policies/locomotion_amp.{onnx,json}`, `runs/production/candidates/locomotion_amp.*`,
 Unreal `Content/Sim/policies/locomotion_amp.onnx` (ORT vs torch 1.6e-6). Production `locomotion.onnx` unchanged — user decision.
 Baseline `DOCS/phase_reports/eval_l1_traverse.*` restored after the AMP evaluation (checked).
+
+## 09:40 — Night window closed: queue r5 results (dribble continuation)
+Policies touched: dribble (training only; nothing exported). Locomotion/balance production unchanged.
+
+| Stage | Run | Steps | Success | Falls | Palm touch (end) | In control (end) |
+|---|---|---|---|---|---|---|
+| L2a dribble R | l2a_dribble_r_r5q1 (150 min, from r4q1) | 248 M | 0 % | 0 % | 0.24 % | 23 % |
+| L2b dribble L | l2b_dribble_l_r5q1 (30 min) | 49 M | 0 % | 0 % | 0.19 % | 19 % |
+| L2c crossover | l2c_crossover_r5q1 (30 min) | 49 M | 0 % | 0 % | 0.20 % | 18 % |
+
+L3a/L3b/L4 skipped (24 min left < reserve). No NaN gradients. Reward rose (168 → 371) while touch stayed ~0.2 %:
+same "stand still, let the ball die" optimum as r2–r4. More time on this reward will not fix it.
+Final report: `DOCS/20261108/night_training_report.html` (tools/night_report.py). Open: dribble teaching method
+(scripted hand–ball reference recommended) and whether to promote `locomotion_amp` — both await the user.

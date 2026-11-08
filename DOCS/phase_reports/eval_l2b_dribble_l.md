@@ -1,6 +1,6 @@
 # Evaluation — l2b_dribble_l: FAIL
 
-Checkpoint `C:\Users\punko\Downloads\CODE_MATT\PoBasketball\sim\runs\l2b_dribble_l_q1\model.pt`, 200 randomised episodes, deterministic policy, pushes up to 80 N x scale 1.0.
+Checkpoint `C:\Users\punko\Downloads\CODE_MATT\PoBasketball\sim\runs\l2b_dribble_l_r5q1\model.pt`, 200 randomised episodes, deterministic policy, pushes up to 80 N x scale 1.0.
 
 | Metric | Value |
 |---|---|
@@ -8,9 +8,11 @@ Checkpoint `C:\Users\punko\Downloads\CODE_MATT\PoBasketball\sim\runs\l2b_dribble
 | Holds for 100 straight episodes | no |
 | NaN-gradient batches in training | 0 (must be 0) |
 | Fall rate | 0.0 % |
-| Mean episode length | 20.6 s of 30 s |
-| streak | 0.030 |
-| bounces | 52.790 |
-| apex | 0.325 |
+| Mean episode length | 2.9 s of 30 s |
+| streak | 0.151 |
+| bounces | 2.319 |
+| apex | 0.509 |
 | switches | 0.000 |
-| in_control | 0.021 |
+| in_control | 0.230 |
+| palm_touch | 0.000 |
+| reach | 0.338 |

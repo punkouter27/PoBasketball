@@ -1,6 +1,6 @@
 {
   "level": "l2c_crossover",
-  "checkpoint": "C:\\Users\\punko\\Downloads\\CODE_MATT\\PoBasketball\\sim\\runs\\l2c_crossover_q1\\model.pt",
+  "checkpoint": "C:\\Users\\punko\\Downloads\\CODE_MATT\\PoBasketball\\sim\\runs\\l2c_crossover_r5q1\\model.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 80.0,
@@ -10,15 +10,17 @@
   "holds_100_straight": false,
   "nan_grads": 0,
   "interface_sha": "ccfa18d6f9aaf2a5",
-  "physics_sha": "01a3f59b037ef5e7+1eba556a91fae556",
+  "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
   "fall_rate": 0.0,
-  "mean_episode_s": 20.48390007019043,
+  "mean_episode_s": 3.3276000022888184,
   "metrics": {
-    "m/streak": 0.05059484392404556,
-    "m/bounces": 52.10227584838867,
-    "m/apex": 0.32481899857521057,
+    "m/streak": 0.11296602338552475,
+    "m/bounces": 2.68481707572937,
+    "m/apex": 0.49482637643814087,
     "m/switches": 0.0,
-    "m/in_control": 0.006627111230045557
+    "m/in_control": 0.195332333445549,
+    "m/palm_touch": 0.0003292235778644681,
+    "m/reach": 0.27516883611679077
   },
-  "wall_s": 30.538593500001298
+  "wall_s": 8.387581800001499
 }
