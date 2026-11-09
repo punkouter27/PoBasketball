@@ -254,3 +254,19 @@ Plan `urgent_20261108` (run tag `n9`, priority order):
 
 Shot is not scheduled (it needs a working dribble). Passing stages export production ONNX and sync to Unreal; others are saved as candidates. Reserve 25 min for evaluation and the report.
 Watch: `sim/runs/queue/<stamp>/queue_log.md`, `DOCS/20261108/hourly_status.md`, TensorBoard http://localhost:6006. Launcher: `sim/runs/night_20261108.ps1`.
+
+## 2026-11-09 05:42 — Extended training (8 h queue urgent_20261108) finished
+
+Queue: sim/runs/queue/20261108_2206 (22:06 → 05:41, plan finished 25 min early). Report: DOCS/20261108/extended_training_report_night.html.
+
+| Stage | Run | Gate level | Time | Success | Falls | NaN grads | Gate |
+|---|---|---|---|---|---|---|---|
+| Dribble #1 | l2a_push_n9q1 | l2a_dribble_r | 150 min | 0.0 % | 3.5 % | 0 | fail |
+| Scramble #1 | l3b_scramble_n9q1 | l3b_scramble | 100 min | 25.5 % | 30.0 % | 20 (burst at 187 M) | fail |
+| Dribble #2 | l2a_push_n9q2 | l2a_dribble_r | 130 min | 0.0 % | 2.5 % | 0 | fail |
+| Scramble #2 | l3b_scramble_n9q2 | l3b_scramble | 73 min | 79.0 % (bar 80 %) | 7.0 % | 0 | fail (no 100-straight) |
+
+- Scramble: 0 % → 79 % on the real gate (before: l3b_scramble_q1 0 %). Reach shaping started paying after ~90 M steps.
+- Dribble: push reward lifted training bounce cycles from ~1 % to a 34 % peak (~79 M, nearest ckpt_75M), then plateaued (return ~300) and drifted to ~14 %; real gate still 0 %.
+- Production unchanged (balance, locomotion AMP). No new ONNX exported; no runs < 5,000 steps to purge.
+- Proposed next: scramble 30 min top-up from n9q2 with grad clipping → export + 5 s rollout; dribble → scripted hand–ball imitation from l2a_push_n9q1/ckpt_75M.pt.
