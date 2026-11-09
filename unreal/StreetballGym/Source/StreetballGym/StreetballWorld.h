@@ -79,7 +79,7 @@ public:
 	UStreetballDirector* GetDirector() const { return Director; }
 	ABroadcastCamera* GetCamera() const { return Camera; }
 	UStreetballHUDWidget* GetHUD() const { return HUD; }
-	const TMap<FString, TObjectPtr<UPolicyRunner>>& GetPolicies() const { return Policies; }
+	const TMap<FName, TObjectPtr<UPolicyRunner>>& GetPolicies() const { return Policies; }
 	const TArray<FString>& GetRealPolicyNames() const { return RealPolicies; }
 	const TArray<FCourtAudioEvent>& GetRecentAudioEvents() const { return RecentEvents; }
 	int32 GetAudioPlayedCount() const { return AudioPlayer.PlayedCount; }
@@ -89,7 +89,7 @@ public:
 	const TArray<float>& GetLastObs() const { return Obs; }
 	const TArray<float>& GetLastAction() const { return Action; }
 	const TArray<float>& GetPrevAction() const { return PrevAction; }
-	const FString& GetLastPolicyName() const { return LastPolicyName; }
+	FName GetLastPolicyName() const { return LastPolicyName; }
 
 	/** Builds the whole world against an already-loaded sim. Exposed so tests can drive it without a level. */
 	bool Setup(UWorld* InWorld);
@@ -113,7 +113,7 @@ private:
 	UPROPERTY() TObjectPtr<UMuJoCoBoneMapper> BoneMapper;
 	UPROPERTY() TObjectPtr<UStreetballTracker> Tracker;
 	UPROPERTY() TObjectPtr<UStreetballDirector> Director;
-	UPROPERTY() TMap<FString, TObjectPtr<UPolicyRunner>> Policies;
+	UPROPERTY() TMap<FName, TObjectPtr<UPolicyRunner>> Policies;
 	UPROPERTY() TObjectPtr<UPolicyRunner> Fallback;
 	UPROPERTY() TObjectPtr<AStreetballCharacter> Character;
 	UPROPERTY() TArray<TObjectPtr<AStreetballGeomActor>> GeomActors;
@@ -129,7 +129,13 @@ private:
 	TArray<FCourtAudioEvent> RecentEvents;
 	TArray<FString> RealPolicies;
 	FStreetballDirectorOutput DirOut;
-	FString LastPolicyName;
+	FName LastPolicyName;
+	// pre-sized scratch for the control step (UU_AGENT: no heap allocation in the real-time loop)
+	TArray<float> CtrlBuf;
+	TArray<double> QBuf, VBuf;
+	int32 RootQAdr = INDEX_NONE, BallQAdr = INDEX_NONE, BallVAdr = INDEX_NONE;
+	int32 UnloggedResets = 0;                    // resets applied inside the step, logged from Tick
+	const TCHAR* LastResetReason = TEXT("");
 
 	TArray<float> HoldCtrl;
 	TArray<float> PrevAction;

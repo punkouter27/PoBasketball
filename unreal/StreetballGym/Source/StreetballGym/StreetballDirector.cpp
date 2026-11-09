@@ -57,7 +57,7 @@ void UStreetballDirector::InstallDefaultTable()
 	Rows.Reset(); Layouts.Reset(); PolicyFiles.Reset();
 	auto Row = [&](EStreetballState S, const TCHAR* Policy, int32 Tier, const TCHAR* Layout, double Lo, double Hi, bool bSpeed, FIntPoint Sw)
 	{
-		FStreetballStateRow R; R.Policy = Policy; R.Tier = Tier; R.Layout = Layout; R.bHasSpeed = bSpeed; R.SpeedRange = FVector2d(Lo, Hi); R.HandSwitchEvery = Sw;
+		FStreetballStateRow R; R.Policy = (Policy && *Policy) ? FName(Policy) : NAME_None; R.Tier = Tier; R.Layout = Layout; R.bHasSpeed = bSpeed; R.SpeedRange = FVector2d(Lo, Hi); R.HandSwitchEvery = Sw;
 		Rows.Add(S, R);
 	};
 	Row(EStreetballState::Stand, TEXT("balance"), 1, TEXT("balance"), 0, 0, false, FIntPoint(0, 0));
@@ -120,7 +120,7 @@ bool UStreetballDirector::LoadTransitionTable(const FString& Path)
 		if (!StateFromName(E.Key, St)) { UE_LOG(LogStreetball, Warning, TEXT("Director: unknown state %s in table"), *E.Key); continue; }
 		const TSharedPtr<FJsonObject> O = E.Value->AsObject();
 		FStreetballStateRow R;
-		if (O->HasTypedField<EJson::String>(TEXT("policy"))) R.Policy = O->GetStringField(TEXT("policy"));
+		if (O->HasTypedField<EJson::String>(TEXT("policy"))) R.Policy = FName(*O->GetStringField(TEXT("policy")));
 		if (O->HasTypedField<EJson::Number>(TEXT("tier"))) R.Tier = (int32)O->GetNumberField(TEXT("tier"));
 		const TSharedPtr<FJsonObject>* Task = nullptr;
 		if (O->TryGetObjectField(TEXT("task"), Task) && Task && Task->IsValid())
@@ -131,7 +131,7 @@ bool UStreetballDirector::LoadTransitionTable(const FString& Path)
 			else if ((*Task)->TryGetArrayField(TEXT("speed_cmd"), Arr) && Arr->Num() == 2) { R.bHasSpeed = true; R.SpeedRange = FVector2d((*Arr)[0]->AsNumber(), (*Arr)[1]->AsNumber()); }
 			if ((*Task)->TryGetArrayField(TEXT("hand_switch_every"), Arr) && Arr->Num() == 2) R.HandSwitchEvery = FIntPoint((int32)(*Arr)[0]->AsNumber(), (int32)(*Arr)[1]->AsNumber());
 		}
-		if (!R.Policy.IsEmpty() && !NewFiles.Contains(R.Policy)) { UE_LOG(LogStreetball, Error, TEXT("Director: state %s uses unknown policy %s"), *E.Key, *R.Policy); return false; }
+		if (!R.Policy.IsNone() && !NewFiles.Contains(R.Policy.ToString())) { UE_LOG(LogStreetball, Error, TEXT("Director: state %s uses unknown policy %s"), *E.Key, *R.Policy.ToString()); return false; }
 		if (!R.Layout.IsEmpty() && !NewLayouts.Contains(R.Layout)) { UE_LOG(LogStreetball, Error, TEXT("Director: state %s uses unknown layout %s"), *E.Key, *R.Layout); return false; }
 		NewRows.Add(St, R);
 	}
@@ -146,11 +146,11 @@ bool UStreetballDirector::LoadTransitionTable(const FString& Path)
 	return true;
 }
 
-FString UStreetballDirector::PolicyFor(EStreetballState St) const
+FName UStreetballDirector::PolicyFor(EStreetballState St) const
 {
 	if (St == EStreetballState::HardReset) St = TierState;
 	const FStreetballStateRow* R = Rows.Find(St);
-	return R ? R->Policy : FString();
+	return R ? R->Policy : NAME_None;
 }
 
 FString UStreetballDirector::PolicyFileFor(const FString& Family) const
@@ -200,7 +200,8 @@ void UStreetballDirector::EnterTier(int32 Tier, const FTrackedState& S)
 	default: TierState = EStreetballState::JumpShot; P.TierName = TEXT("Tier 5: Pull-Up Jump Shot"); P.ShotsTaken = 0; P.ShotsMade = 0; P.CleanStreak = 0; break;
 	}
 	EnterState(TierState, S);
-	SetHand(Tier == 3 || Tier == 4, S);
+	if (bHandPreset) bHandPreset = false;          // the reset placed the ball for this hand
+	else SetHand(Tier == 3 || Tier == 4, S);
 	NewWaypoint(S);
 	bPrevFloor = false; bPalmSince = true; bNearSince = true; Apex = S.BallPos.Z;
 	bTriggered = bGathered = bReleased = bScored = false;
@@ -218,6 +219,7 @@ void UStreetballDirector::NewWaypoint(const FTrackedState&)
 
 void UStreetballDirector::SetHand(bool bRandom, const FTrackedState&)
 {
+	if (ForcedHand != 0.0) { Hand = ForcedHand; UntilSwitch = 0; return; }
 	Hand = (bRandom && Rng.FRand() < 0.5) ? -1.0 : 1.0;
 	const FStreetballStateRow* R = Rows.Find(TierState);
 	UntilSwitch = (R && R->HandSwitchEvery.Y > 0) ? Rng.RandRange(R->HandSwitchEvery.X, R->HandSwitchEvery.Y) : 0;
@@ -228,9 +230,8 @@ void UStreetballDirector::RequestHardReset(const TCHAR* Reason, FStreetballDirec
 	Out.Reset.bRequested = true;
 	Out.Reset.Reason = Reason;
 	if (P.ActiveTier == 5) { Out.Reset = FStreetballResetSpec(); RequestShotReset(Out); Out.Reset.Reason = Reason; }
-	ParkBallForTier(P.ActiveTier, Out.Reset);
-	State = EStreetballState::HardReset;
-	UE_LOG(LogStreetball, Log, TEXT("Director: HARD_RESET (%s) in tier %d"), Reason, P.ActiveTier);
+	PrepareReset(P.ActiveTier, Out.Reset);
+	State = EStreetballState::HardReset;          // the world logs the reset outside the control step
 }
 
 void UStreetballDirector::ParkBallForTier(int32 Tier, FStreetballResetSpec& Spec)
@@ -239,6 +240,25 @@ void UStreetballDirector::ParkBallForTier(int32 Tier, FStreetballResetSpec& Spec
 	// there and trips over it (100 % falls at 1.4 s), so tiers 1-2 mirror the sim resets instead.
 	if (Tier == 1) { Spec.bPlaceBall = true; Spec.BallPos = FVector3d(KeyRootX + 3.0, KeyRootY, BallR); }   // l0_stand: 3 m away
 	else if (Tier == 2) { Spec.bPlaceBall = true; Spec.BallPos = FVector3d(0.0, 8.0, BallR); }            // l1_traverse: off court
+}
+
+void UStreetballDirector::PrepareReset(int32 Tier, FStreetballResetSpec& Spec)
+{
+	ParkBallForTier(Tier, Spec);
+	if (Tier != 3 && Tier != 4) return;
+	// Mirrors sim l2_dribble.on_reset (tier 3) / l3_roam.L3MovingDribble.on_reset (tier 4): ball at the active
+	// hand's dribble spot at a random point of a dribble cycle, h ~ U(0.40, 0.95) m, vz = -/+ sqrt(2 g (1 - h)).
+	// Before 2026-11-08 the ball stayed at its keyframe spot on the floor and the policy fell ~1.2 s after every reset.
+	static const FTrackedState NoState{};
+	SetHand(true, NoState);
+	bHandPreset = true;
+	Spec.bDribbleStart = true;
+	Spec.DribbleHand = Hand;
+	Spec.DribbleSpotFwd = Tier == 3 ? 0.25 : 0.30;
+	Spec.DribbleSpotSide = 0.35;
+	const double H = Rng.FRandRange(DribbleStartHeight.X, DribbleStartHeight.Y);
+	Spec.BallStartZ = H;
+	Spec.BallStartVz = -FMath::Sqrt(2.0 * 9.81 * FMath::Max(0.0, 1.0 - H)) * (Rng.FRand() < 0.5 ? 1.0 : -1.0);
 }
 
 void UStreetballDirector::StartAtTier(int32 Tier)
@@ -297,7 +317,7 @@ double UStreetballDirector::TaskField(const FString& F, const FTrackedState& S) 
 	if (F == TEXT("speed_cmd")) return bMoves ? SpeedCmd : 0.0;
 	if (F == TEXT("hand")) return Hand;
 	if (F == TEXT("apex_target_m")) return ApexTarget;
-	if (F == TEXT("bounces_to_switch")) return (R && R->HandSwitchEvery.Y > 0) ? (double)UntilSwitch : 0.0;
+	if (F == TEXT("bounces_to_switch")) return (ForcedHand == 0.0 && R && R->HandSwitchEvery.Y > 0) ? (double)UntilSwitch : 0.0;
 	if (F == TEXT("countdown_frac")) return S.CountdownFrac;
 	if (F == TEXT("trigger")) return bTriggered ? 1.0 : 0.0;
 	if (F == TEXT("time_since_trigger_s")) return bTriggered ? FMath::Max(0.0, S.Time - (ShotStartT + TriggerT)) : 0.0;
@@ -344,7 +364,7 @@ void UStreetballDirector::UpdateBounce(const FTrackedState& S, FStreetballDirect
 	const bool Clean = Bounce && bPalmSince && bNearSince && ApexBefore >= ApexBand.X && ApexBefore <= ApexBand.Y;
 	if (Clean) ++P.CleanStreak; else if (Bounce) P.CleanStreak = 0;
 	const FStreetballStateRow* R = Rows.Find(State);
-	if (Clean && R && R->HandSwitchEvery.Y > 0)                    // commanded crossover only where the table says so
+	if (Clean && R && R->HandSwitchEvery.Y > 0 && ForcedHand == 0.0)                    // commanded crossover only where the table says so
 	{
 		if (--UntilSwitch <= 0) { Hand = -Hand; ++P.HandSwitches; UntilSwitch = Rng.RandRange(R->HandSwitchEvery.X, R->HandSwitchEvery.Y); }
 	}
@@ -396,7 +416,7 @@ void UStreetballDirector::Update(const FTrackedState& S, double Dt, FStreetballD
 			P.Mastered[1] = true;
 			if (MaxTier < 3) { EnterTier(2, S); break; }
 			EnterTier(3, S);
-			Out.Reset.bRequested = true; Out.Reset.Reason = TEXT("tier 3 start: ball to hand");
+			Out.Reset.bRequested = true; Out.Reset.Reason = TEXT("tier 3 start: ball to hand"); PrepareReset(3, Out.Reset);
 		}
 		break;
 	}
@@ -410,7 +430,7 @@ void UStreetballDirector::Update(const FTrackedState& S, double Dt, FStreetballD
 			P.Mastered[2] = true;
 			if (MaxTier < 4) { EnterTier(3, S); break; }
 			EnterTier(4, S);
-			Out.Reset.bRequested = true; Out.Reset.Reason = TEXT("tier 4 start");
+			Out.Reset.bRequested = true; Out.Reset.Reason = TEXT("tier 4 start"); PrepareReset(4, Out.Reset);
 		}
 		break;
 	}

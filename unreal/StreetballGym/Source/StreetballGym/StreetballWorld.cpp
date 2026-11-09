@@ -228,9 +228,30 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	Policies.Reset();
 	for (const TPair<FString, FString>& Fam : Director->GetPolicyFiles())   // one runner per family, all preloaded
 	{
-		Policies.Add(Fam.Key, LoadPolicy(Fam.Key));
+		Policies.Add(FName(*Fam.Key), LoadPolicy(Fam.Key));
 	}
 	PrevAction.SetNumZeroed(FObsBuilder::NumJoints);
+	Obs.SetNumZeroed(FObsBuilder::NumObs);
+	Action.SetNumZeroed(FObsBuilder::NumAction);
+	CtrlBuf.SetNumZeroed(Sim->NumActuators());
+	QBuf.SetNumZeroed(Sim->NumQ());
+	VBuf.SetNumZeroed(Sim->NumV());
+	{
+		const mjModel* M = Sim->GetModel();
+		RootQAdr = M->jnt_qposadr[Sim->JointId(TEXT("root"))];
+		BallQAdr = M->jnt_qposadr[Sim->JointId(TEXT("ball"))];
+		BallVAdr = M->jnt_dofadr[Sim->JointId(TEXT("ball"))];
+	}
+	{
+		FString HandArg;
+		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballDribbleHand="), HandArg))
+		{
+			Director->ForcedHand = HandArg.StartsWith(TEXT("l")) ? -1.0 : HandArg.StartsWith(TEXT("r")) ? 1.0 : 0.0;
+			UE_LOG(LogStreetball, Log, TEXT("Director: dribble hand forced to %s"), Director->ForcedHand > 0 ? TEXT("right") : Director->ForcedHand < 0 ? TEXT("left") : TEXT("table"));
+		}
+	}
+	PendingEvents.Reserve(64);
+	RecentEvents.Reserve(128);
 
 	// ---- audio --------------------------------------------------------------
 	AudioBank = AudioBankPath.IsEmpty() ? nullptr : LoadObject<UCourtAudioBank>(nullptr, *AudioBankPath);
@@ -245,8 +266,8 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	{
 		// first episode starts like every later one: tiers 1-2 keep the ball away from the feet
 		FStreetballResetSpec Start; Start.Reason = TEXT("startup");
-		UStreetballDirector::ParkBallForTier(Director->GetProgress().ActiveTier, Start);
-		if (Start.bPlaceBall) ApplyReset(Start);
+		Director->PrepareReset(Director->GetProgress().ActiveTier, Start);
+		if (Start.bPlaceBall || Start.bDribbleStart) ApplyReset(Start);
 	}
 	bReady = true;
 	UpdateVisuals();
@@ -259,23 +280,36 @@ void AStreetballWorld::ApplyReset(const FStreetballResetSpec& Spec)
 {
 	++ResetCount;
 	Sim->ResetToKeyframe(KeyframeName);
-	const mjModel* M = Sim->GetModel();
-	TArray<double> Q(Sim->QPos());
+	TArray<double>& Q = QBuf;                    // pre-sized in Setup: no allocation here
+	const TConstArrayView<double> Q0 = Sim->QPos();
+	FMemory::Memcpy(Q.GetData(), Q0.GetData(), Q.Num() * sizeof(double));
+	const int32 R = RootQAdr, B = BallQAdr;
 	if (Spec.bOffsetRoot)
 	{
-		const int32 R = M->jnt_qposadr[Sim->JointId(TEXT("root"))];
 		Q[R] = Spec.RootXY.X; Q[R + 1] = Spec.RootXY.Y;
 		Q[R + 3] = FMath::Cos(Spec.RootYaw / 2); Q[R + 4] = 0; Q[R + 5] = 0; Q[R + 6] = FMath::Sin(Spec.RootYaw / 2);
 	}
 	if (Spec.bPlaceBall)
 	{
-		const int32 B = M->jnt_qposadr[Sim->JointId(TEXT("ball"))];
 		Q[B] = Spec.BallPos.X; Q[B + 1] = Spec.BallPos.Y; Q[B + 2] = Spec.BallPos.Z;
 		Q[B + 3] = 1; Q[B + 4] = Q[B + 5] = Q[B + 6] = 0;
 	}
+	for (double& v : VBuf) v = 0.0;
+	if (Spec.bDribbleStart)
+	{
+		// sim l2_dribble.on_reset: spot = root + fwd * DribbleSpotFwd - hand * DribbleSpotSide * left (heading frame)
+		const double w = Q[R + 3], x = Q[R + 4], y = Q[R + 5], z = Q[R + 6];
+		double fx = 1 - 2 * (y * y + z * z), fy = 2 * (x * y + w * z);
+		const double n = FMath::Sqrt(fx * fx + fy * fy);
+		if (n < 1e-6) { fx = 1; fy = 0; } else { fx /= n; fy /= n; }
+		const FVector2d Fwd(fx, fy), Left(-fy, fx);
+		const FVector2d Spot = FVector2d(Q[R], Q[R + 1]) + Spec.DribbleSpotFwd * Fwd - Spec.DribbleHand * Spec.DribbleSpotSide * Left;
+		Q[B] = Spot.X; Q[B + 1] = Spot.Y; Q[B + 2] = Spec.BallStartZ;
+		Q[B + 3] = 1; Q[B + 4] = Q[B + 5] = Q[B + 6] = 0;
+		VBuf[BallVAdr + 2] = Spec.BallStartVz;
+	}
 	Sim->SetQPos(Q);
-	TArray<double> V; V.SetNumZeroed(Sim->NumV());
-	Sim->SetQVel(V);
+	Sim->SetQVel(VBuf);
 	Sim->SetCtrl(HoldCtrl);
 	Sim->Forward();
 	Tracker->ResetState();
@@ -283,7 +317,8 @@ void AStreetballWorld::ApplyReset(const FStreetballResetSpec& Spec)
 	if (Director->GetProgress().ActiveTier >= 3) Tracker->GrantControl();   // ball starts at the hand
 	for (float& A : PrevAction) A = 0.f;
 	if (Clock) Clock->Resnapshot();
-	UE_LOG(LogStreetball, Log, TEXT("Reset #%d applied (%s)"), ResetCount, *Spec.Reason);
+	++UnloggedResets;                            // logged from Tick, outside the control step
+	LastResetReason = Spec.Reason;
 }
 
 void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
@@ -311,10 +346,9 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 		ObsBuilder.Compute(InSim, PrevAction, TConstArrayView<float>(DirOut.Task, 12), T.InControl ? 1.f : 0.f, T.CountdownFrac, Obs);
 		if (Policy->Run(Obs, Action))
 		{
-			TArray<float> Ctrl;
-			ObsBuilder.ActionToCtrl(Action, Ctrl);
-			InSim->SetCtrl(Ctrl);
-			PrevAction = Action;
+			ObsBuilder.ActionToCtrl(Action, CtrlBuf);   // pre-sized member: no allocation
+			InSim->SetCtrl(CtrlBuf);
+			FMemory::Memcpy(PrevAction.GetData(), Action.GetData(), PrevAction.Num() * sizeof(float));
 			return;
 		}
 	}
@@ -338,6 +372,12 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (!bReady) return;
 	Clock->Advance(DeltaSeconds);
+	if (UnloggedResets > 0)
+	{
+		UE_LOG(LogStreetball, Log, TEXT("Reset #%d applied (%s)%s in tier %d, dribble hand %+.0f"), ResetCount, LastResetReason,
+			UnloggedResets > 1 ? TEXT(" [+earlier this frame]") : TEXT(""), Director->GetProgress().ActiveTier, Director->ForcedHand);
+		UnloggedResets = 0;
+	}
 	UpdateVisuals();
 	UpdateCameraAndHUD(DeltaSeconds);
 	for (const FCourtAudioEvent& E : PendingEvents)

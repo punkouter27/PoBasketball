@@ -157,6 +157,14 @@ void UMuJoCoSim::GetBodyPosQuatSim(int32 Body, FVector3d& OutPos, FQuat4d& OutQu
 	OutQuatWxyz = FQuat4d(Q[1], Q[2], Q[3], Q[0]);   // stored as X,Y,Z,W but values are the raw MuJoCo components
 }
 
+FVector3d UMuJoCoSim::GetSubtreeAngMomSim(int32 Body)
+{
+	if (!IsLoaded() || Body < 0 || Body >= Model->nbody) return FVector3d::ZeroVector;
+	mj_subtreeVel(Model, Data);
+	const double* L = Data->subtree_angmom + 3 * Body;
+	return FVector3d(L[0], L[1], L[2]);
+}
+
 FVector3d UMuJoCoSim::GetBodyLinearVelocitySim(int32 Body) const
 {
 	if (!IsLoaded() || Body < 0 || Body >= Model->nbody) return FVector3d::ZeroVector;

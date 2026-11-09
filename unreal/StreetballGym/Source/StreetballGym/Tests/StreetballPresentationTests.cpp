@@ -68,7 +68,7 @@ bool FStreetballDirectorScrambleTest::RunTest(const FString&)
 	D->ForceState(EStreetballState::DribbleStationary, S);
 	D->Update(S, 0.02, Out);
 	TestEqual(TEXT("stays in DRIBBLE_STATIONARY with ball in control"), (int32)Out.State, (int32)EStreetballState::DribbleStationary);
-	TestEqual(TEXT("policy family dribble"), Out.PolicyName, FString(TEXT("dribble")));
+	TestEqual(TEXT("policy family dribble"), Out.PolicyName.ToString(), FString(TEXT("dribble")));
 	TestTrue(TEXT("task hand +-1"), FMath::Abs(Out.Task[0]) == 1.f);
 	TestEqual(TEXT("task apex target 1.0"), Out.Task[1], 1.f);
 	TestTrue(TEXT("stationary dribble: bounces_to_switch in [2,4]"), Out.Task[2] >= 2.f && Out.Task[2] <= 4.f);
@@ -78,7 +78,7 @@ bool FStreetballDirectorScrambleTest::RunTest(const FString&)
 	S = BaseState(5.02); S.BallPos = FVector3d(4, 0, 0.12); S.InControl = false; S.LooseT = 5.0; S.CountdownFrac = 0.993f;
 	D->Update(S, 0.02, Out);
 	TestEqual(TEXT("-> SCRAMBLE"), (int32)Out.State, (int32)EStreetballState::Scramble);
-	TestEqual(TEXT("scramble policy family"), Out.PolicyName, FString(TEXT("scramble")));
+	TestEqual(TEXT("scramble policy family"), Out.PolicyName.ToString(), FString(TEXT("scramble")));
 	TestTrue(TEXT("scramble task = countdown"), FMath::IsNearlyEqual(Out.Task[0], 0.993f, 1e-4f));
 	TestTrue(TEXT("HUD sees loose"), D->GetProgress().bLoose);
 	TestFalse(TEXT("no reset yet"), Out.Reset.bRequested);
@@ -95,7 +95,7 @@ bool FStreetballDirectorScrambleTest::RunTest(const FString&)
 	D->Update(S, 0.02, Out);
 	TestEqual(TEXT("expiry -> HARD_RESET"), (int32)Out.State, (int32)EStreetballState::HardReset);
 	TestTrue(TEXT("reset requested"), Out.Reset.bRequested);
-	TestTrue(TEXT("reason mentions countdown"), Out.Reset.Reason.Contains(TEXT("countdown")));
+	TestTrue(TEXT("reason mentions countdown"), FString(Out.Reset.Reason).Contains(TEXT("countdown")));
 	S = BaseState(10.1);
 	D->NotifyResetApplied(S);
 	D->Describe(S, Out);
@@ -104,10 +104,10 @@ bool FStreetballDirectorScrambleTest::RunTest(const FString&)
 
 	// fall -> HARD_RESET ; ball past the fence -> HARD_RESET
 	S = BaseState(11.0); S.Fallen = true; D->Update(S, 0.02, Out);
-	TestTrue(TEXT("fallen -> reset"), Out.Reset.bRequested && Out.Reset.Reason.Contains(TEXT("fallen")));
+	TestTrue(TEXT("fallen -> reset"), Out.Reset.bRequested && FString(Out.Reset.Reason).Contains(TEXT("fallen")));
 	D->NotifyResetApplied(BaseState(11.0));
 	S = BaseState(12.0); S.BallOutOfFence = true; D->Update(S, 0.02, Out);
-	TestTrue(TEXT("ball past fence -> reset"), Out.Reset.bRequested && Out.Reset.Reason.Contains(TEXT("fence")));
+	TestTrue(TEXT("ball past fence -> reset"), Out.Reset.bRequested && FString(Out.Reset.Reason).Contains(TEXT("fence")));
 	D->RemoveFromRoot();
 	return true;
 }
@@ -130,7 +130,7 @@ bool FStreetballDirectorTiersTest::RunTest(const FString&)
 	for (int32 i = 0; i < 3005 && Out.State == EStreetballState::Stand; ++i) { T += Dt; S = BaseState(T); S.FootPos[0] = FVector2d(0.3, 0.1); D->Update(S, Dt, Out); }
 	TestTrue(TEXT("tier 1 mastered"), D->GetProgress().Mastered[0]);
 	TestEqual(TEXT("-> ROAM"), (int32)Out.State, (int32)EStreetballState::Roam);
-	TestEqual(TEXT("roam policy family"), Out.PolicyName, FString(TEXT("locomotion")));
+	TestEqual(TEXT("roam policy family"), Out.PolicyName.ToString(), FString(TEXT("locomotion")));
 
 	// Tier 2: walk to 10 waypoints using the task block (heading frame == world frame here)
 	int32 Guard = 0;
@@ -326,12 +326,12 @@ bool FStreetballTransitionTableTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("load shared/transition_table.json"), D->LoadTransitionTable(Path))) { D->RemoveFromRoot(); return false; }
 	D->Initialize(1);
 	TestEqual(TEXT("version 1"), D->TableVersion(), 1);
-	TestEqual(TEXT("STAND -> balance"), D->PolicyFor(EStreetballState::Stand), FString(TEXT("balance")));
-	TestEqual(TEXT("ROAM -> locomotion"), D->PolicyFor(EStreetballState::Roam), FString(TEXT("locomotion")));
-	TestEqual(TEXT("DRIBBLE_STATIONARY -> dribble"), D->PolicyFor(EStreetballState::DribbleStationary), FString(TEXT("dribble")));
-	TestEqual(TEXT("DRIBBLE_MOVING -> dribble"), D->PolicyFor(EStreetballState::DribbleMoving), FString(TEXT("dribble")));
-	TestEqual(TEXT("JUMP_SHOT -> shot"), D->PolicyFor(EStreetballState::JumpShot), FString(TEXT("shot")));
-	TestEqual(TEXT("SCRAMBLE -> scramble"), D->PolicyFor(EStreetballState::Scramble), FString(TEXT("scramble")));
+	TestEqual(TEXT("STAND -> balance"), D->PolicyFor(EStreetballState::Stand).ToString(), FString(TEXT("balance")));
+	TestEqual(TEXT("ROAM -> locomotion"), D->PolicyFor(EStreetballState::Roam).ToString(), FString(TEXT("locomotion")));
+	TestEqual(TEXT("DRIBBLE_STATIONARY -> dribble"), D->PolicyFor(EStreetballState::DribbleStationary).ToString(), FString(TEXT("dribble")));
+	TestEqual(TEXT("DRIBBLE_MOVING -> dribble"), D->PolicyFor(EStreetballState::DribbleMoving).ToString(), FString(TEXT("dribble")));
+	TestEqual(TEXT("JUMP_SHOT -> shot"), D->PolicyFor(EStreetballState::JumpShot).ToString(), FString(TEXT("shot")));
+	TestEqual(TEXT("SCRAMBLE -> scramble"), D->PolicyFor(EStreetballState::Scramble).ToString(), FString(TEXT("scramble")));
 	TestEqual(TEXT("balance file"), D->PolicyFileFor(TEXT("balance")), FString(TEXT("policies/balance.onnx")));
 	TestEqual(TEXT("dribble layout has 7 fields"), D->LayoutFor(TEXT("dribble")).Num(), 7);
 	TestEqual(TEXT("dribble layout[3] = speed_cmd"), D->LayoutFor(TEXT("dribble"))[3], FString(TEXT("speed_cmd")));
@@ -368,7 +368,7 @@ bool FStreetballLoopTest::RunTest(const FString&)
 	if (!W->GetSim()) TestTrue(TEXT("Setup"), W->Setup(TW.World));
 	TestEqual(TEXT("five policy families resolved"), W->GetPolicies().Num(), 5);
 	int32 Null = 0;
-	for (const TPair<FString, TObjectPtr<UPolicyRunner>>& P : W->GetPolicies()) if (!P.Value) ++Null;
+	for (const TPair<FName, TObjectPtr<UPolicyRunner>>& P : W->GetPolicies()) if (!P.Value) ++Null;
 	TestEqual(TEXT("every family has a runnable policy (trained or dummy)"), Null, 0);
 	TestTrue(TEXT("transition table loaded from Content/Sim"), W->GetDirector()->HasTable());
 	AddInfo(FString::Printf(TEXT("transition table v%d; trained policies present: [%s]"), W->GetDirector()->TableVersion(), *FString::Join(W->GetRealPolicyNames(), TEXT(", "))));
@@ -376,13 +376,13 @@ bool FStreetballLoopTest::RunTest(const FString&)
 
 	// Run 1 s in STAND
 	for (int32 i = 0; i < 50; ++i) W->StepControl();
-	TestEqual(TEXT("STAND runs the balance family"), W->GetLastDirectorOutput().PolicyName, FString(TEXT("balance")));
+	TestEqual(TEXT("STAND runs the balance family"), W->GetLastDirectorOutput().PolicyName.ToString(), FString(TEXT("balance")));
 
 	// UU_AGENT hand-over: prev_action passes through a policy switch unchanged
 	const TArray<float> ActionBefore = W->GetLastAction();
 	W->GetDirector()->ForceState(EStreetballState::Roam, W->GetTracker()->State());   // switch family without a reset
 	W->StepControl();
-	TestEqual(TEXT("switched to locomotion"), W->GetLastPolicyName(), FString(TEXT("locomotion")));
+	TestEqual(TEXT("switched to locomotion"), W->GetLastPolicyName().ToString(), FString(TEXT("locomotion")));
 	const TArray<float>& ObsAfter = W->GetLastObs();
 	double HandoverErr = 0.0;
 	for (int32 k = 0; k < 27; ++k) HandoverErr = FMath::Max(HandoverErr, FMath::Abs((double)ObsAfter[63 + k] - ActionBefore[k]));
@@ -407,6 +407,20 @@ bool FStreetballLoopTest::RunTest(const FString&)
 	TestTrue(TEXT("countdown expiry produced a hard reset"), W->GetResetCount() > ResetsBefore);
 	TestEqual(TEXT("after reset the tier-3 state resumes"), (int32)W->GetDirector()->GetState(), (int32)EStreetballState::DribbleStationary);
 	AddInfo(FString::Printf(TEXT("scramble->reset after %d control steps (%.2f s); audio events seen so far: %d"), Steps, Steps * 0.02, W->GetRecentAudioEvents().Num()));
+
+	// Reset parity (2026-11-08): the tier-3 hard reset puts the ball at the active hand's dribble spot mid-cycle,
+	// as sim l2_dribble.on_reset does. Tracker state is the post-reset state (ResetState runs Update(0)).
+	{
+		const FTrackedState& T = W->GetTracker()->State();
+		const double HandCmd = W->GetLastDirectorOutput().Task[0];
+		const FVector2d Spot = FVector2d(T.PelvisPos.X, T.PelvisPos.Y) + 0.25 * T.HeadingFwd - HandCmd * 0.35 * T.HeadingLeft;
+		const double SpotErr = (FVector2d(T.BallPos.X, T.BallPos.Y) - Spot).Length();
+		TestTrue(TEXT("tier-3 reset: hand command is +/-1"), FMath::Abs(FMath::Abs(HandCmd) - 1.0) < 1e-6);
+		TestTrue(TEXT("tier-3 reset: ball at the dribble spot (< 2 cm)"), SpotErr < 0.02);
+		TestTrue(TEXT("tier-3 reset: ball mid-cycle (0.40-0.95 m), not on the floor"), T.BallPos.Z >= 0.399 && T.BallPos.Z <= 0.951);
+		TestTrue(TEXT("tier-3 reset: ball in control"), T.InControl);
+		AddInfo(FString::Printf(TEXT("tier-3 reset: hand %+.0f, spot error %.4f m, ball z %.3f m, vz %.3f m/s"), HandCmd, SpotErr, T.BallPos.Z, T.BallVel.Z));
+	}
 	return true;
 }
 

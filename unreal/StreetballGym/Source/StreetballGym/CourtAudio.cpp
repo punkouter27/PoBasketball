@@ -38,11 +38,12 @@ bool FContactAudioProcessor::Initialize(UMuJoCoSim* Sim)
 		RimMask[g] = N.StartsWith(TEXT("rim_")) && !N.StartsWith(TEXT("rim_bracket"));
 		BoardMask[g] = N.StartsWith(TEXT("board_"));
 	}
-	ActivePairs.Reset(); LastFire.Reset();
+	ActivePairs.Reset(); ScratchPairs.Reset(); LastFire.Reset();
+	ActivePairs.Reserve(64); ScratchPairs.Reserve(64); LastFire.Reserve(64);
 	return Floor >= 0 && Ball >= 0;
 }
 
-FCourtAudioEvent FContactAudioProcessor::MakeEvent(ECourtSound Kind, double Time, const FVector3d& PosSim, float Speed, const FString& Pair) const
+FCourtAudioEvent FContactAudioProcessor::MakeEvent(ECourtSound Kind, double Time, const FVector3d& PosSim, float Speed, const TCHAR* Pair) const
 {
 	FCourtAudioEvent E;
 	E.Kind = Kind; E.Time = Time; E.Speed = Speed; E.Pair = Pair;
@@ -58,15 +59,15 @@ void FContactAudioProcessor::Process(UMuJoCoSim* Sim, TArray<FCourtAudioEvent>& 
 	const mjModel* M = Sim->GetModel();
 	const mjData* D = Sim->GetData();
 	const double T = D->time;
-	TSet<uint64> Now;
-	Now.Reserve(D->ncon);
+	TSet<uint64>& Now = ScratchPairs;
+	Now.Reset();                                   // keeps its allocation
 	const FVector3d BallVel(D->qvel[BallV], D->qvel[BallV + 1], D->qvel[BallV + 2]);
 
 	for (int32 c = 0; c < D->ncon; ++c)
 	{
 		const mjContact& C = D->contact[c];
 		const int32 g0 = C.geom[0], g1 = C.geom[1];
-		ECourtSound Kind; FString Pair; float Speed = 0.f; bool bValid = false;
+		ECourtSound Kind = ECourtSound::BallFloor; const TCHAR* Pair = TEXT(""); float Speed = 0.f; bool bValid = false;
 		const bool HasBall = (g0 == Ball || g1 == Ball);
 		const bool HasFloor = (g0 == Floor || g1 == Floor);
 		const int32 Other = HasBall ? (g0 == Ball ? g1 : g0) : (g0 == Floor ? g1 : g0);
@@ -91,7 +92,7 @@ void FContactAudioProcessor::Process(UMuJoCoSim* Sim, TArray<FCourtAudioEvent>& 
 		LastFire.Add(K, T);
 		Out.Add(MakeEvent(Kind, T, FVector3d(C.pos[0], C.pos[1], C.pos[2]), Speed, Pair));
 	}
-	ActivePairs = MoveTemp(Now);
+	Swap(ActivePairs, ScratchPairs);
 }
 
 // ---------------------------------------------------------------------------- player

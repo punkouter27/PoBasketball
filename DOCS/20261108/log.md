@@ -206,3 +206,34 @@ Planned changes logged before any edit (UU_AGENT §3 audit trail):
   5. Bones are not strictly 1:1: spine slerp, head undriven, display interpolation.
 
   Minor gaps: coordinate bridge duplicated in `BroadcastCamera.cpp:10` and `CourtAudio.cpp:49`; TensorBoard events are not mirrored to `DOCS/<date>`. Meets: allocate-at-startup, build stamp, action-rate penalty, self-collision.
+
+## Evening, continued: item 1 done, AMP regression verified, allocation fixes (user answers: hand switch, report-first gate, zero-alloc now, user fixes Smart App Control)
+- **Tier-3/4 reset parity (Unreal).** New `UStreetballDirector::PrepareReset` mirrors `l2_dribble.on_reset` / `L3MovingDribble.on_reset`:
+  - Ball at the active hand's spot (0.25 m forward in tier 3, 0.30 m in tier 4; 0.35 m to the side), h ~ U(0.40, 0.95), vz = ∓sqrt(2g(1−h)).
+  - The hand is chosen before the reset and kept by the following EnterTier.
+  - New switch `-StreetballDribbleHand=right|left` (no commanded switches; task slot 2 = 0, as in sim l2a).
+  - New assert in `Streetball.C3.WorldLoop`: spot error 0.0000 m, ball z 0.659 m, in control.
+- **Dribble preview diagnosis corrected.** From the correct reset, the c3 preview loses the ball at 0.6 s and falls at 3.5 s **in the sim too**. The sim episode ends earlier on drift > 0.5 m (1.9 s here, 1.29 s on average), so the "2 % falls" figure hid this. The policy never trained on what happens after a lost ball. The reset fix removes the early 1.2 s fall in Unreal; the rest is item 2.
+- **5 s rollout gate.**
+  - The recorder now has `--level l0_stand|l1_traverse|l2a_dribble_r`. It records the per-step task block, in_control, countdown, qvel and whole-body angular momentum. l1 uses a waypoint 10 m ahead and 2 m left at 1.5 m/s.
+  - `Gate.LivePhysics` replays those inputs and reports root-velocity and angular-momentum error, foot sliding, floor penetration and contact flips (report-only). It asserts duration ≥ 5 s.
+  - New goldens: `replay_balance.json`, `replay_locomotion.json` (AMP), `replay_locomotion_ppo.json`.
+  - The default gate pair is now balance + `replay_balance.json`. The old default `replay_l0.json` + `l0_stand.onnx` was a stale pair: the replay was recorded with balance.onnx, and its action diff against l0_stand is 0.43. That made the full-suite gate fail.
+
+| 5 s rollout (Unreal vs sim) | balance | locomotion AMP (production) | locomotion PPO (old) |
+|---|---|---|---|
+| Root / joint error | 0.0000 cm / 0.00002° PASS | 0.0127 cm / 0.028° **PASS** | — / 2.86° **FAIL** |
+| Root velocity error | 3.0e-7 m/s | 1.2e-3 m/s | 8.3e-2 m/s |
+| Angular momentum error / max | 5e-6 / 7.4 | 1.7e-2 / 12.1 kg m²/s | — / 17.6 |
+| Foot slide while planted, max / mean | 0.26 / 0.008 m/s | 1.04 / 0.37 m/s | 1.18 / 0.33 m/s |
+| Max floor penetration | 1.2 mm | 6.4 mm | 10.2 mm |
+| Foot contact flips per s (L/R) | 0 / 0 | 12.4 / 12.6 | 12.0 / 12.6 |
+
+- AMP regression **verified**: it passes parity, and the old PPO policy does not. Both gaits slide about 0.35 m/s mean while "planted" and flip contacts about 12 times a second (expected about 4/s at this cadence). Next: check whether that is real slipping or heel/toe contact toggling, before setting thresholds.
+- **Zero-alloc control step.**
+  - Policy family is now an `FName`, and reset reasons are `const TCHAR*`.
+  - Ctrl, qpos and qvel scratch buffers are pre-sized; `PolicyRunner` uses memcpy instead of TArray assignment.
+  - Audio events use literal pair names and a reused TSet. Reset logging is deferred to Tick.
+  - Bridge: new `UMuJoCoSim::GetSubtreeAngMomSim`.
+- Tests: full `Streetball` suite **15/15 pass**; Gate balance PASS; Gate locomotion (AMP) PASS.
+- **Item 2:** `sim/runs/push_20261108.ps1` is ready (l2a_push, 120 min from c3, then gate eval and report). It starts with a torch import check and **waits for the user to fix Smart App Control**.

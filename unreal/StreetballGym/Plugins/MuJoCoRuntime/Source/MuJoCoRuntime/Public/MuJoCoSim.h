@@ -110,6 +110,8 @@ public:
 	void GetBodyPosQuatSim(int32 BodyId, FVector3d& OutPos, FQuat4d& OutQuatWxyz) const;
 	/** World-frame linear velocity of a body's frame origin (m/s), from cvel (no mj_objectVelocity export in the 4.0 import lib). */
 	FVector3d GetBodyLinearVelocitySim(int32 BodyId) const;
+	/** Angular momentum of a body's subtree about its centre of mass (kg m^2/s, sim frame); runs mj_subtreeVel. */
+	FVector3d GetSubtreeAngMomSim(int32 BodyId);
 	TConstArrayView<double> QPos() const;
 	TConstArrayView<double> QVel() const;
 	TConstArrayView<double> SensorData() const;

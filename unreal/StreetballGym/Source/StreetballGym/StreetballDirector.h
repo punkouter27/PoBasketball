@@ -27,14 +27,22 @@ struct STREETBALLGYM_API FStreetballResetSpec
 	double RootYaw = 0.0;                        // radians about +Z
 	bool bPlaceBall = false;
 	FVector3d BallPos = FVector3d::ZeroVector;   // sim metres
-	FString Reason;
+	/** Tiers 3-4: ball at the dribble spot of the active hand mid-cycle (sim l2_dribble / l3_roam on_reset).
+	 *  The world computes the spot from the root pose it applies. */
+	bool bDribbleStart = false;
+	double DribbleHand = 1.0;                    // +1 right, -1 left
+	double DribbleSpotFwd = 0.25;                // m ahead of the root (0.30 in tier 4)
+	double DribbleSpotSide = 0.35;               // m toward the active hand
+	double BallStartZ = 0.7;                     // m
+	double BallStartVz = 0.0;                    // m/s
+	const TCHAR* Reason = TEXT("");              // string literal only (no heap allocation in the control step)
 };
 
 /** Per-step director output consumed by the world. */
 struct STREETBALLGYM_API FStreetballDirectorOutput
 {
 	EStreetballState State = EStreetballState::Stand;
-	FString PolicyName;                 // policy family, e.g. "locomotion"
+	FName PolicyName;                   // policy family, e.g. "locomotion" (FName: no allocation per step)
 	float Task[12] = {0};
 	FStreetballResetSpec Reset;
 	bool bScoreEvent = false;           // for the net-rattle sound
@@ -64,7 +72,7 @@ struct STREETBALLGYM_API FStreetballProgress
 /** One row of shared/transition_table.json "states". */
 struct STREETBALLGYM_API FStreetballStateRow
 {
-	FString Policy;                     // family name ("balance", ...); empty for HARD_RESET
+	FName Policy;                       // family name ("balance", ...); NAME_None for HARD_RESET
 	int32 Tier = 0;
 	FString Layout;                     // key into Layouts
 	bool bHasSpeed = false;
@@ -101,6 +109,10 @@ public:
 	/** Tiers 1-2 never use the ball: park it where training parks it (l0_stand / l1_traverse on_reset). */
 	static void ParkBallForTier(int32 Tier, FStreetballResetSpec& Spec);
 
+	/** Fill the ball/hand part of a reset for the tier (tiers 1-2: ParkBallForTier; tiers 3-4: dribble start).
+	 *  For tiers 3-4 the hand is chosen here and kept by the EnterTier that follows the reset. */
+	void PrepareReset(int32 Tier, FStreetballResetSpec& Spec);
+
 	/** Skip ahead (command line -StreetballStartTier=N): earlier tiers are marked mastered. */
 	void StartAtTier(int32 Tier);
 
@@ -114,7 +126,7 @@ public:
 	static int32 TierForState(EStreetballState St);
 
 	/** Policy family for a state (table-driven; HARD_RESET maps to the active tier's state). */
-	FString PolicyFor(EStreetballState St) const;
+	FName PolicyFor(EStreetballState St) const;
 	/** Relative file for a family from the table ("policies/balance.onnx"); empty if unknown. */
 	FString PolicyFileFor(const FString& Family) const;
 	const TMap<FString, FString>& GetPolicyFiles() const { return PolicyFiles; }
@@ -142,6 +154,10 @@ public:
 	double ShotFgGoal = 0.30;
 	double ShotTimeout = 8.0;
 	double ScrambleS = 3.0;
+	/** Command line -StreetballDribbleHand=right|left: 0 = table (random hand, commanded crossovers), +1/-1 = that
+	 *  hand only, no switches. For single-hand previews (the l2a policy only learned the right hand). */
+	double ForcedHand = 0.0;
+	FVector2d DribbleStartHeight = FVector2d(0.40, 0.95);
 
 private:
 	void InstallDefaultTable();
@@ -178,6 +194,7 @@ private:
 	bool bLastPelvisValid = false;
 	// tier 3
 	double Hand = 1.0;                  // +1 right, -1 left
+	bool bHandPreset = false;           // PrepareReset chose the hand; the next EnterTier keeps it
 	int32 UntilSwitch = 3;
 	bool bPrevFloor = false, bPalmSince = true, bNearSince = true;
 	double Apex = 0.0;

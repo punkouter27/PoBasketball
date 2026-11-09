@@ -3,8 +3,8 @@
 //   Streetball.Gate.PresetActions : open-loop playback of the recorded ctrl sequence
 //   Streetball.Gate.LivePhysics   : closed loop - obs builder -> NNE policy -> action rule -> 10 substeps
 // Inputs (CVars, defaults relative to <repo>/shared):
-//   streetball.GateReplay  = golden/replay_l0.json   (sim/tools/replay_recorder.py policy mode)
-//   streetball.GatePolicy  = policies/l0_stand.onnx
+//   streetball.GateReplay  = golden/replay_balance.json   (sim/tools/replay_recorder.py policy --level l0_stand)
+//   streetball.GatePolicy  = policies/balance.onnx (production balance; replay_l0.json/l0_stand.onnx were a stale pair)
 // Both tests pass-with-SKIPPED when the files are absent and write docs/phase_reports/Step4_gate_unreal.md.
 #include "Misc/AutomationTest.h"
 
@@ -23,9 +23,9 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
-static TAutoConsoleVariable<FString> CVarGateReplay(TEXT("streetball.GateReplay"), TEXT("golden/replay_l0.json"),
+static TAutoConsoleVariable<FString> CVarGateReplay(TEXT("streetball.GateReplay"), TEXT("golden/replay_balance.json"),
 	TEXT("Policy-mode replay JSON for the Step 4 gate (relative to <repo>/shared or absolute)"), ECVF_Default);
-static TAutoConsoleVariable<FString> CVarGatePolicy(TEXT("streetball.GatePolicy"), TEXT("policies/l0_stand.onnx"),
+static TAutoConsoleVariable<FString> CVarGatePolicy(TEXT("streetball.GatePolicy"), TEXT("policies/balance.onnx"),
 	TEXT("ONNX policy for the Step 4 live-physics gate (relative to <repo>/shared or absolute)"), ECVF_Default);
 
 namespace
@@ -43,6 +43,10 @@ namespace
 		FString Mode, Key;
 		TArray<double> QPos0, QVel0;
 		TArray<TArray<double>> Ctrl, QPos, Obs, Action;
+		// optional (recorder 2026-11-08): per-step task block / ball-control inputs and kinematics for the 5 s rollout gate
+		FString Level;
+		TArray<TArray<double>> Task, QVel, AngMom;
+		TArray<double> InControl, Countdown;
 	};
 
 	bool LoadReplay(const FString& Path, FReplay& R, FString& Err)
@@ -68,6 +72,11 @@ namespace
 		Vec(J->GetArrayField(TEXT("qpos0")), R.QPos0);
 		Vec(J->GetArrayField(TEXT("qvel0")), R.QVel0);
 		Mat(TEXT("ctrl"), R.Ctrl); Mat(TEXT("qpos"), R.QPos); Mat(TEXT("obs"), R.Obs); Mat(TEXT("action"), R.Action);
+		Mat(TEXT("task"), R.Task); Mat(TEXT("qvel"), R.QVel); Mat(TEXT("angmom"), R.AngMom);
+		const TArray<TSharedPtr<FJsonValue>>* Arr = nullptr;
+		if (J->TryGetArrayField(TEXT("in_control"), Arr)) Vec(*Arr, R.InControl);
+		if (J->TryGetArrayField(TEXT("countdown"), Arr)) Vec(*Arr, R.Countdown);
+		J->TryGetStringField(TEXT("level"), R.Level);
 		return true;
 	}
 
@@ -78,6 +87,67 @@ namespace
 		double RootCmAt1s = 0, RootCmAt5s = 0;
 		double MinPelvisZ = 1e9;   // athlete must stay upright: parity alone passed while both sides fell (2026-11-07)
 		FString Note;
+		// 5 s rollout gate (UU_AGENT §4, 2026-11-08), report-only until thresholds are set from measured baselines
+		double MaxRootVelErr = -1, MaxAngMomErr = -1, MaxAngMom = 0;   // -1 = replay has no reference
+		double MaxFootSlide = 0, MeanFootSlide = 0, MaxPenetrationMm = 0;
+		int32 SlideSamples = 0, FootFlips[2] = {0, 0};
+	};
+
+	/** Contacts and kinematics the 5 s rollout gate measures on the Unreal side after each control step. */
+	struct FRolloutProbe
+	{
+		int32 Floor = -1, FootGeom[2] = {-1, -1}, FootBody[2] = {-1, -1}, Pelvis = -1, RootV = 0;
+		bool PrevContact[2] = {false, false}, bHavePrev = false;
+		FVector2d PrevFoot[2];
+
+		void Init(const UMuJoCoSim* Sim)
+		{
+			Floor = Sim->GeomId(TEXT("floor"));
+			FootGeom[0] = Sim->GeomId(TEXT("foot_l")); FootGeom[1] = Sim->GeomId(TEXT("foot_r"));
+			FootBody[0] = Sim->BodyId(TEXT("foot_l")); FootBody[1] = Sim->BodyId(TEXT("foot_r"));
+			Pelvis = Sim->BodyId(TEXT("pelvis"));
+			RootV = Sim->GetModel()->jnt_dofadr[Sim->JointId(TEXT("root"))];
+		}
+
+		void Step(UMuJoCoSim* Sim, const FReplay& R, int32 t, double ControlDt, FGateStats& G)
+		{
+			const mjData* D = Sim->GetData();
+			bool Contact[2] = {false, false};
+			for (int32 c = 0; c < D->ncon; ++c)
+			{
+				const int32 g0 = D->contact[c].geom[0], g1 = D->contact[c].geom[1];
+				if (g0 != Floor && g1 != Floor) continue;
+				const int32 Other = g0 == Floor ? g1 : g0;
+				G.MaxPenetrationMm = FMath::Max(G.MaxPenetrationMm, -FMath::Min(0.0, (double)D->contact[c].dist) * 1000.0);
+				if (Other == FootGeom[0]) Contact[0] = true;
+				if (Other == FootGeom[1]) Contact[1] = true;
+			}
+			for (int32 i = 0; i < 2; ++i)
+			{
+				const FVector2d P(D->xpos[3 * FootBody[i]], D->xpos[3 * FootBody[i] + 1]);
+				if (bHavePrev)
+				{
+					if (Contact[i] != PrevContact[i]) ++G.FootFlips[i];
+					if (Contact[i] && PrevContact[i])   // planted on both samples: any horizontal motion is sliding
+					{
+						const double V = (P - PrevFoot[i]).Length() / ControlDt;
+						G.MaxFootSlide = FMath::Max(G.MaxFootSlide, V);
+						G.MeanFootSlide += V; ++G.SlideSamples;
+					}
+				}
+				PrevFoot[i] = P; PrevContact[i] = Contact[i];
+			}
+			bHavePrev = true;
+			if (R.QVel.IsValidIndex(t))
+			{
+				const double E = FVector3d(D->qvel[RootV] - R.QVel[t][RootV], D->qvel[RootV + 1] - R.QVel[t][RootV + 1], D->qvel[RootV + 2] - R.QVel[t][RootV + 2]).Length();
+				G.MaxRootVelErr = FMath::Max(G.MaxRootVelErr, E);
+			}
+			const FVector3d L = Sim->GetSubtreeAngMomSim(Pelvis);
+			G.MaxAngMom = FMath::Max(G.MaxAngMom, L.Length());
+			if (R.AngMom.IsValidIndex(t))
+				G.MaxAngMomErr = FMath::Max(G.MaxAngMomErr, (L - FVector3d(R.AngMom[t][0], R.AngMom[t][1], R.AngMom[t][2])).Length());
+		}
 	};
 
 	void CompareQ(const UMuJoCoSim* Sim, const TArray<double>& Rec, int32 RootQ, const TArray<int32>& JAdr, FGateStats& G, int32 t, int32 Steps)
@@ -212,9 +282,16 @@ bool FStreetballGateLiveTest::RunTest(const FString&)
 	FGateStats G; G.Steps = R.Steps;
 	int32 WorstObsSlot = -1, WorstObsStep = -1;
 	double InferenceMs = 0.0;
+	FRolloutProbe Probe; Probe.Init(Sim);
+	const double ControlDt = R.Substeps * Sim->GetTimestep();
+	const double DurationS = R.Steps * ControlDt;
 	for (int32 t = 0; t < R.Steps; ++t)
 	{
-		B.Compute(Sim, Prev, Task, 0.f, 1.f, Obs);                      // task zeros, in_control 0, countdown 1
+		// per-step task block and ball-control inputs from the recording (older replays: zeros / 0 / 1)
+		if (R.Task.IsValidIndex(t)) for (int32 k = 0; k < FObsBuilder::NumTask && k < R.Task[t].Num(); ++k) Task[k] = (float)R.Task[t][k];
+		const float InCtrl = R.InControl.IsValidIndex(t) ? (float)R.InControl[t] : 0.f;
+		const float Countdown = R.Countdown.IsValidIndex(t) ? (float)R.Countdown[t] : 1.f;
+		B.Compute(Sim, Prev, Task, InCtrl, Countdown, Obs);
 		for (int32 k = 0; k < FObsBuilder::NumObs; ++k)
 		{
 			const double D = FMath::Abs((double)Obs[k] - R.Obs[t][k]);
@@ -231,8 +308,25 @@ bool FStreetballGateLiveTest::RunTest(const FString&)
 		Prev = Act;
 		CompareQ(Sim, R.QPos[t], RootQ, JAdr, G, t, R.Steps);
 		G.MinPelvisZ = FMath::Min(G.MinPelvisZ, Sim->QPos()[RootQ + 2]);
+		Probe.Step(Sim, R, t, ControlDt, G);
 	}
-	const bool bPass = G.MaxRootCm < 2.0 && G.MaxJointDeg < 1.0 && G.MinPelvisZ >= 0.7;
+	if (G.SlideSamples > 0) G.MeanFootSlide /= G.SlideSamples;
+	const bool bLongEnough = DurationS >= 4.999;
+	const bool bPass = G.MaxRootCm < 2.0 && G.MaxJointDeg < 1.0 && G.MinPelvisZ >= 0.7 && bLongEnough;
+	const FString Rollout = FString::Printf(
+		TEXT("\n\n### 5 s rollout gate (UU_AGENT section 4) - report only, thresholds to be set from these baselines\n\n")
+		TEXT("Level `%s`, %.2f s.\n\n| Metric | Value |\n|---|---|\n")
+		TEXT("| Max root linear velocity error vs recorded | %s |\n")
+		TEXT("| Max whole-body angular momentum error vs recorded | %s |\n")
+		TEXT("| Max whole-body angular momentum (Unreal) | %.3f kg m^2/s |\n")
+		TEXT("| Foot sliding while planted: max / mean | %.3f / %.3f m/s (%d samples) |\n")
+		TEXT("| Max ground penetration (any geom vs floor) | %.2f mm |\n")
+		TEXT("| Foot contact flips (chatter): left / right | %d / %d (%.1f / %.1f per s) |"),
+		R.Level.IsEmpty() ? TEXT("l0_stand (legacy replay)") : *R.Level, DurationS,
+		G.MaxRootVelErr < 0 ? TEXT("n/a (replay has no qvel)") : *FString::Printf(TEXT("%.2e m/s"), G.MaxRootVelErr),
+		G.MaxAngMomErr < 0 ? TEXT("n/a (replay has no angmom)") : *FString::Printf(TEXT("%.2e kg m^2/s"), G.MaxAngMomErr),
+		G.MaxAngMom, G.MaxFootSlide, G.MeanFootSlide, G.SlideSamples, G.MaxPenetrationMm,
+		G.FootFlips[0], G.FootFlips[1], G.FootFlips[0] / FMath::Max(DurationS, 1e-6), G.FootFlips[1] / FMath::Max(DurationS, 1e-6));
 	const FString Body = FString::Printf(
 		TEXT("Replay: `%s`, policy: `%s` (%d steps x %d substeps = %.1f s, closed loop in Unreal with NNE ORT-CPU)\n\n")
 		TEXT("| Metric | Value | Gate |\n|---|---|---|\n")
@@ -247,7 +341,9 @@ bool FStreetballGateLiveTest::RunTest(const FString&)
 		*ReplayPath, *PolicyPath, R.Steps, R.Substeps, R.Steps * R.Substeps * 0.002,
 		G.MaxRootCm, G.MaxJointDeg, G.RootCmAt1s, G.RootCmAt5s, G.MaxObs, WorstObsSlot, WorstObsStep, G.MaxAction,
 		G.FootMismatchSteps, R.Steps, InferenceMs / FMath::Max(1, R.Steps), G.MinPelvisZ, bPass ? TEXT("PASS") : TEXT("FAIL"));
-	WriteGateReport(TEXT("Live physics (closed loop)"), Body);
+	WriteGateReport(TEXT("Live physics (closed loop)"), Body + Rollout);
+	AddInfo(Rollout);
+	TestTrue(TEXT("rollout lasts >= 5 s"), bLongEnough);
 	AddInfo(FString::Printf(TEXT("closed loop %d steps: root %.4f cm, joints %.5f deg, obs %.3e, action %.3e, foot mismatches %d -> %s"),
 		R.Steps, G.MaxRootCm, G.MaxJointDeg, G.MaxObs, G.MaxAction, G.FootMismatchSteps, bPass ? TEXT("PASS") : TEXT("FAIL")));
 	TestTrue(TEXT("root < 2 cm"), G.MaxRootCm < 2.0);

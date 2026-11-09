@@ -51,7 +51,7 @@ struct STREETBALLGYM_API FCourtAudioEvent
 	float Speed = 0.f;              // impact speed m/s
 	float Volume = 1.f;
 	float Pitch = 1.f;
-	FString Pair;                   // "ball|floor" etc.
+	const TCHAR* Pair = TEXT("");   // "ball|floor" etc. (string literal: no allocation per event)
 };
 
 /**
@@ -65,7 +65,7 @@ struct STREETBALLGYM_API FContactAudioProcessor
 	/** Call after every mj_step. Appends new events to OutEvents (does not clear it). */
 	void Process(UMuJoCoSim* Sim, TArray<FCourtAudioEvent>& OutEvents);
 	/** External event (e.g. a score) at a sim-space position. */
-	FCourtAudioEvent MakeEvent(ECourtSound Kind, double Time, const FVector3d& PosSim, float Speed, const FString& Pair) const;
+	FCourtAudioEvent MakeEvent(ECourtSound Kind, double Time, const FVector3d& PosSim, float Speed, const TCHAR* Pair) const;
 
 	double DebounceS = 0.06;
 	double ShoeLateralMin = 0.5;     // m/s
@@ -76,6 +76,7 @@ private:
 	int32 BallQ = -1, BallV = -1;
 	TArray<bool> RimMask, BoardMask;
 	TSet<uint64> ActivePairs;          // pairs in contact last step
+	TSet<uint64> ScratchPairs;         // pairs in contact this step (swapped with ActivePairs, never freed)
 	TMap<uint64, double> LastFire;     // debounce per pair
 	static uint64 Key(int32 A, int32 B) { if (A > B) Swap(A, B); return ((uint64)(uint32)A << 32) | (uint32)B; }
 };

@@ -83,6 +83,7 @@ bool UPolicyRunner::Run(TConstArrayView<float> Obs, TArray<float>& OutAction)
 	const UE::NNE::EResultStatus S = Instance->RunSync({In}, {Out});
 	LastInferenceMs = (FPlatformTime::Seconds() - T0) * 1000.0;
 	if (S != UE::NNE::EResultStatus::Ok) return false;
-	OutAction = OutputBuf;
+	if (OutAction.Num() != NumAction) OutAction.SetNumUninitialized(NumAction);   // first call only
+	FMemory::Memcpy(OutAction.GetData(), OutputBuf.GetData(), NumAction * sizeof(float));
 	return true;
 }
