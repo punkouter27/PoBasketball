@@ -167,7 +167,13 @@ class L3Scramble(Level):
         newly = (env.in_control > 0.5) & ~self.regained
         self.regained |= newly
         touch = env.palm_ball_contact.amax(dim=1)
+        # Reach shaping (2026-11-08): regaining needs a palm touch, which the first queue never found (0 % regained).
+        # Pulls the nearer palm to the ball once the athlete is within 1.2 m of it (obs 97/98 = palm-ball distances).
+        palm = torch.minimum(env.obs[:, 97], env.obs[:, 98])
+        r_reach = torch.exp(-(palm / 0.4) ** 2) * (d < 1.2).float()
+        self._m_reach = r_reach
         r = (2.0 * progress
+             + 1.0 * r_reach
              + 0.3 * torch.exp(-(d / 0.5) ** 2)
              + 0.5 * touch
              + 20.0 * newly.float()
@@ -185,7 +191,8 @@ class L3Scramble(Level):
         return settled | (env.countdown_frac <= 0.0)
 
     def metrics(self):
-        return {"m/regained": self.regained.float(), "m/ball_dist": (self.env.p_ball[:, :2] - self.env.p_pelvis[:, :2]).norm(dim=-1)}
+        return {"m/regained": self.regained.float(), "m/ball_dist": (self.env.p_ball[:, :2] - self.env.p_pelvis[:, :2]).norm(dim=-1),
+                "m/reach": getattr(self, "_m_reach", torch.zeros(self.N, device=self.dev))}
 
     def episode_success(self) -> torch.Tensor:
         return self.regained & ~self.env.fallen

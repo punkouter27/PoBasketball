@@ -237,3 +237,20 @@ Planned changes logged before any edit (UU_AGENT §3 audit trail):
   - Bridge: new `UMuJoCoSim::GetSubtreeAngMomSim`.
 - Tests: full `Streetball` suite **15/15 pass**; Gate balance PASS; Gate locomotion (AMP) PASS.
 - **Item 2:** `sim/runs/push_20261108.ps1` is ready (l2a_push, 120 min from c3, then gate eval and report). It starts with a torch import check and **waits for the user to fix Smart App Control**.
+
+## 21:50 — 8 h unattended training started (user request: "EXTENDED TRAINING (8 hours)")
+Smart App Control no longer blocks torch (`import torch` OK, CUDA on the RTX 5070 Ti). Unreal editor closed, 14 GB RAM free.
+Changes logged before launch (audit trail):
+- `streetball/queue.py`: `--plan` mode with named explicit stage lists. Each stage is judged on its REAL gate level (`eval_level`) and has an explicit init checkpoint.
+- `l3b_scramble` reward: + palm-reach shaping (1.0 · exp(−(palm–ball/0.4)²) within 1.2 m). The first queue regained the ball 0 % of the time; a regain needs a palm touch that was never found by chance. Policies touched: scramble only (no production scramble exists yet).
+- `runs/production/locomotion.*` is now AMP, matching `shared/policies`. PPO kept in `runs/production/candidates/locomotion_ppo.*`.
+- Smoke tests (2 M steps each, deleted afterwards): `m/push_reward` 0.023/step (fires), scramble `m/reach` > 0.
+
+Plan `urgent_20261108` (run tag `n9`, priority order):
+1. `l2a_push` 150 min, from `l2a_cycles_c3` → gate `l2a_dribble_r`
+2. `l3b_scramble` 100 min, from production AMP locomotion → gate `l3b_scramble`
+3. `l2a_push` 130 min, resume
+4. `l3b_scramble`, rest of the budget, resume
+
+Shot is not scheduled (it needs a working dribble). Passing stages export production ONNX and sync to Unreal; others are saved as candidates. Reserve 25 min for evaluation and the report.
+Watch: `sim/runs/queue/<stamp>/queue_log.md`, `DOCS/20261108/hourly_status.md`, TensorBoard http://localhost:6006. Launcher: `sim/runs/night_20261108.ps1`.

@@ -38,6 +38,19 @@ STAGES = [
     ("l3b_scramble", "scramble", 50, []),
     ("l4_jump_shot", "shot", 60, ["--push-max", "0"]),
 ]
+# Named plans (--plan): explicit stage list, each (level, family, minutes or None = rest, extra args,
+# eval_level = the REAL gate level the stage is judged on, init = checkpoint for the first attempt).
+# A level listed twice resumes from its own checkpoint (full optimiser state).
+PLANS = {
+    # 2026-11-08 night: most urgent first. Dribble blocks tiers 3-5; scramble runs every time the ball is lost in Unreal
+    # (today a dummy policy). Shot needs a working dribble first, so it is not scheduled.
+    "urgent_20261108": [
+        ("l2a_push", "dribble", 150, ["--push-max", "80"], "l2a_dribble_r", "runs/l2a_cycles_c3/model.pt"),
+        ("l3b_scramble", "scramble", 100, [], "l3b_scramble", "runs/production/locomotion.pt"),
+        ("l2a_push", "dribble", 130, ["--push-max", "80"], "l2a_dribble_r", None),
+        ("l3b_scramble", "scramble", None, [], "l3b_scramble", None),
+    ],
+}
 RESERVE_MIN = 25          # kept free at the end for evaluation/report
 MIN_STAGE_MIN = 12        # never start a stage with less than this
 
@@ -87,14 +100,16 @@ class Queue:
             return 124
 
     # ------------------------------------------------------------------ one stage attempt
-    def train_stage(self, level: str, family: str | None, minutes: float, extra: list[str], attempt: int) -> dict:
+    def train_stage(self, level: str, family: str | None, minutes: float, extra: list[str], attempt: int,
+                    eval_level: str | None = None, init_override: str | None = None) -> dict:
+        eval_level = eval_level or level
         run_name = f"{level}_{self.tag}q{attempt}"
         self.current_run = run_name
         st = self.state["stages"].setdefault(level, {"family": family, "attempts": [], "passed": False, "checkpoint": None})
         steps = 1e9  # the time budget is the real limit
         cmd = [PY, "-m", "streetball.train", "--level", level, "--steps", str(steps), "--num-envs", str(self.num_envs),
                "--run-name", run_name, "--time-budget-min", f"{minutes:.1f}"] + extra
-        init = st["checkpoint"] or self.prev_ckpt
+        init = st["checkpoint"] or init_override or self.prev_ckpt
         if init:
             same_level = st["checkpoint"] is not None
             cmd += ["--init", init] + ([] if same_level else ["--init-actor-only"])
@@ -108,11 +123,13 @@ class Queue:
         if ckpt.exists():
             st["checkpoint"] = str(ckpt)
             # evaluation (200 episodes) with a hard cap so a slow level cannot eat the budget
-            rc_eval = self.run([PY, "-m", "streetball.evaluate", "--level", level, "--ckpt", str(ckpt)], timeout_s=1200)
-            ev = DOCS / "phase_reports" / f"eval_{level}.json"
+            rc_eval = self.run([PY, "-m", "streetball.evaluate", "--level", eval_level, "--ckpt", str(ckpt)], timeout_s=1200)
+            ev = DOCS / "phase_reports" / f"eval_{eval_level}.json"
             if ev.exists():
                 e = json.loads(ev.read_text(encoding="utf-8"))
                 rec["eval"] = {k: e.get(k) for k in ("success_rate", "passed", "holds_100_straight", "fall_rate", "mean_episode_s", "nan_grads")}
+                rec["eval"]["level"] = eval_level
+                rec["eval"]["metrics"] = {k: v for k, v in e.items() if isinstance(v, (int, float)) and k not in rec["eval"]}
                 shutil.copy2(ev, RUNS / run_name / "eval.json")
             rec["passed"] = rc_eval == 0
             st["passed"] = st["passed"] or rec["passed"]
@@ -177,6 +194,23 @@ class Queue:
                 f.write("\n".join(lines) + "\n")
 
     # ------------------------------------------------------------------ main loop
+    def run_plan(self, plan: list):
+        threading.Thread(target=self.hourly_status, daemon=True).start()
+        attempts: dict[str, int] = {}
+        for level, family, minutes, extra, eval_level, init in plan:
+            left = self.minutes_left() - RESERVE_MIN
+            budget = left if minutes is None else min(minutes, left)
+            if budget < MIN_STAGE_MIN:
+                self.log(f"skipping {level}: only {self.minutes_left():.0f} min left")
+                continue
+            attempts[level] = attempts.get(level, 0) + 1
+            init_path = str(ROOT / init) if init else None
+            self.train_stage(level, family, budget, extra, attempts[level], eval_level, init_path)
+        self.log("plan finished; writing the final report")
+        self.write_manifest()
+        self.run([PY, "tools/final_report.py", "--queue-dir", str(self.dir)], timeout_s=600)
+        self.log("done")
+
     def main(self):
         threading.Thread(target=self.hourly_status, daemon=True).start()
         started = self.start_from is None
@@ -220,7 +254,11 @@ def main():
                     help="--init is another level's checkpoint (actor weights only, fresh critic)")
     ap.add_argument("--stage-minutes", default="", help="first-pass overrides, e.g. l2a_dribble_r=240,l4_jump_shot=30")
     ap.add_argument("--tag", default="", help="run-name prefix so a new queue never overwrites older runs, e.g. r2")
+    ap.add_argument("--plan", default=None, choices=sorted(PLANS), help="run a named explicit stage plan instead of the ladder")
     args = ap.parse_args()
+    if args.plan:
+        Queue(args.hours, args.num_envs, None, None, args.tag).run_plan(PLANS[args.plan])
+        return
     over = dict(kv.split("=") for kv in args.stage_minutes.split(",") if kv)
     STAGES[:] = [(lv, fam, float(over.get(lv, mins)), ex) for lv, fam, mins, ex in STAGES]
     Queue(args.hours, args.num_envs, args.start_from, args.init, args.tag, args.init_actor_only).main()
