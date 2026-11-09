@@ -323,3 +323,54 @@ class L2DribbleCycles(L2Dribble):
         m["m/cycle_ok"] = self.cycles_ok.float()
         m["m/succ_ema"] = torch.full((self.N,), self.succ_ema, device=self.dev)
         return m
+
+
+class L2DribblePush(L2DribbleCycles):
+    """TRAINING-ONLY curriculum for L2a (2026-11-08, dribble approach #7): l2a_cycles plus immediate credit for
+    each push. Why: l2a_cycles still scores a push only at the next peak (~0.4-0.8 s later), and two-bounce success
+    stayed flat at ~15 % for 45 min (c3). Here the push is scored on the step the active palm RELEASES the ball,
+    from the ball's state at release, with ballistic prediction:
+      - rebound apex: r + e2 * (vz^2 / 2g + (z - r)), e2 = 0.72 = FIBA apex ratio the ball is tuned to (A5)
+      - landing point: p_xy + v_xy * t_floor, t_floor from z - r + vz t - g t^2 / 2 = 0
+    Paid once per bounce cycle (first release), so palm spam earns nothing extra. Same interface as L2Dribble."""
+    name = "l2a_push"
+    e2 = 0.72
+    ball_r = 0.1205
+
+    def setup(self) -> None:
+        super().setup()
+        N, dev = self.N, self.dev
+        self.prev_touch = torch.zeros(N, dtype=torch.bool, device=dev)
+        self.paid_cycle = torch.zeros(N, dtype=torch.bool, device=dev)
+        self._m_push = torch.zeros(N, device=dev)
+
+    def on_reset(self, ids: torch.Tensor) -> None:
+        super().on_reset(ids)
+        self.prev_touch[ids] = False
+        self.paid_cycle[ids] = False
+
+    def reward(self) -> torch.Tensor:
+        r = super().reward()                 # also updates bounce_event for this step
+        env = self.env
+        g = 9.81
+        touch = self._active_palm_contact()
+        release = self.prev_touch & ~touch & ~self.paid_cycle
+        self.prev_touch = touch
+        z = env.p_ball[:, 2] - self.ball_r
+        vz = env.v_ball[:, 2]
+        apex_pred = self.ball_r + self.e2 * (vz ** 2 / (2 * g) + z.clamp(min=0.0))
+        t_floor = (vz + torch.sqrt(vz ** 2 + 2 * g * z.clamp(min=0.0))) / g
+        land = env.p_ball[:, :2] + env.v_ball[:, :2] * t_floor[:, None]
+        land_d = (land - self._spot()).norm(dim=-1)
+        pushed_down = (vz < -0.5).float()     # a push, not a lift or a carry
+        r_push = (4.0 * torch.exp(-((apex_pred - self.apex_target) / 0.2) ** 2)
+                  + 2.0 * torch.exp(-(land_d / 0.2) ** 2)) * pushed_down * release.float()
+        self.paid_cycle |= release
+        self.paid_cycle &= ~self.bounce_event       # one paid push per bounce cycle
+        self._m_push = r_push
+        return r + r_push
+
+    def metrics(self):
+        m = super().metrics()
+        m["m/push_reward"] = self._m_push
+        return m

@@ -1,15 +1,15 @@
 {
-  "checkpoint": "runs\\l1_v3_armcarry\\model.pt",
+  "checkpoint": "runs\\l1_amp_v3\\model.pt",
   "obs_spec_sha256_16": "ccfa18d6f9aaf2a5",
   "n_obs": 119,
   "n_action": 27,
   "opset": 17,
-  "ort_vs_torch_max_abs_diff": 1.734122633934021e-06,
+  "ort_vs_torch_max_abs_diff": 1.6242265701293945e-06,
   "input": "obs[1,119]",
   "output": "action[1,27] in [-1,1]",
   "level": "l1_traverse",
   "interface_sha": "ccfa18d6f9aaf2a5",
   "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
-  "train_steps": 117964800,
+  "train_steps": 60456960,
   "nan_grads": 0
 }

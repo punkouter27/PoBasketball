@@ -184,3 +184,25 @@ runs/cycles2_20261108.ps1), then eval on l2a_dribble_r + run report. (Headings a
 - Scope is now Unreal-only (Unity column dropped). Project notes are kept unchanged.
 - New rules: explicit cm↔m / left↔right-handed bridge transform; deterministic pre-allocation (no runtime spawn or destroy); visual bones mirror the physics bodies; a 5 s rollout validation (kinematics + contacts) before ONNX export; zero heap allocation in the C++ inference loop; a `**Current Phase: Step X of 5**` header and `[STOP]` gates.
 - No policies, director rows or interfaces were touched (docs only). Compliance with the new rules has not been audited yet.
+
+## Session: "do all" (user approved items 1-4 from the "what next" list)
+Planned changes logged before any edit (UU_AGENT §3 audit trail):
+- **Item 3, AMP promotion (user approved):** `locomotion` family → `l1_amp_v3` (AMP, 97 % on `l1_traverse`). The old `l1_v3_armcarry` is kept as `locomotion_ppo.{onnx,json}` for rollback. Director row affected: ROAM (tier 2) only. Interface `ccfa18d6f9aaf2a5` and physics `ac1c8d03…` are identical on both sides. Regression: Unreal gate (preset + live) re-run with the new file.
+- **Item 1, tier-3 reset parity:** Unreal director/world reset for tiers 3–4 only. Ball at the dribble spot with a dribble-cycle height and velocity, as in `l2_dribble.on_reset`. New `-StreetballDribbleHand=right|left` override for single-hand previews. New 5 s dribble-start golden and gate check. Policies touched: none (start state only). Director rows: DRIBBLE_STATIONARY and DRIBBLE_MOVING reset spec.
+- **Item 2, dribble reward:** `l2a_cycles` level only (training curriculum). Graduation is still judged on `l2a_dribble_r`.
+- **Item 4:** compliance audit of the revised AGENTS.md (docs only).
+
+## Results so far (evening session)
+- **Item 3, AMP promoted:** `shared/policies/locomotion.onnx` is now `l1_amp_v3` (sha ff2531b7…). The old PPO policy is kept as `locomotion_ppo.onnx` (edf545eb…). Synced to Unreal.
+  - **Regression NOT yet verified.** `replay_recorder.py policy` holds the task block at zero, and both the AMP and the PPO locomotion policies fall under that (pelvis 0.11 m). Locomotion never trained on a zero command (speed 1.2–3.0 m/s), so the check is invalid for any non-balance policy. Fix planned: record the task block and ball-control flags per step in the replay, and have `Streetball.Gate.LivePhysics` read them.
+- **Item 1, root cause confirmed (no code yet).** The tier-3 Unreal reset leaves the ball resting on the floor at the keyframe spot (0.45 m forward, 0.35 m right, v = 0). Sim `l2_dribble.on_reset` puts it at the dribble spot (0.25 m forward, 0.35 m right), 0.4–0.95 m high, with vz = ±sqrt(2g(1−h)). Second mismatch: the tier-3 table row commands crossovers with a random starting hand, but the preview policy is right-hand only.
+- **Item 2, code written, NOT trained.** New level `l2a_push` (`L2DribblePush`) gives immediate credit at the palm release: predicted rebound apex (e² = 0.72) plus predicted landing point near the spot, once per bounce cycle. It compiles but has not been run.
+  - **BLOCKER:** from 21:07, Windows Smart App Control blocks the unsigned `torch\lib\shm.dll` (CodeIntegrity events 3033/3118). No training or evaluation can run until the user allows it.
+- **Item 4, audit done** (Explore agent). Gaps, ranked:
+  1. Heap allocation in the control step: FString PolicyName copies (`StreetballDirector.cpp:359,492`, `StreetballWorld.cpp:306`) and `TArray<float> Ctrl` (`StreetballWorld.cpp:314`).
+  2. The 5 s gate lacks root velocity, angular momentum, foot sliding, clipping and chatter checks.
+  3. Chaos still ticks (`DefaultEngine.ini:20-22`).
+  4. `ApplyReset` allocates and logs inside the step.
+  5. Bones are not strictly 1:1: spine slerp, head undriven, display interpolation.
+
+  Minor gaps: coordinate bridge duplicated in `BroadcastCamera.cpp:10` and `CourtAudio.cpp:49`; TensorBoard events are not mirrored to `DOCS/<date>`. Meets: allocate-at-startup, build stamp, action-rate penalty, self-collision.
