@@ -1,6 +1,6 @@
 {
   "level": "l2a_dribble_r",
-  "checkpoint": "runs\\l2a_cycles_c3\\model.pt",
+  "checkpoint": "C:\\Users\\punko\\Downloads\\CODE_MATT\\PoBasketball\\sim\\runs\\l2a_push_n9q2\\model.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 80.0,
@@ -11,16 +11,16 @@
   "nan_grads": 0,
   "interface_sha": "ccfa18d6f9aaf2a5",
   "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
-  "fall_rate": 0.019999999552965164,
-  "mean_episode_s": 1.2850998640060425,
+  "fall_rate": 0.02499999850988388,
+  "mean_episode_s": 1.326300024986267,
   "metrics": {
-    "m/streak": 0.05657293274998665,
-    "m/bounces": 0.8897057771682739,
-    "m/apex": 0.6983000040054321,
+    "m/streak": 0.05612771213054657,
+    "m/bounces": 0.9377308487892151,
+    "m/apex": 0.6829022169113159,
     "m/switches": 0.0,
-    "m/in_control": 0.6005532741546631,
-    "m/palm_touch": 0.004307388328015804,
-    "m/reach": 0.4734093248844147
+    "m/in_control": 0.5569431781768799,
+    "m/palm_touch": 0.015708204358816147,
+    "m/reach": 0.3677727282047272
   },
-  "wall_s": 60.65215940000053
+  "wall_s": 7.340875499998219
 }
