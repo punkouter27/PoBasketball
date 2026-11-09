@@ -179,3 +179,8 @@ runs/cycles2_20261108.ps1), then eval on l2a_dribble_r + run report. (Headings a
   - In Unreal the character **falls about 1.2 s after every reset** (HARD_RESET "fallen", 13 in the first 15 s), against 2 % falls in the sim.
   - Likely cause: a sim-to-engine reset mismatch. The tier-3 start (ball at the hand, `GrantControl`) does not mirror the sim's L2a reset, the same class of bug as the earlier tier 1/2 ball-placement issue.
 - Conclusion: the l2a_cycles curriculum is stuck at about 15 % two-bounce success. Next: score each push right after the palm contact (dense, immediate credit) instead of at the floor bounce two flights later.
+
+## AGENTS.md updated to the revised UU_AGENT standard (user paste)
+- Scope is now Unreal-only (Unity column dropped). Project notes are kept unchanged.
+- New rules: explicit cm↔m / left↔right-handed bridge transform; deterministic pre-allocation (no runtime spawn or destroy); visual bones mirror the physics bodies; a 5 s rollout validation (kinematics + contacts) before ONNX export; zero heap allocation in the C++ inference loop; a `**Current Phase: Step X of 5**` header and `[STOP]` gates.
+- No policies, director rows or interfaces were touched (docs only). Compliance with the new rules has not been audited yet.
