@@ -27,13 +27,14 @@ LEVEL_INFO = {
     "l0_stand": ("Tier 1 - Upright balance", "m/upright", "How upright the athlete stays (1.0 = perfectly vertical). Episodes end at 60 s or on a fall."),
     "l1_traverse": ("Tier 2 - Court traversal", "m/waypoints", "Average number of waypoints reached per episode out of 10. The athlete must walk or jog to random spots across the whole court."),
     "l2a_dribble_r": ("Tier 3a - Right-hand dribble", "m/streak", "Average consecutive clean bounces (target 50): ball returns to waist height, stays near the body, and the right palm touches it between bounces."),
+    "l2a_push": ("Tier 3a - Right-hand dribble (push curriculum)", "m/streak", "Training progress on clean-bounce streaks. Promotion is decided by the separate right-hand dribble gate (target 50 consecutive bounces)."),
     "l2b_dribble_l": ("Tier 3b - Left-hand dribble", "m/streak", "Same clean-bounce streak with the left hand."),
     "l2c_crossover": ("Tier 3c - Crossover dribble", "m/streak", "Clean-bounce streak while switching hands on command every 2-4 bounces."),
     "l3a_moving_dribble": ("Tier 4a - Dribble on the move", "m/dist_m", "Metres covered per episode while keeping the ball under control (target 100 m at 1.5 m/s or faster)."),
     "l3b_scramble": ("Tier 4b - Loose-ball scramble", "m/regained", "Fraction of episodes in which the athlete regains a loose ball inside the 3-second window."),
     "l4_jump_shot": ("Tier 5 - Pull-up jump shot", "m/scored", "Fraction of shots that go through the rim (target 30 %)."),
 }
-FAMILY_OF = {"l0_stand": "balance", "l1_traverse": "locomotion", "l2a_dribble_r": "dribble", "l2b_dribble_l": "dribble",
+FAMILY_OF = {"l0_stand": "balance", "l1_traverse": "locomotion", "l2a_dribble_r": "dribble", "l2a_push": "dribble", "l2b_dribble_l": "dribble",
              "l2c_crossover": "dribble", "l3a_moving_dribble": "dribble", "l3b_scramble": "scramble", "l4_jump_shot": "shot"}
 
 
