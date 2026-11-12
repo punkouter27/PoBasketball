@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Unreal Learning Agents comparison - 2026-11-12</title>
+<style>
+body{font:16px/1.55 system-ui,sans-serif;color:#142d44;background:#eff4f8;margin:0}
+main{max-width:1180px;margin:auto;padding:30px}h1,h2,h3{line-height:1.2}
+section,figure,.notice{background:white;border-radius:12px;padding:22px;margin:18px 0}
+.notice{border-left:6px solid #d87b00;background:#fff6e6}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
+figure{margin:0}img{width:100%;height:auto;border-radius:6px}svg{width:100%}svg text{font:12px system-ui;fill:#41556b}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:10px;border-bottom:1px solid #d8e1eb;text-align:left}
+pre{overflow:auto;background:#10273b;color:#e9f4ff;padding:16px;border-radius:8px}code{font-family:Consolas,monospace}
+.scroll{overflow:auto}figcaption,.muted{color:#4b6176}a{color:#146cbd}
+</style><main><h1>Unreal Learning Agents + Chaos</h1>
+<p>Isolated humanoid comparison | 2026-11-12 | interface <code>chaos_la_v1</code> | physics <code>native_drive_v2</code></p>
+<div class="notice"><strong>Working training pipeline, not a trained skill.</strong> Balance and walking each completed 8,192 transitions and one PPO update.
+Neither passed a balance/walking success gate. These smoke runs cannot rank Learning Agents against the mature MuJoCo controller.</div>
+<section><h2>What was created</h2><p>A separate map/game mode, the same imported 15-body humanoid geometry and masses, 27 controlled degrees of freedom,
+119 observation slots, native torque-limited Chaos servos, collision contacts, preallocated agent pools, episode resets, PPO, TensorBoard logs,
+CSV metrics and four reloadable network snapshots. Control runs at 50 Hz with 2 ms physics substeps.</p>
+<p>The original Court map, frozen contracts and production MuJoCo policies remain unchanged. Physics and reward formulations are approximations, not identical cross-stack benchmarks.</p></section>
+<h2>Before / after scene evidence</h2><div class="grid">
+<figure><h3>Before: original MuJoCo Court</h3><img src="learning_agents_before.png" alt="Original Court humanoid and tier-one HUD">
+<figcaption>Existing trained MuJoCo balance controller. Original tier HUD and bottom-right build stamp are preserved.</figcaption></figure>
+<figure><h3>After: isolated Learning Agents preview</h3><img src="learning_agents_after.png" alt="Learning Agents Chaos humanoid, experimental HUD and build stamp">
+<figcaption>Actual Chaos-driven Manny, tracking camera, separate experimental HUD and build stamp. This preview uses an untrained random network and resets after falls.</figcaption></figure></div>
+<section><h2>Verified smoke results</h2><p>16 agents per task. The two short runs executed concurrently, so wall time is not a controlled throughput benchmark.</p>
+<div class="scroll"><table><thead><tr><th>Task</th><th>Transitions</th><th>PPO updates</th><th>Wall time</th><th>Falls</th><th>Episode records by reason</th><th>Steps with foot contacts</th></tr></thead><tbody><tr><th>Balance</th><td>8,192</td><td>1</td>
+<td>30.9 s</td><td>15</td><td>foot_drift: 242, fall: 15, buffer_reset: 14, run_end: 15</td>
+<td>7,179</td></tr><tr><th>Walking</th><td>8,192</td><td>1</td>
+<td>31.3 s</td><td>110</td><td>fall: 110, buffer_reset: 15, run_end: 16</td>
+<td>6,814</td></tr></tbody></table></div>
+<p><code>buffer_reset</code> and <code>run_end</code> are partial episodes, not successes. <code>foot_drift</code> is a failed balance episode, even without a fall. No run reached the 5-second time limit.</p></section>
+<h2>Smoke progress curves</h2><div class="grid"><figure><h3>Balance: sampled step reward (higher is better)</h3>
+<svg viewBox="0 0 570 275" role="img" aria-label="sampled step reward (higher is better)">
+<text x="65.0" y="243" text-anchor="middle">0</text><line x1="65" y1="220.0" x2="540" y2="220.0" stroke="#dae2eb"/><text x="58" y="224.0" text-anchor="end">-7.63</text><text x="183.75" y="243" text-anchor="middle">2,048</text><line x1="65" y1="177.5" x2="540" y2="177.5" stroke="#dae2eb"/><text x="58" y="181.5" text-anchor="end">-6.91</text><text x="302.5" y="243" text-anchor="middle">4,096</text><line x1="65" y1="135.0" x2="540" y2="135.0" stroke="#dae2eb"/><text x="58" y="139.0" text-anchor="end">-6.20</text><text x="421.25" y="243" text-anchor="middle">6,144</text><line x1="65" y1="92.5" x2="540" y2="92.5" stroke="#dae2eb"/><text x="58" y="96.5" text-anchor="end">-5.48</text><text x="540.0" y="243" text-anchor="middle">8,192</text><line x1="65" y1="50.0" x2="540" y2="50.0" stroke="#dae2eb"/><text x="58" y="54.0" text-anchor="end">-4.77</text><polyline fill="none" stroke="#146cbd" stroke-width="3" points="111.4,100.1 157.8,109.3 204.2,182.3 250.5,147.8 296.9,75.4 343.3,69.6 389.7,121.9 436.1,102.5 482.5,125.1 528.9,200.4"/>
+<text x="300" y="267" text-anchor="middle">Environment transitions across 16 agents</text></svg>
+<figcaption>Ten one-second snapshots, not an episode-success curve. One PPO update is insufficient to establish learning or convergence.</figcaption></figure><figure><h3>Balance: sampled pelvis height (metres)</h3>
+<svg viewBox="0 0 570 275" role="img" aria-label="sampled pelvis height (metres)">
+<text x="65.0" y="243" text-anchor="middle">0</text><line x1="65" y1="220.0" x2="540" y2="220.0" stroke="#dae2eb"/><text x="58" y="224.0" text-anchor="end">0.86</text><text x="183.75" y="243" text-anchor="middle">2,048</text><line x1="65" y1="177.5" x2="540" y2="177.5" stroke="#dae2eb"/><text x="58" y="181.5" text-anchor="end">0.87</text><text x="302.5" y="243" text-anchor="middle">4,096</text><line x1="65" y1="135.0" x2="540" y2="135.0" stroke="#dae2eb"/><text x="58" y="139.0" text-anchor="end">0.89</text><text x="421.25" y="243" text-anchor="middle">6,144</text><line x1="65" y1="92.5" x2="540" y2="92.5" stroke="#dae2eb"/><text x="58" y="96.5" text-anchor="end">0.90</text><text x="540.0" y="243" text-anchor="middle">8,192</text><line x1="65" y1="50.0" x2="540" y2="50.0" stroke="#dae2eb"/><text x="58" y="54.0" text-anchor="end">0.92</text><polyline fill="none" stroke="#146cbd" stroke-width="3" points="111.4,125.8 157.8,80.8 204.2,129.9 250.5,100.5 296.9,76.9 343.3,84.7 389.7,92.3 436.1,169.1 482.5,193.1 528.9,193.1"/>
+<text x="300" y="267" text-anchor="middle">Environment transitions across 16 agents</text></svg>
+<figcaption>Height above the collision floor. Frequent episode resets affect these snapshots; height alone does not demonstrate balance.</figcaption></figure><figure><h3>Walking: sampled step reward (higher is better)</h3>
+<svg viewBox="0 0 570 275" role="img" aria-label="sampled step reward (higher is better)">
+<text x="65.0" y="243" text-anchor="middle">0</text><line x1="65" y1="220.0" x2="540" y2="220.0" stroke="#dae2eb"/><text x="58" y="224.0" text-anchor="end">-7.33</text><text x="183.75" y="243" text-anchor="middle">2,048</text><line x1="65" y1="177.5" x2="540" y2="177.5" stroke="#dae2eb"/><text x="58" y="181.5" text-anchor="end">-6.65</text><text x="302.5" y="243" text-anchor="middle">4,096</text><line x1="65" y1="135.0" x2="540" y2="135.0" stroke="#dae2eb"/><text x="58" y="139.0" text-anchor="end">-5.96</text><text x="421.25" y="243" text-anchor="middle">6,144</text><line x1="65" y1="92.5" x2="540" y2="92.5" stroke="#dae2eb"/><text x="58" y="96.5" text-anchor="end">-5.28</text><text x="540.0" y="243" text-anchor="middle">8,192</text><line x1="65" y1="50.0" x2="540" y2="50.0" stroke="#dae2eb"/><text x="58" y="54.0" text-anchor="end">-4.59</text><polyline fill="none" stroke="#146cbd" stroke-width="3" points="111.4,153.7 157.8,172.4 204.2,180.3 250.5,175.4 296.9,146.8 343.3,177.8 389.7,200.4 436.1,69.6 482.5,187.1 528.9,125.3"/>
+<text x="300" y="267" text-anchor="middle">Environment transitions across 16 agents</text></svg>
+<figcaption>Ten one-second snapshots, not an episode-success curve. One PPO update is insufficient to establish learning or convergence.</figcaption></figure><figure><h3>Walking: sampled pelvis height (metres)</h3>
+<svg viewBox="0 0 570 275" role="img" aria-label="sampled pelvis height (metres)">
+<text x="65.0" y="243" text-anchor="middle">0</text><line x1="65" y1="220.0" x2="540" y2="220.0" stroke="#dae2eb"/><text x="58" y="224.0" text-anchor="end">0.82</text><text x="183.75" y="243" text-anchor="middle">2,048</text><line x1="65" y1="177.5" x2="540" y2="177.5" stroke="#dae2eb"/><text x="58" y="181.5" text-anchor="end">0.85</text><text x="302.5" y="243" text-anchor="middle">4,096</text><line x1="65" y1="135.0" x2="540" y2="135.0" stroke="#dae2eb"/><text x="58" y="139.0" text-anchor="end">0.88</text><text x="421.25" y="243" text-anchor="middle">6,144</text><line x1="65" y1="92.5" x2="540" y2="92.5" stroke="#dae2eb"/><text x="58" y="96.5" text-anchor="end">0.91</text><text x="540.0" y="243" text-anchor="middle">8,192</text><line x1="65" y1="50.0" x2="540" y2="50.0" stroke="#dae2eb"/><text x="58" y="54.0" text-anchor="end">0.94</text><polyline fill="none" stroke="#146cbd" stroke-width="3" points="111.4,199.3 157.8,200.4 204.2,154.2 250.5,190.2 296.9,134.1 343.3,69.6 389.7,190.5 436.1,167.2 482.5,147.4 528.9,149.5"/>
+<text x="300" y="267" text-anchor="middle">Environment transitions across 16 agents</text></svg>
+<figcaption>Height above the collision floor. Frequent episode resets affect these snapshots; height alone does not demonstrate balance.</figcaption></figure></div>
+<section><h2>Verification and limitations</h2><ul>
+<li>Win64 Development editor build succeeded. All 16 Streetball automation tests passed, including original MuJoCo golden observations, live physics, policies and presentation.</li>
+<li>Regression tests cover body masses, actuator mapping, reset pooling, anatomical joint anchors, Chaos child/parent ordering and zero-action servo targets.</li>
+<li>Ground-contact callbacks recorded in both tasks. All final smoke states remained finite; saved encoder, policy, decoder and critic snapshots were verified.</li>
+<li>A 250-transition / 5-second preview restored the balance candidate successfully, but fell twice. Resume is a weight warm-start, not optimizer/replay restoration.</li>
+<li>A further 8,192-transition resumed training smoke passed. The wrapper rejects a wrong-tier checkpoint with an explicit nonzero failure.</li>
+<li>Development runs with older constraint/drive revisions are superseded and excluded. Their recent files are retained under the 24-hour retention rule.</li>
+<li>No production ONNX was exported. No equal-budget training, push-randomized evaluation, 100-episode hold, full joint/contact gate or learning-convergence claim.</li>
+</ul><p>For context only, the existing MuJoCo balance evaluation reports 200 episodes, 100% success, zero falls and a 60-second mean.
+That is a mature policy with a different training budget and evaluation protocol, not an apples-to-apples result.</p></section>
+<section><h2>Try it</h2><p>From the repository root in PowerShell:</p><pre>
+.\unreal\StreetballGym\Scripts\run_learning_agents.ps1 -Mode Preview -Tier 1
+.\unreal\StreetballGym\Scripts\run_learning_agents.ps1 -Mode Preview -Tier 2
+.\unreal\StreetballGym\Scripts\run_learning_agents.ps1 -Mode Smoke -Tier 1 -Agents 16
+</pre><p>Preview starts an untrained network unless <code>-Resume</code> names a matching candidate directory.
+Use <code>-Tier 2</code> for commanded walking. The original Court is still the default map.</p>
+<p><a href="../DOCS/20261112/learning_agents_comparison.md">Full setup, training and resume instructions</a> |
+<a href="../DOCS/20261112/learning_agents_metrics.json">Recorded metrics and provenance</a></p></section>
+<section><h2>Raw sources</h2><ul><li>Balance: <a href="../unreal/StreetballGym/Saved/LearningAgents/balance_comparison_verified/summary.json">summary</a>, <a href="../unreal/StreetballGym/Saved/LearningAgents/balance_comparison_verified/metrics.csv">step metrics</a>, <a href="../unreal/StreetballGym/Saved/LearningAgents/balance_comparison_verified/episodes.csv">episode outcomes</a></li><li>Walking: <a href="../unreal/StreetballGym/Saved/LearningAgents/walking_comparison_verified/summary.json">summary</a>, <a href="../unreal/StreetballGym/Saved/LearningAgents/walking_comparison_verified/metrics.csv">step metrics</a>, <a href="../unreal/StreetballGym/Saved/LearningAgents/walking_comparison_verified/episodes.csv">episode outcomes</a></li></ul><p>Loss/reward event files are retained in the project's <code>Intermediate\LearningCore\TensorBoard</code> directory.
+This static report has no external scripts, fonts or network dependencies.</p></section></main></html>

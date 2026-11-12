@@ -17,6 +17,22 @@
 	],
 	"Plugins": [
 		{
+			"Name": "LearningAgents",
+			"Enabled": true
+		},
+		{
+			"Name": "LearningCore",
+			"Enabled": true
+		},
+		{
+			"Name": "NNERuntimeBasicCpu",
+			"Enabled": true
+		},
+		{
+			"Name": "Tensorboard",
+			"Enabled": true
+		},
+		{
 			"Name": "PythonScriptPlugin",
 			"Enabled": true
 		},

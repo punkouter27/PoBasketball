@@ -1,0 +1,273 @@
+{
+  "Balance": {
+    "summary": {
+      "interface": "chaos_la_v1",
+      "physics": "Chaos",
+      "physics_revision": "native_drive_v2",
+      "trainer": "Unreal Learning Agents PPO",
+      "status": "experimental_not_production",
+      "training": true,
+      "tier": 1,
+      "agents": 16,
+      "steps": 8192,
+      "episodes": 286,
+      "falls": 15,
+      "control_hz": 50,
+      "physics_substep_seconds": 0.002,
+      "wall_seconds": 30.85422920063138,
+      "network_updates": 1
+    },
+    "metrics": [
+      {
+        "steps": "800",
+        "wall_seconds": "6.6961",
+        "mean_reward": "-5.609097",
+        "mean_height_m": "0.89033",
+        "mean_upright": "0.95319",
+        "episodes": "20",
+        "falls": "0",
+        "network_updates": "0"
+      },
+      {
+        "steps": "1600",
+        "wall_seconds": "8.1138",
+        "mean_reward": "-5.763527",
+        "mean_height_m": "0.90708",
+        "mean_upright": "0.97923",
+        "episodes": "53",
+        "falls": "0",
+        "network_updates": "0"
+      },
+      {
+        "steps": "2400",
+        "wall_seconds": "9.6037",
+        "mean_reward": "-6.992308",
+        "mean_height_m": "0.88883",
+        "mean_upright": "0.97086",
+        "episodes": "76",
+        "falls": "1",
+        "network_updates": "0"
+      },
+      {
+        "steps": "3200",
+        "wall_seconds": "11.2253",
+        "mean_reward": "-6.411739",
+        "mean_height_m": "0.89978",
+        "mean_upright": "0.97625",
+        "episodes": "103",
+        "falls": "2",
+        "network_updates": "0"
+      },
+      {
+        "steps": "4000",
+        "wall_seconds": "13.0725",
+        "mean_reward": "-5.193469",
+        "mean_height_m": "0.90856",
+        "mean_upright": "0.98885",
+        "episodes": "130",
+        "falls": "3",
+        "network_updates": "0"
+      },
+      {
+        "steps": "4800",
+        "wall_seconds": "24.1378",
+        "mean_reward": "-5.096169",
+        "mean_height_m": "0.90566",
+        "mean_upright": "0.97514",
+        "episodes": "163",
+        "falls": "3",
+        "network_updates": "1"
+      },
+      {
+        "steps": "5600",
+        "wall_seconds": "25.4281",
+        "mean_reward": "-5.975576",
+        "mean_height_m": "0.90283",
+        "mean_upright": "0.94497",
+        "episodes": "188",
+        "falls": "5",
+        "network_updates": "1"
+      },
+      {
+        "steps": "6400",
+        "wall_seconds": "26.9248",
+        "mean_reward": "-5.650466",
+        "mean_height_m": "0.87423",
+        "mean_upright": "0.94794",
+        "episodes": "211",
+        "falls": "9",
+        "network_updates": "1"
+      },
+      {
+        "steps": "7200",
+        "wall_seconds": "28.7655",
+        "mean_reward": "-6.030462",
+        "mean_height_m": "0.86528",
+        "mean_upright": "0.94267",
+        "episodes": "237",
+        "falls": "11",
+        "network_updates": "1"
+      },
+      {
+        "steps": "8000",
+        "wall_seconds": "30.5993",
+        "mean_reward": "-7.297450",
+        "mean_height_m": "0.86528",
+        "mean_upright": "0.95048",
+        "episodes": "263",
+        "falls": "15",
+        "network_updates": "1"
+      }
+    ],
+    "folder": "balance_comparison_verified",
+    "outcomes": {
+      "foot_drift": 242,
+      "fall": 15,
+      "buffer_reset": 14,
+      "run_end": 15
+    },
+    "mean_episode_seconds": 0.5728671328671325,
+    "foot_contact_steps": 7179,
+    "checkpoint_bytes": {
+      "critic.bin": 128280,
+      "decoder.bin": 560,
+      "encoder.bin": 1076,
+      "policy.bin": 705584
+    }
+  },
+  "Walking": {
+    "summary": {
+      "interface": "chaos_la_v1",
+      "physics": "Chaos",
+      "physics_revision": "native_drive_v2",
+      "trainer": "Unreal Learning Agents PPO",
+      "status": "experimental_not_production",
+      "training": true,
+      "tier": 2,
+      "agents": 16,
+      "steps": 8192,
+      "episodes": 141,
+      "falls": 110,
+      "control_hz": 50,
+      "physics_substep_seconds": 0.002,
+      "wall_seconds": 31.28255559876561,
+      "network_updates": 1
+    },
+    "metrics": [
+      {
+        "steps": "800",
+        "wall_seconds": "6.9431",
+        "mean_reward": "-6.263135",
+        "mean_height_m": "0.83530",
+        "mean_upright": "0.83158",
+        "episodes": "3",
+        "falls": "3",
+        "network_updates": "0"
+      },
+      {
+        "steps": "1600",
+        "wall_seconds": "8.2649",
+        "mean_reward": "-6.565182",
+        "mean_height_m": "0.83453",
+        "mean_upright": "0.84542",
+        "episodes": "15",
+        "falls": "15",
+        "network_updates": "0"
+      },
+      {
+        "steps": "2400",
+        "wall_seconds": "9.6543",
+        "mean_reward": "-6.691818",
+        "mean_height_m": "0.86809",
+        "mean_upright": "0.91088",
+        "episodes": "30",
+        "falls": "30",
+        "network_updates": "0"
+      },
+      {
+        "steps": "3200",
+        "wall_seconds": "11.0589",
+        "mean_reward": "-6.612830",
+        "mean_height_m": "0.84193",
+        "mean_upright": "0.89052",
+        "episodes": "40",
+        "falls": "40",
+        "network_updates": "0"
+      },
+      {
+        "steps": "4000",
+        "wall_seconds": "12.8393",
+        "mean_reward": "-6.151788",
+        "mean_height_m": "0.88264",
+        "mean_upright": "0.93967",
+        "episodes": "55",
+        "falls": "55",
+        "network_updates": "0"
+      },
+      {
+        "steps": "4800",
+        "wall_seconds": "24.5064",
+        "mean_reward": "-6.652451",
+        "mean_height_m": "0.92946",
+        "mean_upright": "0.99386",
+        "episodes": "80",
+        "falls": "65",
+        "network_updates": "1"
+      },
+      {
+        "steps": "5600",
+        "wall_seconds": "25.7605",
+        "mean_reward": "-7.016554",
+        "mean_height_m": "0.84168",
+        "mean_upright": "0.86530",
+        "episodes": "86",
+        "falls": "71",
+        "network_updates": "1"
+      },
+      {
+        "steps": "6400",
+        "wall_seconds": "27.2654",
+        "mean_reward": "-4.905786",
+        "mean_height_m": "0.85864",
+        "mean_upright": "0.89239",
+        "episodes": "99",
+        "falls": "84",
+        "network_updates": "1"
+      },
+      {
+        "steps": "7200",
+        "wall_seconds": "29.0589",
+        "mean_reward": "-6.801796",
+        "mean_height_m": "0.87299",
+        "mean_upright": "0.90981",
+        "episodes": "110",
+        "falls": "95",
+        "network_updates": "1"
+      },
+      {
+        "steps": "8000",
+        "wall_seconds": "30.7149",
+        "mean_reward": "-5.804472",
+        "mean_height_m": "0.87150",
+        "mean_upright": "0.90718",
+        "episodes": "124",
+        "falls": "109",
+        "network_updates": "1"
+      }
+    ],
+    "folder": "walking_comparison_verified",
+    "outcomes": {
+      "fall": 110,
+      "buffer_reset": 15,
+      "run_end": 16
+    },
+    "mean_episode_seconds": 1.1619858156028362,
+    "foot_contact_steps": 6814,
+    "checkpoint_bytes": {
+      "critic.bin": 128280,
+      "decoder.bin": 560,
+      "encoder.bin": 1076,
+      "policy.bin": 705584
+    }
+  }
+}

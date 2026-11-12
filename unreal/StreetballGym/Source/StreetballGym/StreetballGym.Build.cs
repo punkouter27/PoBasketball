@@ -21,7 +21,10 @@ public class StreetballGym : ModuleRules
 			"AudioMixer"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[] {
+			"PhysicsCore", "LearningAgents", "LearningAgentsTraining", "Learning", "LearningTraining",
+			"NNERuntimeBasicCpu"
+		});
 
 		PublicIncludePaths.Add(ModuleDirectory);
 	}
