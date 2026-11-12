@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.8",
+	"EngineAssociation": "{D8748DD0-4FEE-2BE5-389B-FB854B40B617}",
 	"Category": "",
 	"Description": "Autonomous Streetball Humanoid Gym - MuJoCo-driven showcase",
 	"Modules": [
