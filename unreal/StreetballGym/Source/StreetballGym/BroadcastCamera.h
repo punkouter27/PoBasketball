@@ -15,6 +15,15 @@ enum class EBroadcastShot : uint8
 	PressBox
 };
 
+UENUM(BlueprintType)
+enum class EStreetballCameraMode : uint8
+{
+	Broadcast,
+	Follow,
+	Orbit,
+	Free
+};
+
 /** Inputs the cut logic needs each frame (sim metres). */
 struct STREETBALLGYM_API FBroadcastInputs
 {
@@ -80,6 +89,12 @@ public:
 	/** Drive the camera for this frame. */
 	void UpdateCamera(const FBroadcastInputs& In, float Dt);
 
+	/** Standardized Profile B camera modes (F2 cycles). */
+	void SetCameraMode(EStreetballCameraMode InMode);
+	EStreetballCameraMode CycleCameraMode();
+	EStreetballCameraMode GetCameraMode() const { return CameraMode; }
+	void AddFreeOffset(const FVector& WorldDeltaUE);
+
 	FBroadcastLogic Logic;
 	float PositionSmoothTime = 0.45f;
 	float LookSmoothTime = 0.25f;
@@ -94,4 +109,8 @@ private:
 	float FovVel = 0.f;
 	FVector LookAt = FVector::ZeroVector;
 	int32 CutCount = 0;
+	EStreetballCameraMode CameraMode = EStreetballCameraMode::Broadcast;
+	float OrbitAngleRad = 0.f;
+	FVector FreePosUE = FVector::ZeroVector;
+	FVector FreeLookAtUE = FVector::ZeroVector;
 };

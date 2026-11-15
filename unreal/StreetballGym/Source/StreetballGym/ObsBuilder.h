@@ -27,6 +27,9 @@ struct STREETBALLGYM_API FObsBuilder
 	/** ctrl = clip(nominal + a * 0.5*(hi-lo), lo, hi) */
 	void ActionToCtrl(TConstArrayView<float> Action, TArray<float>& OutCtrl) const;
 
+	/** Append zero-initialized inputs after the frozen contract without reordering existing slots. */
+	static void AppendZeroInitInputs(TArray<float>& Out, int32 ExtraCount);
+
 	TArray<FString> JointOrder;
 	TArray<int32> QAdr, VAdr;
 	TArray<double> Nominal, Lo, Hi, Half;

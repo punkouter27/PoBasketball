@@ -138,7 +138,18 @@ void FObsBuilder::ActionToCtrl(TConstArrayView<float> Action, TArray<float>& Out
 	OutCtrl.SetNum(NumJoints);
 	for (int32 i = 0; i < NumJoints; ++i)
 	{
-		const double A = Action.IsValidIndex(i) ? (double)Action[i] : 0.0;
+		const double A = (Action.IsValidIndex(i) && FMath::IsFinite(Action[i])) ? (double)Action[i] : 0.0;
 		OutCtrl[i] = (float)FMath::Clamp(Nominal[i] + A * Half[i], Lo[i], Hi[i]);
+	}
+}
+
+void FObsBuilder::AppendZeroInitInputs(TArray<float>& Out, int32 ExtraCount)
+{
+	if (ExtraCount <= 0) return;
+	const int32 Base = Out.Num();
+	Out.SetNumUninitialized(Base + ExtraCount);
+	for (int32 i = 0; i < ExtraCount; ++i)
+	{
+		Out[Base + i] = 0.f;
 	}
 }

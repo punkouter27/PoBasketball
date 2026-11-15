@@ -21,6 +21,10 @@ class STREETBALLGYM_API UStreetballHUDWidget : public UUserWidget
 
 public:
 	void UpdateFromProgress(const FStreetballProgress& P, EStreetballState State);
+	void UpdateTelemetry(const FString& ModeLabel, const FString& CameraLabel, const FString& PolicyLabel,
+	                     int32 Seed, float EpisodeReward, int32 NanInfCount, float Fps, bool bPaused, bool bFallbackPolicy);
+	void SetTelemetryVisible(bool bVisible);
+	bool IsTelemetryVisible() const { return bTelemetryVisible; }
 	/** Compile date as YYMMDD for the UU_AGENT build stamp. */
 	static FString BuildStampYYMMDD();
 	/** Text shown bottom-right ("build YYMMDD"); empty until the widget tree exists. */
@@ -47,10 +51,16 @@ protected:
 	UPROPERTY() TObjectPtr<UTextBlock> DistanceText;
 	UPROPERTY() TObjectPtr<UTextBlock> MilestoneText;
 	UPROPERTY() TObjectPtr<UTextBlock> CountdownText;
+	UPROPERTY() TObjectPtr<UTextBlock> ProgressBarLabel;
 	UPROPERTY() TObjectPtr<UProgressBar> ProgressBar;
 	UPROPERTY() TObjectPtr<UTextBlock> StampText;
+	UPROPERTY() TObjectPtr<UTextBlock> ModeBannerText;
+	UPROPERTY() TObjectPtr<UTextBlock> PolicyFpsText;
+	UPROPERTY() TObjectPtr<UTextBlock> TelemetryText;
+	UPROPERTY() TObjectPtr<UTextBlock> BottomBarText;
 
 	bool bLoose = false;
+	bool bTelemetryVisible = true;
 	float CountdownFrac = 1.f;
 	float ProgressPercent = 0.f;
 	FString CachedTier, CachedStreak, CachedDistance, CachedMilestone;

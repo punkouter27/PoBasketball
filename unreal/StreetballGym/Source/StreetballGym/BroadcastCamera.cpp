@@ -112,16 +112,75 @@ ABroadcastCamera::ABroadcastCamera()
 	Camera->SetFieldOfView(45.f);
 }
 
+void ABroadcastCamera::SetCameraMode(EStreetballCameraMode InMode)
+{
+	if (CameraMode == InMode) return;
+	CameraMode = InMode;
+	if (InMode == EStreetballCameraMode::Free)
+	{
+		FreePosUE = GetActorLocation();
+		FreeLookAtUE = LookAt.IsNearlyZero() ? FreePosUE + GetActorForwardVector() * 400.f : LookAt;
+	}
+}
+
+EStreetballCameraMode ABroadcastCamera::CycleCameraMode()
+{
+	const int32 Next = (static_cast<int32>(CameraMode) + 1) % 4;
+	const EStreetballCameraMode Mode = static_cast<EStreetballCameraMode>(Next);
+	SetCameraMode(Mode);
+	return Mode;
+}
+
+void ABroadcastCamera::AddFreeOffset(const FVector& WorldDeltaUE)
+{
+	FreePosUE += WorldDeltaUE;
+	FreeLookAtUE += WorldDeltaUE;
+}
+
 void ABroadcastCamera::UpdateCamera(const FBroadcastInputs& In, float Dt)
 {
 	Logic.ForcedShot = CVarForceCamera.GetValueOnGameThread();
-	const bool bCut = Logic.Decide(In);
-	const FBroadcastTarget T = Logic.TargetFor(Logic.Current, In);
+	bool bCut = false;
+	FBroadcastTarget T;
+
+	if (CameraMode == EStreetballCameraMode::Broadcast)
+	{
+		bCut = Logic.Decide(In);
+		T = Logic.TargetFor(Logic.Current, In);
+	}
+	else if (CameraMode == EStreetballCameraMode::Follow)
+	{
+		const FVector3d Subject = In.Character + FVector3d(0.0, 0.0, 0.9);
+		T.Position = SimToUE(Subject + FVector3d(-4.2, -3.5, 1.4));
+		T.LookAt = SimToUE(Subject);
+		T.FovDeg = 50.f;
+	}
+	else if (CameraMode == EStreetballCameraMode::Orbit)
+	{
+		OrbitAngleRad += Dt * 0.5f;
+		const FVector3d Subject = In.Character + FVector3d(0.0, 0.0, 0.9);
+		const double R = 5.2;
+		T.Position = SimToUE(Subject + FVector3d(FMath::Cos(OrbitAngleRad) * R, FMath::Sin(OrbitAngleRad) * R, 1.6));
+		T.LookAt = SimToUE(Subject);
+		T.FovDeg = 48.f;
+	}
+	else
+	{
+		T.Position = FreePosUE.IsNearlyZero() ? GetActorLocation() : FreePosUE;
+		T.LookAt = FreeLookAtUE.IsNearlyZero() ? SimToUE(In.Character + FVector3d(0.0, 0.0, 0.9)) : FreeLookAtUE;
+		T.FovDeg = 55.f;
+	}
+
 	FVector Pos = GetActorLocation();
 	float Fov = Camera->FieldOfView;
 	if (bCut)
 	{
 		++CutCount;
+		Pos = T.Position; LookAt = T.LookAt; Fov = T.FovDeg;
+		PosVel = LookVel = FVector::ZeroVector; FovVel = 0.f;
+	}
+	else if (CameraMode == EStreetballCameraMode::Free)
+	{
 		Pos = T.Position; LookAt = T.LookAt; Fov = T.FovDeg;
 		PosVel = LookVel = FVector::ZeroVector; FovVel = 0.f;
 	}

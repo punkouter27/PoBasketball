@@ -18,6 +18,14 @@ class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class USceneComponent;
 
+UENUM(BlueprintType)
+enum class EStreetballAppMode : uint8
+{
+	Watch,
+	Play,
+	Testbed
+};
+
 /** The athlete: a skeletal mesh whose bones are written by UMuJoCoBoneMapper. Chaos off. */
 UCLASS()
 class STREETBALLGYM_API AStreetballCharacter : public AActor
@@ -100,6 +108,19 @@ public:
 	/** Run one control step by hand (tests). */
 	void StepControl();
 
+	/** Standardized Profile B runtime controls (F1-F4, Space, R). */
+	EStreetballAppMode CycleAppMode();
+	void CycleCameraMode();
+	void ToggleTelemetry();
+	void CyclePolicyOverride();
+	void TogglePause() { bPaused = !bPaused; }
+	void ResetEpisode();
+
+	EStreetballAppMode GetAppMode() const { return AppMode; }
+	bool IsPaused() const { return bPaused; }
+	int32 GetNanInfCount() const { return NanInfCount; }
+	float GetEpisodeReward() const { return EpisodeReward; }
+
 private:
 	void OnControlStep(UMuJoCoSim* InSim);
 	void OnPhysicsStep(UMuJoCoSim* InSim);
@@ -145,4 +166,11 @@ private:
 	int32 BallBody = INDEX_NONE;
 	int32 ResetCount = 0;
 	bool bReady = false;
+	bool bPaused = false;
+	EStreetballAppMode AppMode = EStreetballAppMode::Watch;
+	TArray<FName> PolicyOrder;
+	int32 ForcedPolicyIndex = INDEX_NONE;
+	int32 NanInfCount = 0;
+	float EpisodeReward = 0.f;
+	float SmoothedFps = 60.f;
 };

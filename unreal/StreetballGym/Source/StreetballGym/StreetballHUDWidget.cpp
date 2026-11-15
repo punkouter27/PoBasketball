@@ -1,4 +1,5 @@
 #include "StreetballHUDWidget.h"
+#include "UiTheme.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
@@ -17,10 +18,10 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 		Root = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Scoreboard"));
 		UCanvasPanelSlot* CS = Canvas->AddChildToCanvas(Root);
 		CS->SetAnchors(FAnchors(0.f, 0.f));
-		CS->SetPosition(FVector2D(24.f, 24.f));
+		CS->SetPosition(FVector2D(StreetballUiTheme::SafeAreaMargin, StreetballUiTheme::SafeAreaMargin));
 		CS->SetAutoSize(true);
 
-		auto MakeText = [this](const TCHAR* Name, int32 Size, const FLinearColor& Color) -> UTextBlock*
+		auto MakeStyledText = [this](const TCHAR* Name, int32 Size, const FLinearColor& Color) -> UTextBlock*
 		{
 			UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
 			FSlateFontInfo F = T->GetFont();
@@ -29,25 +30,64 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 			T->SetColorAndOpacity(FSlateColor(Color));
 			T->SetShadowOffset(FVector2D(1.f, 1.f));
 			T->SetShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.8f));
-			UVerticalBoxSlot* S = Root->AddChildToVerticalBox(T);
-			S->SetPadding(FMargin(0.f, 2.f));
 			return T;
 		};
-		TierText = MakeText(TEXT("Tier"), 22, FLinearColor(1.f, 0.85f, 0.3f));
-		StateText = MakeText(TEXT("State"), 14, FLinearColor(0.8f, 0.8f, 0.8f));
-		StreakText = MakeText(TEXT("Streak"), 16, FLinearColor::White);
-		DistanceText = MakeText(TEXT("Distance"), 16, FLinearColor::White);
-		MilestoneText = MakeText(TEXT("Milestones"), 14, FLinearColor(0.7f, 1.f, 0.7f));
-		ProgressBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("Progress"));
-		ProgressBar->SetFillColorAndOpacity(FLinearColor(0.3f, 0.8f, 1.f));
-		UVerticalBoxSlot* PS = Root->AddChildToVerticalBox(ProgressBar);
-		PS->SetPadding(FMargin(0.f, 4.f));
-		CountdownText = MakeText(TEXT("Countdown"), 18, FLinearColor(1.f, 0.4f, 0.3f));
 
-		// UU_AGENT build stamp: compile date as YYMMDD, bottom-right corner.
+		auto MakeText = [this, &MakeStyledText](const TCHAR* Name, int32 Size, const FLinearColor& Color) -> UTextBlock*
+		{
+			UTextBlock* T = MakeStyledText(Name, Size, Color);
+			UVerticalBoxSlot* S = Root->AddChildToVerticalBox(T);
+			S->SetPadding(FMargin(0.f, StreetballUiTheme::Space1 * 0.5f));
+			return T;
+		};
+		TierText = MakeText(TEXT("Tier"), StreetballUiTheme::FontL, StreetballUiTheme::AccentGold);
+		StateText = MakeText(TEXT("State"), StreetballUiTheme::FontXS, StreetballUiTheme::TextMuted);
+		StreakText = MakeText(TEXT("Streak"), StreetballUiTheme::FontS, StreetballUiTheme::TextPrimary);
+		DistanceText = MakeText(TEXT("Distance"), StreetballUiTheme::FontS, StreetballUiTheme::TextPrimary);
+		MilestoneText = MakeText(TEXT("Milestones"), StreetballUiTheme::FontXS, StreetballUiTheme::PolicyRef);
+		ProgressBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("Progress"));
+		ProgressBar->SetFillColorAndOpacity(StreetballUiTheme::PolicyCustom);
+		UVerticalBoxSlot* PS = Root->AddChildToVerticalBox(ProgressBar);
+		PS->SetPadding(FMargin(0.f, StreetballUiTheme::Space1));
+		CountdownText = MakeText(TEXT("Countdown"), StreetballUiTheme::FontM, StreetballUiTheme::PolicyBot);
+
+		// Anchor 2: Top-Center mode/camera/seed banner
+		ModeBannerText = MakeStyledText(TEXT("ModeBanner"), StreetballUiTheme::FontS, StreetballUiTheme::TextPrimary);
+		UCanvasPanelSlot* CenterSlot = Canvas->AddChildToCanvas(ModeBannerText);
+		CenterSlot->SetAnchors(FAnchors(0.5f, 0.f));
+		CenterSlot->SetAlignment(FVector2D(0.5f, 0.f));
+		CenterSlot->SetPosition(FVector2D(0.f, StreetballUiTheme::SafeAreaMargin));
+		CenterSlot->SetAutoSize(true);
+
+		// Anchor 3: Top-Right FPS + active policy badge
+		PolicyFpsText = MakeStyledText(TEXT("PolicyFps"), StreetballUiTheme::FontS, StreetballUiTheme::PolicyRef);
+		UCanvasPanelSlot* RightSlot = Canvas->AddChildToCanvas(PolicyFpsText);
+		RightSlot->SetAnchors(FAnchors(1.f, 0.f));
+		RightSlot->SetAlignment(FVector2D(1.f, 0.f));
+		RightSlot->SetPosition(FVector2D(-StreetballUiTheme::SafeAreaMargin, StreetballUiTheme::SafeAreaMargin));
+		RightSlot->SetAutoSize(true);
+
+		// Anchor 4: Bottom-Left RL telemetry (reward / NaN-Inf)
+		TelemetryText = MakeStyledText(TEXT("Telemetry"), StreetballUiTheme::FontXS, StreetballUiTheme::TextMuted);
+		UCanvasPanelSlot* BLSlot = Canvas->AddChildToCanvas(TelemetryText);
+		BLSlot->SetAnchors(FAnchors(0.f, 1.f));
+		BLSlot->SetAlignment(FVector2D(0.f, 1.f));
+		BLSlot->SetPosition(FVector2D(StreetballUiTheme::SafeAreaMargin, -StreetballUiTheme::SafeAreaMargin));
+		BLSlot->SetAutoSize(true);
+
+		// Single compact bottom panel hint bar (Bottom-Center)
+		BottomBarText = MakeStyledText(TEXT("BottomBar"), StreetballUiTheme::FontXS, StreetballUiTheme::TextMuted);
+		BottomBarText->SetText(FText::FromString(TEXT("F1 Mode  |  F2 Camera  |  F3 Telemetry  |  F4 Policy  |  Space Pause  |  R Reset")));
+		UCanvasPanelSlot* BotSlot = Canvas->AddChildToCanvas(BottomBarText);
+		BotSlot->SetAnchors(FAnchors(0.5f, 1.f));
+		BotSlot->SetAlignment(FVector2D(0.5f, 1.f));
+		BotSlot->SetPosition(FVector2D(0.f, -StreetballUiTheme::SafeAreaMargin));
+		BotSlot->SetAutoSize(true);
+
+		// Anchor 5: UU_AGENT build stamp: compile date as YYMMDD, bottom-right corner.
 		UTextBlock* Stamp = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("BuildStamp"));
 		FSlateFontInfo SF = Stamp->GetFont();
-		SF.Size = 14;
+		SF.Size = StreetballUiTheme::FontXS;
 		Stamp->SetFont(SF);
 		Stamp->SetColorAndOpacity(FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.9f)));   // readable over the light floor
 		Stamp->SetShadowOffset(FVector2D(1.f, 1.f));
@@ -57,7 +97,7 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 		UCanvasPanelSlot* StampSlot = Canvas->AddChildToCanvas(Stamp);
 		StampSlot->SetAnchors(FAnchors(1.f, 1.f));
 		StampSlot->SetAlignment(FVector2D(1.f, 1.f));
-		StampSlot->SetPosition(FVector2D(-16.f, -12.f));
+		StampSlot->SetPosition(FVector2D(-StreetballUiTheme::Space4, -StreetballUiTheme::Space3));
 		StampSlot->SetAutoSize(true);
 	}
 	return Super::RebuildWidget();
@@ -108,6 +148,36 @@ FString UStreetballHUDWidget::GetDistanceText() const { return CachedDistance; }
 FString UStreetballHUDWidget::GetMilestoneText() const { return CachedMilestone; }
 float UStreetballHUDWidget::GetProgressPercent() const { return ProgressPercent; }
 FString UStreetballHUDWidget::GetBuildStampText() const { return StampText ? StampText->GetText().ToString() : FString(); }
+
+void UStreetballHUDWidget::SetTelemetryVisible(bool bVisible)
+{
+	bTelemetryVisible = bVisible;
+	if (TelemetryText)
+	{
+		TelemetryText->SetVisibility(bVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
+}
+
+void UStreetballHUDWidget::UpdateTelemetry(const FString& ModeLabel, const FString& CameraLabel, const FString& PolicyLabel,
+                                           int32 Seed, float EpisodeReward, int32 NanInfCount, float Fps, bool bPaused, bool bFallbackPolicy)
+{
+	if (ModeBannerText)
+	{
+		ModeBannerText->SetText(FText::FromString(FString::Printf(
+			TEXT("%s  |  Cam: %s  |  Seed: %d%s"), *ModeLabel, *CameraLabel, Seed, bPaused ? TEXT("  |  PAUSED") : TEXT(""))));
+	}
+	if (PolicyFpsText)
+	{
+		PolicyFpsText->SetColorAndOpacity(FSlateColor(bFallbackPolicy ? StreetballUiTheme::PolicyBot : StreetballUiTheme::PolicyRef));
+		PolicyFpsText->SetText(FText::FromString(FString::Printf(TEXT("%.0f FPS  |  Policy: %s"), Fps, *PolicyLabel)));
+	}
+	if (TelemetryText)
+	{
+		TelemetryText->SetColorAndOpacity(FSlateColor(NanInfCount > 0 ? StreetballUiTheme::PolicyBot : StreetballUiTheme::TextMuted));
+		TelemetryText->SetText(FText::FromString(FString::Printf(TEXT("Reward: %.2f  |  NaN/Inf: %d"), EpisodeReward, NanInfCount)));
+		TelemetryText->SetVisibility(bTelemetryVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
+}
 
 int32 UStreetballHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry& Geo, const FSlateRect& Cull,
                                         FSlateWindowElementList& Out, int32 LayerId, const FWidgetStyle& Style, bool bParentEnabled) const

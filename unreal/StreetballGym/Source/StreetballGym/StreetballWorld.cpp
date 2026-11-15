@@ -8,6 +8,7 @@
 #include "SimClock.h"
 #include "MuJoCoBoneMapper.h"
 #include "PolicyRunner.h"
+#include "InputCoreTypes.h"
 #include "Misc/CommandLine.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -199,6 +200,11 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		if (FPaths::IsRelative(TP)) TP = FPaths::Combine(Streetball::SimDir(), TP);
 		Director->LoadTransitionTable(TP);          // falls back to the built-in v1 table
 	}
+	int32 CliSeed = DirectorSeed;
+	if (FParse::Value(FCommandLine::Get(), TEXT("StreetballSeed="), CliSeed))
+	{
+		DirectorSeed = CliSeed;
+	}
 	Director->Initialize(DirectorSeed);
 	{
 		int32 MaxTier = 5;
@@ -226,9 +232,12 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	}
 	RealPolicies.Reset();
 	Policies.Reset();
+	PolicyOrder.Reset();
 	for (const TPair<FString, FString>& Fam : Director->GetPolicyFiles())   // one runner per family, all preloaded
 	{
-		Policies.Add(FName(*Fam.Key), LoadPolicy(Fam.Key));
+		const FName FamName(*Fam.Key);
+		Policies.Add(FamName, LoadPolicy(Fam.Key));
+		PolicyOrder.Add(FamName);
 	}
 	PrevAction.SetNumZeroed(FObsBuilder::NumJoints);
 	Obs.SetNumZeroed(FObsBuilder::NumObs);
@@ -316,6 +325,7 @@ void AStreetballWorld::ApplyReset(const FStreetballResetSpec& Spec)
 	Director->NotifyResetApplied(Tracker->State());
 	if (Director->GetProgress().ActiveTier >= 3) Tracker->GrantControl();   // ball starts at the hand
 	for (float& A : PrevAction) A = 0.f;
+	EpisodeReward = 0.f;
 	if (Clock) Clock->Resnapshot();
 	++UnloggedResets;                            // logged from Tick, outside the control step
 	LastResetReason = Spec.Reason;
@@ -336,9 +346,15 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 		ApplyReset(DirOut.Reset);
 		Director->Describe(Tracker->State(), DirOut);
 	}
+	FName ActivePolicyName = DirOut.PolicyName;
+	if (ForcedPolicyIndex != INDEX_NONE && PolicyOrder.IsValidIndex(ForcedPolicyIndex))
+	{
+		ActivePolicyName = PolicyOrder[ForcedPolicyIndex];
+	}
 	UPolicyRunner* Policy = nullptr;
-	if (TObjectPtr<UPolicyRunner>* Found = Policies.Find(DirOut.PolicyName)) Policy = Found->Get();
-	LastPolicyName = DirOut.PolicyName;
+	if (TObjectPtr<UPolicyRunner>* Found = Policies.Find(ActivePolicyName)) Policy = Found->Get();
+	LastPolicyName = ActivePolicyName;
+	EpisodeReward += static_cast<float>(Dt * (S.InControl ? 1.0 : 0.1));
 	if (Policy && ObsBuilder.IsInitialized())
 	{
 		// UU_AGENT hand-over rule: PrevAction is passed through unchanged across policy switches.
@@ -346,6 +362,14 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 		ObsBuilder.Compute(InSim, PrevAction, TConstArrayView<float>(DirOut.Task, 12), T.InControl ? 1.f : 0.f, T.CountdownFrac, Obs);
 		if (Policy->Run(Obs, Action))
 		{
+			for (float& Val : Action)
+			{
+				if (!FMath::IsFinite(Val))
+				{
+					++NanInfCount;
+					Val = 0.f;
+				}
+			}
 			ObsBuilder.ActionToCtrl(Action, CtrlBuf);   // pre-sized member: no allocation
 			InSim->SetCtrl(CtrlBuf);
 			FMemory::Memcpy(PrevAction.GetData(), Action.GetData(), PrevAction.Num() * sizeof(float));
@@ -371,7 +395,40 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if (!bReady) return;
-	Clock->Advance(DeltaSeconds);
+
+	if (DeltaSeconds > 1e-4f)
+	{
+		SmoothedFps = FMath::Lerp(SmoothedFps, 1.f / DeltaSeconds, 0.1f);
+	}
+
+	if (UWorld* W = GetWorld())
+	{
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
+		{
+			if (PC->WasInputKeyJustPressed(EKeys::F1)) CycleAppMode();
+			if (PC->WasInputKeyJustPressed(EKeys::F2)) CycleCameraMode();
+			if (PC->WasInputKeyJustPressed(EKeys::F3)) ToggleTelemetry();
+			if (PC->WasInputKeyJustPressed(EKeys::F4)) CyclePolicyOverride();
+			if (PC->WasInputKeyJustPressed(EKeys::SpaceBar)) TogglePause();
+			if (PC->WasInputKeyJustPressed(EKeys::R)) ResetEpisode();
+
+			if (Camera && Camera->GetCameraMode() == EStreetballCameraMode::Free)
+			{
+				FVector Move(0.f);
+				const float Speed = 450.f * DeltaSeconds;
+				if (PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up)) Move += Camera->GetActorForwardVector() * Speed;
+				if (PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down)) Move -= Camera->GetActorForwardVector() * Speed;
+				if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Move += Camera->GetActorRightVector() * Speed;
+				if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left)) Move -= Camera->GetActorRightVector() * Speed;
+				if (!Move.IsNearlyZero()) Camera->AddFreeOffset(Move);
+			}
+		}
+	}
+
+	if (!bPaused)
+	{
+		Clock->Advance(DeltaSeconds);
+	}
 	if (UnloggedResets > 0)
 	{
 		UE_LOG(LogStreetball, Log, TEXT("Reset #%d applied (%s)%s in tier %d, dribble hand %+.0f"), ResetCount, LastResetReason,
@@ -389,6 +446,51 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 	PendingEvents.Reset();
 }
 
+EStreetballAppMode AStreetballWorld::CycleAppMode()
+{
+	AppMode = static_cast<EStreetballAppMode>((static_cast<int32>(AppMode) + 1) % 3);
+	return AppMode;
+}
+
+void AStreetballWorld::CycleCameraMode()
+{
+	if (Camera) Camera->CycleCameraMode();
+}
+
+void AStreetballWorld::ToggleTelemetry()
+{
+	if (HUD) HUD->SetTelemetryVisible(!HUD->IsTelemetryVisible());
+}
+
+void AStreetballWorld::CyclePolicyOverride()
+{
+	if (PolicyOrder.Num() == 0)
+	{
+		ForcedPolicyIndex = INDEX_NONE;
+		return;
+	}
+	if (ForcedPolicyIndex == INDEX_NONE)
+	{
+		ForcedPolicyIndex = 0;
+	}
+	else if (ForcedPolicyIndex + 1 >= PolicyOrder.Num())
+	{
+		ForcedPolicyIndex = INDEX_NONE; // return to director auto-selection
+	}
+	else
+	{
+		++ForcedPolicyIndex;
+	}
+}
+
+void AStreetballWorld::ResetEpisode()
+{
+	FStreetballResetSpec Spec;
+	Spec.bRequested = true;
+	Spec.Reason = TEXT("manual reset (R)");
+	ApplyReset(Spec);
+}
+
 void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 {
 	const FTrackedState& S = Tracker->State();
@@ -403,7 +505,27 @@ void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 		In.Rim[0] = S.RimPos[0]; In.Rim[1] = S.RimPos[1];
 		Camera->UpdateCamera(In, Dt);
 	}
-	if (HUD) HUD->UpdateFromProgress(Director->GetProgress(), Director->GetState());
+	if (HUD)
+	{
+		HUD->UpdateFromProgress(Director->GetProgress(), Director->GetState());
+		const FString ModeLabel = AppMode == EStreetballAppMode::Play ? TEXT("Play")
+		                        : AppMode == EStreetballAppMode::Testbed ? TEXT("Testbed")
+		                        : TEXT("Watch");
+		FString CamLabel = TEXT("Broadcast");
+		if (Camera)
+		{
+			switch (Camera->GetCameraMode())
+			{
+			case EStreetballCameraMode::Follow: CamLabel = TEXT("Follow"); break;
+			case EStreetballCameraMode::Orbit: CamLabel = TEXT("Orbit"); break;
+			case EStreetballCameraMode::Free: CamLabel = TEXT("Free"); break;
+			default: break;
+			}
+		}
+		const bool bUsingReal = RealPolicies.Contains(LastPolicyName.ToString());
+		const FString PolicyLabel = LastPolicyName.IsNone() ? TEXT("fallback") : LastPolicyName.ToString();
+		HUD->UpdateTelemetry(ModeLabel, CamLabel, PolicyLabel, DirectorSeed, EpisodeReward, NanInfCount, SmoothedFps, bPaused, !bUsingReal);
+	}
 }
 
 void AStreetballWorld::UpdateVisuals()
