@@ -94,3 +94,10 @@ Found by playing tiers 1-5 with grandma (`-game`, 40 s each, plus a Manny run fo
 
 Build OK, `Streetball.*` 16/16 pass. Tier 1/3 replays show the orange ball and real colours; the apron in the
 high shot is built and tested but has no clean screenshot (the capture grabbed the desktop).
+
+## 12:27 — 6-minute scramble resume (user: "10 minutes to train then commit sync")
+
+`l3b_scramble_n16q2`: full resume from `n16q1` (optimiser state kept), 6 min, 1.1 M steps (total about 21 M),
+return about 67, 0 NaN batches. Only 3.3k fps (the GPU was shared with another job), about 10x slower than the
+morning run. Not evaluated (no realistic chance at the gate after so few steps); no export, production unchanged.
+Tiers 3-5 still need the full queue: `uv run python -m streetball.queue --hours 10 --plan grandma_20261116 --tag n16`.
