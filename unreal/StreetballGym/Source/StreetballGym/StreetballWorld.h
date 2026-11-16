@@ -33,6 +33,11 @@ class STREETBALLGYM_API AStreetballCharacter : public AActor
 	GENERATED_BODY()
 public:
 	AStreetballCharacter();
+	/** Main character skin (visual only; re-proportioned onto Manny's joints by Scripts/retarget_grandma_blender.py). */
+	static constexpr const TCHAR* GrandmaMeshPath = TEXT("/Game/Art/Characters/Grandma/SK_Grandma.SK_Grandma");
+	/** Swap Manny for the grandma skin unless -StreetballCharacter=Manny; keeps Manny if the asset is missing.
+	 *  Must run before UMuJoCoBoneMapper::Initialize (offsets are captured from the bind pose). Returns the mesh in use. */
+	FString ApplyMainCharacterMesh();
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> Mesh;
 };

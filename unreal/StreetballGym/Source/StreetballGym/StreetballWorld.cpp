@@ -43,6 +43,28 @@ AStreetballCharacter::AStreetballCharacter()
 	if (Manny.Succeeded()) Mesh->SetSkeletalMeshAsset(Manny.Object);
 }
 
+FString AStreetballCharacter::ApplyMainCharacterMesh()
+{
+	FString Which;
+	FParse::Value(FCommandLine::Get(), TEXT("StreetballCharacter="), Which);
+	if (!Which.Equals(TEXT("Manny"), ESearchCase::IgnoreCase))
+	{
+		if (USkeletalMesh* Grandma = LoadObject<USkeletalMesh>(nullptr, GrandmaMeshPath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			// Same mannequin bone names and bind joints as Manny, also faces mesh +Y: the -90 deg yaw still applies.
+			Mesh->SetSkeletalMeshAsset(Grandma);
+		}
+		else
+		{
+			UE_LOG(LogStreetball, Log, TEXT("Character: %s not imported yet, using Manny"), GrandmaMeshPath);
+		}
+	}
+	const USkeletalMesh* InUse = Mesh->GetSkeletalMeshAsset();
+	const FString Name = InUse ? InUse->GetName() : FString(TEXT("none"));
+	UE_LOG(LogStreetball, Log, TEXT("Character mesh: %s"), *Name);
+	return Name;
+}
+
 // ---------------------------------------------------------------------------- geom actor
 AStreetballGeomActor::AStreetballGeomActor()
 {
@@ -185,6 +207,7 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	// ---- clock, mapper, tracker, director ---------------------------------
 	Clock = NewObject<USimClock>(this, TEXT("Clock"));
 	BoneMapper = NewObject<UMuJoCoBoneMapper>(this, TEXT("BoneMapper"));
+	Character->ApplyMainCharacterMesh();
 	BoneMapper->Initialize(Character->Mesh, Sim, Streetball::HumanoidSpecPath());
 	Tracker = NewObject<UStreetballTracker>(this, TEXT("Tracker"));
 	Director = NewObject<UStreetballDirector>(this, TEXT("Director"));

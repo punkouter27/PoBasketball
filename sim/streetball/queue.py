@@ -50,6 +50,17 @@ PLANS = {
         ("l2a_push", "dribble", 130, ["--push-max", "80"], "l2a_dribble_r", None),
         ("l3b_scramble", "scramble", None, [], "l3b_scramble", None),
     ],
+    # 2026-11-16, 10 h, fresh clone (old sim/runs lost): both families restart from the production locomotion
+    # actor, rebuilt from shared/policies/locomotion.onnx by tools/onnx_to_ckpt.py. Scramble first (it reached
+    # 81.5 % last time); dribble re-walks its lineage dribble_r -> cycles -> push. Run with --tag n16.
+    "grandma_20261116": [
+        ("l3b_scramble", "scramble", 150, [], "l3b_scramble", "runs/production/locomotion.pt"),
+        ("l2a_dribble_r", None, 75, ["--push-max", "80"], "l2a_dribble_r", "runs/production/locomotion.pt"),
+        ("l2a_cycles", None, 90, ["--push-max", "80"], "l2a_dribble_r", "runs/l2a_dribble_r_n16q1/model.pt"),
+        ("l2a_push", "dribble", 120, ["--push-max", "80"], "l2a_dribble_r", "runs/l2a_cycles_n16q1/model.pt"),
+        ("l3b_scramble", "scramble", 60, [], "l3b_scramble", None),
+        ("l2a_push", "dribble", None, ["--push-max", "80"], "l2a_dribble_r", None),
+    ],
 }
 RESERVE_MIN = 25          # kept free at the end for evaluation/report
 MIN_STAGE_MIN = 12        # never start a stage with less than this

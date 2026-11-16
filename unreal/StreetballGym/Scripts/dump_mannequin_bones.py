@@ -3,7 +3,7 @@
 Run inside the Unreal editor (headless is fine):
 
     UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript
-        -script="<this file> <output.json>" -unattended -nop4 -nosplash
+        -script="<this file> <output.json> [<mesh asset path>]" -unattended -nop4 -nosplash
 
 Output: for every bone, its name, parent, bind-pose (reference pose) world
 transform in UE units (cm, left-handed, Z-up), its local transform, and the
@@ -14,8 +14,9 @@ import sys
 
 import unreal
 
-MESH_PATH = "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple"
 OUT = sys.argv[1] if len(sys.argv) > 1 else "mannequin_bones.json"
+# optional second argument: another skeletal mesh (e.g. /Game/Art/Characters/Grandma/SK_Grandma) to verify a retarget
+MESH_PATH = sys.argv[2] if len(sys.argv) > 2 else "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple"
 
 
 def _xf_to_dict(xf: unreal.Transform) -> dict:

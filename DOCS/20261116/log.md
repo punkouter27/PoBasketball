@@ -1,0 +1,58 @@
+# 2026-11-16 — Daily Log
+
+## 00:xx — 10-hour training queue + grandma character skin (user request)
+
+### Audit (before changes)
+
+| Item | Change | Affects |
+|---|---|---|
+| Main character visual | `grandmaRIGGED_fixed.fbx` replaces `SKM_Manny_Simple` as the skinned mesh. **Visual skin only** (user choice): re-proportioned in headless Blender so her joints and bind pose sit on the mannequin joints the physics body was built from. | Unreal presentation only |
+| Physics body / MJCF | none (`humanoid.xml`, `court.xml` unchanged; physics_sha unchanged) | — |
+| Observation / action interface | none (`obs_spec.json` unchanged) | — |
+| Policies touched (training only) | scramble (`l3b_scramble`), dribble (`l2a_dribble_r` -> `l2a_cycles` -> `l2a_push`) | candidates; production export only if the 200-episode gate + 100-consecutive hold pass |
+| Production weights | balance / locomotion left unchanged | — |
+| State machine rows | none | — |
+
+### Why the dribble lineage restarts
+
+This checkout is a fresh clone. `sim/runs/` is gitignored and empty, and the previous project folder no longer
+exists, so the Nov 11 candidates (`l3b_scramble_n11q2` at 81.5 %, `l2a_push_n11q2`) are lost. Both families restart
+from the production locomotion actor. No `.pt` survived either, so `sim/tools/onnx_to_ckpt.py` rebuilds an
+actor-only checkpoint from `shared/policies/locomotion.onnx` (normaliser unfolded from the graph constants; it refuses
+to write unless the PyTorch/onnxruntime max abs diff is < 1e-5).
+
+### Queue
+
+Plan `grandma_20261116` in `sim/streetball/queue.py`, tag `n16`, 10 h budget (25 min reserve):
+
+1. `l3b_scramble` 150 min from locomotion (actor only), gate `l3b_scramble`
+2. `l2a_dribble_r` 75 min from locomotion (actor only), gate `l2a_dribble_r`
+3. `l2a_cycles` 90 min from step 2, gate `l2a_dribble_r`
+4. `l2a_push` 120 min from step 3, gate `l2a_dribble_r`, family dribble
+5. `l3b_scramble` 60 min full resume
+6. `l2a_push` remaining time, full resume
+
+## 10:33 — queue launched
+
+`sim/runs/queue_n16_20261116.ps1` (hidden, WMI) -> `uv run python -m streetball.queue --hours 10 --plan grandma_20261116 --tag n16`.
+Started 10:33, deadline 20:33. TensorBoard on http://localhost:6006 (`sim/runs/tensorboard.ps1`). Hourly status goes to
+`DOCS/20261116/hourly_status.md`. Smoke check before launch: 2 min `l3b_scramble` from the rebuilt actor, 29k fps,
+interface/physics SHA identical to production (`ccfa18d6f9aaf2a5`, `ac1c8d03c1e036df+1eba556a91fae556`); purged.
+
+## Grandma skin
+
+- Source: `C:\Users\punko\Downloads\grandmaRIGGED_fixed.fbx`, copied to `unreal/StreetballGym/Content/Art/Raw/Grandma/`.
+  CC-style rig with mannequin bone names, 118 bones, 24 866 verts, 92 facial shape keys, packed 4K diffuse + normal.
+- `Scripts/retarget_grandma_blender.py` (headless Blender 5.3): global scale 1.525 (torso), every main joint moved
+  onto Manny's bind joint (max error 0.00 mm), limbs stretched along the segment (thighs 1.6x, upper arms 1.24x /
+  1.87x: the source rig's left elbow bone sits high), soles remapped to z = 0 (were 2.2 / 2.8 cm below the court),
+  all shape keys deformed with the same maps. Output `Content/Art/Exports/Grandma/SK_Grandma.fbx`, 1.76 m tall.
+- Previews (`Scripts/render_character_preview.py`, red dots = Manny joints): `SCREENSHOTS/grandma_before_*.png`,
+  `SCREENSHOTS/grandma_after_*.png`.
+- Code: `AStreetballCharacter::ApplyMainCharacterMesh()` loads `/Game/Art/Characters/Grandma/SK_Grandma` before the
+  bone mapper captures its bind offsets; falls back to Manny if the asset is missing; `-StreetballCharacter=Manny`
+  forces the old skin.
+- Unreal import + editor build are **deferred until the queue exits**: with training running the machine had 5.8 GB
+  free RAM and only 2.9 GB commit headroom, so an editor commandlet or MSVC build risked killing the training
+  process. `Scripts/post_queue_grandma.ps1` waits for the queue, imports, builds, checks the bind joints against
+  Manny (<= 1 cm), runs the Streetball automation tests, and writes `DOCS/<day>/post_queue_grandma.md`.
