@@ -56,3 +56,14 @@ interface/physics SHA identical to production (`ccfa18d6f9aaf2a5`, `ac1c8d03c1e0
   free RAM and only 2.9 GB commit headroom, so an editor commandlet or MSVC build risked killing the training
   process. `Scripts/post_queue_grandma.ps1` waits for the queue, imports, builds, checks the bind joints against
   Manny (<= 1 cm), runs the Streetball automation tests, and writes `DOCS/<day>/post_queue_grandma.md`.
+
+## 10:49 — run stopped early (user: "finish up all in 15 mins")
+
+- Queue and trainer killed at 10:49 after 16 min. Last checkpoint `sim/runs/l3b_scramble_n16q1/model.pt`
+  (19.7 M steps, 0 NaN-gradient batches). Dribble stages never started.
+- 200-episode gate `l3b_scramble`: **0 % success, failed** (falls 2 %, mean episode 3.0 s). Result saved as
+  `eval_l3b_scramble_n16q1.{json,md}` in this folder; `DOCS/phase_reports/eval_l3b_scramble.*` keeps the Nov 11
+  record. No ONNX exported; production weights unchanged.
+- Post-queue runner fixes: arguments now go through `-EditorArgs` (after `--` PowerShell bound `-run=pythonscript`
+  to `-Editor`, so Unreal never started), and the editor build now runs before the import (a fresh clone has no
+  `Binaries/`). Relaunched at 11:01 with `-NoWait`; progress in `post_queue_grandma.md`.

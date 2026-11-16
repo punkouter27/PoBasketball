@@ -1,0 +1,22 @@
+{
+  "level": "l3b_scramble",
+  "checkpoint": "runs\\l3b_scramble_n16q1\\model.pt",
+  "episodes": 200,
+  "push_scale": 1.0,
+  "push_max_N": 150.0,
+  "success_rate": 0.0,
+  "pass_fraction": 0.8,
+  "passed": false,
+  "holds_100_straight": false,
+  "nan_grads": 0,
+  "interface_sha": "ccfa18d6f9aaf2a5",
+  "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
+  "fall_rate": 0.019999999552965164,
+  "mean_episode_s": 3.010699987411499,
+  "metrics": {
+    "m/regained": 0.0,
+    "m/ball_dist": 2.050220012664795,
+    "m/reach": 0.004503093659877777
+  },
+  "wall_s": 6.778465299998061
+}
