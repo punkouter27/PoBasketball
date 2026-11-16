@@ -43,7 +43,7 @@ Say "import: rc=$LASTEXITCODE ok=$ok (log $log)"
 if (-not $ok) { Say "STOP: import failed"; exit 1 }
 
 # 4. bind-joint check
-$dump = Join-Path $out "grandma_bones_ue.json"
+$dump = (Join-Path $out "grandma_bones_ue.json").Replace("\", "/")   # UE parses -script escapes: \2... would become a control char
 $dlog = Join-Path $logs "dump.log"
 & $headless -TimeoutSec 900 -LogFile $dlog -EditorArgs @("-run=pythonscript", "-script=$(Join-Path $PSScriptRoot 'dump_mannequin_bones.py') $dump /Game/Art/Characters/Grandma/SK_Grandma")
 $cmp = & python (Join-Path $PSScriptRoot "compare_bones.py") (Join-Path $repo "shared\mannequin_bones.json") $dump --tol-cm 1.0 2>&1

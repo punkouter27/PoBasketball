@@ -67,3 +67,14 @@ interface/physics SHA identical to production (`ccfa18d6f9aaf2a5`, `ac1c8d03c1e0
 - Post-queue runner fixes: arguments now go through `-EditorArgs` (after `--` PowerShell bound `-run=pythonscript`
   to `-Editor`, so Unreal never started), and the editor build now runs before the import (a fresh clone has no
   `Binaries/`). Relaunched at 11:01 with `-NoWait`; progress in `post_queue_grandma.md`.
+
+## 11:20 — grandma live in Unreal, verified
+
+- Build `StreetballGymEditor`: succeeded (215 s). Import: `/Game/Art/Characters/Grandma/SK_Grandma` (+ skeleton,
+  material, diffuse/normal textures).
+- Bind-joint check of the imported mesh vs `shared/mannequin_bones.json`: max offset **0.00 cm** on all 25 mapped joints, PASS.
+- Automation `Streetball.*`: **16/16 pass** with `Character mesh: SK_Grandma`. B5.BoneMapper: reference pose error
+  0.00000 deg, pelvis bone = sim pelvis (95.897 cm). The first pass had 2 failures (B5, C3) caused only by the
+  fresh clone missing `Content/Sim/policies/` (gitignored): fixed by running `sim/tools/sync_policies_to_unreal.py`,
+  which now also copies `dummy_policy.onnx`.
+- Runner fixes: bone-dump output path uses forward slashes (UE's `-script=` parsing turned `\2` into a control char).

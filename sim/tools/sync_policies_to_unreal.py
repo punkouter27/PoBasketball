@@ -34,6 +34,10 @@ def main() -> None:
             shutil.copy2(src, DST / name)
         else:
             print(f"WARNING missing {src}")
+    # the fallback every family without a trained file uses (a fresh clone has none: Content/Sim/policies is ignored)
+    for name in ("dummy_policy.onnx", "dummy_policy.json"):
+        if (SHARED / name).exists():
+            shutil.copy2(SHARED / name, DST / "policies" / name)
     spec_hash = hashlib.sha256((SHARED / "obs_spec.json").read_bytes()).hexdigest()
     table = json.loads((SHARED / "transition_table.json").read_text(encoding="utf-8"))
     policies = table.get("policies", {})
