@@ -92,10 +92,14 @@ FBroadcastTarget FBroadcastLogic::TargetFor(EBroadcastShot Shot, const FBroadcas
 	}
 	default:
 	{
-		const FVector3d Cam(FMath::Clamp(Mid.X * 0.3, -4.0, 4.0), -17.0, 9.0);
+		// High wide shot. A fixed 62 deg lost a loose ball rolling away from the athlete: size the view from the
+		// athlete-ball spread like the other shots (horizontal FOV, 16:9), with a wider cap for scrambles.
+		const FVector3d Cam(FMath::Clamp(Mid.X * 0.5, -6.0, 6.0), -17.0, 9.0);
 		T.Position = SimToUE(Cam);
 		T.LookAt = SimToUE(FVector3d(Mid.X, Mid.Y, 0.8));
-		T.FovDeg = 62.f;
+		const double Dist = (Mid - Cam).Length();
+		const double Half = 0.5 * FMath::Max(Spread, 6.0) + 3.0;
+		T.FovDeg = FMath::Clamp((float)FMath::RadiansToDegrees(2.0 * FMath::Atan2(Half, Dist)), FovMin, PressBoxFovMax);
 		break;
 	}
 	}

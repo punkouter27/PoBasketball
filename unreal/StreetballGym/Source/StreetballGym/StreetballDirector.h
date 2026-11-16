@@ -121,6 +121,8 @@ public:
 
 	EStreetballState GetState() const { return State; }
 	const FStreetballProgress& GetProgress() const { return P; }
+	/** Dribble hand currently in use (+1 right, -1 left); ForcedHand is only the command-line override. */
+	double GetHand() const { return Hand; }
 	static FString StateName(EStreetballState St);
 	static bool StateFromName(const FString& Name, EStreetballState& Out);
 	static int32 TierForState(EStreetballState St);

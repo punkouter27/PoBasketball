@@ -170,6 +170,29 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	Character = InWorld->SpawnActor<AStreetballCharacter>(AStreetballCharacter::StaticClass(), FTransform::Identity, SP);
 	Camera = InWorld->SpawnActor<ABroadcastCamera>(ABroadcastCamera::StaticClass(), FTransform(FVector(0, 930, 220)), SP);
 
+	UMaterialInterface* ShapeMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+
+	// Visual-only surroundings (not in the sim, no collision): the high press-box shot looks past the fence, where
+	// there was nothing to render and the frame went black. A 400 m apron 2 cm under the court fills it.
+	if (!Surroundings)
+	{
+		if (UStaticMesh* PlaneSM = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")))
+		{
+			Surroundings = InWorld->SpawnActor<AStreetballGeomActor>(AStreetballGeomActor::StaticClass(), FTransform::Identity, SP);
+			Surroundings->Mesh->SetStaticMesh(PlaneSM);
+			if (UMaterialInterface* Base = ShapeMaterial)
+			{
+				if (UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Surroundings))
+				{
+					MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.16f, 0.20f, 0.14f));
+					Surroundings->Mesh->SetMaterial(0, MID);
+				}
+			}
+			Surroundings->SetActorTransform(FTransform(FQuat::Identity, FVector(0, 0, -2.0), FVector(400.0, 400.0, 1.0)));
+			Surroundings->Mesh->SetMobility(EComponentMobility::Static);
+		}
+	}
+
 	GeomActors.Reset();
 	const int32 NG = Sim->NumGeoms();
 	for (int32 g = 0; g < NG; ++g)
@@ -187,12 +210,16 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		A->bDynamic = Sim->IsBodyDynamic(Body);
 		A->MeshScale = Scale;
 		A->Mesh->SetStaticMesh(SM);
-		const FLinearColor C = Sim->GetGeomColor(g);
-		if (UMaterialInterface* Base = A->Mesh->GetMaterial(0))
+		// MJCF rgba -> BasicShapeMaterial "Color". The shapes' own slot resolves to DefaultMaterial (no Color
+		// parameter), which silently dropped every MJCF colour (orange ball and rims, dark steel, white boards).
+		// Textured MJCF materials (the asphalt floor) keep the engine material.
+		const bool bMjcfMaterial = Sim->GetModel()->geom_matid[g] >= 0;
+		UMaterialInterface* Base = bMjcfMaterial ? A->Mesh->GetMaterial(0) : ShapeMaterial;
+		if (Base && !bMjcfMaterial)
 		{
 			if (UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, A))
 			{
-				MID->SetVectorParameterValue(TEXT("Color"), C);
+				MID->SetVectorParameterValue(TEXT("Color"), Sim->GetGeomColor(g));
 				A->Mesh->SetMaterial(0, MID);
 			}
 		}
@@ -454,8 +481,11 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 	}
 	if (UnloggedResets > 0)
 	{
-		UE_LOG(LogStreetball, Log, TEXT("Reset #%d applied (%s)%s in tier %d, dribble hand %+.0f"), ResetCount, LastResetReason,
-			UnloggedResets > 1 ? TEXT(" [+earlier this frame]") : TEXT(""), Director->GetProgress().ActiveTier, Director->ForcedHand);
+		const int32 Tier = Director->GetProgress().ActiveTier;
+		const TCHAR* HandName = (Tier == 3 || Tier == 4) ? (Director->GetHand() > 0 ? TEXT("right") : TEXT("left")) : TEXT("n/a");
+		UE_LOG(LogStreetball, Log, TEXT("Reset #%d applied (%s)%s in tier %d, dribble hand %s%s"), ResetCount, LastResetReason,
+			UnloggedResets > 1 ? TEXT(" [+earlier this frame]") : TEXT(""), Tier, HandName,
+			Director->ForcedHand != 0.0 ? TEXT(" (forced)") : TEXT(""));
 		UnloggedResets = 0;
 	}
 	UpdateVisuals();

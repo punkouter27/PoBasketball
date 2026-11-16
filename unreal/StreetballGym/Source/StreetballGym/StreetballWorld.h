@@ -142,6 +142,8 @@ private:
 	UPROPERTY() TMap<FName, TObjectPtr<UPolicyRunner>> Policies;
 	UPROPERTY() TObjectPtr<UPolicyRunner> Fallback;
 	UPROPERTY() TObjectPtr<AStreetballCharacter> Character;
+	/** Visual-only ground apron outside the fence (not part of the sim). */
+	UPROPERTY() TObjectPtr<AStreetballGeomActor> Surroundings;
 	UPROPERTY() TArray<TObjectPtr<AStreetballGeomActor>> GeomActors;
 	UPROPERTY() TObjectPtr<AStreetballGeomActor> BallActor;
 	UPROPERTY() TObjectPtr<ABroadcastCamera> Camera;

@@ -78,3 +78,19 @@ interface/physics SHA identical to production (`ccfa18d6f9aaf2a5`, `ac1c8d03c1e0
   fresh clone missing `Content/Sim/policies/` (gitignored): fixed by running `sim/tools/sync_policies_to_unreal.py`,
   which now also copies `dummy_policy.onnx`.
 - Runner fixes: bone-dump output path uses forward slashes (UE's `-script=` parsing turned `\2` into a control char).
+
+## 12:30 — play-through issues fixed (presentation only; no sim/contract change)
+
+Found by playing tiers 1-5 with grandma (`-game`, 40 s each, plus a Manny run for comparison).
+
+| Issue | Cause | Fix |
+|---|---|---|
+| Every MJCF colour ignored (ball, rims grey; boards dark) | the engine shapes' slot material is `DefaultMaterial`, which has no `Color` parameter, so the dynamic material's colour was dropped | `AStreetballWorld::Setup` builds the dynamic material from `/Engine/BasicShapes/BasicShapeMaterial`; the textured floor keeps its own material. The ball now renders orange (court.xml rgba). |
+| Loose ball out of frame in the press-box shot | fixed 62 deg FOV | FOV sized from the athlete-ball spread (`PressBoxFovMax` 80 deg), camera x follows 0.5 x midpoint |
+| Black void above the fence in the high shot | nothing rendered outside the court | visual-only 400 m ground apron 2 cm under the court (no sim body, no collision), allocated once in Setup |
+| Reset log "dribble hand +0" | printed the command-line override, not the hand | `UStreetballDirector::GetHand()`; log prints left/right (tiers 3-4) or n/a, plus "(forced)" |
+| Tier 3 "Distance 8.5 m" while stationary | not a bug: `TotalDistance` is pelvis travel and the dummy dribble policy falls about every 2 s; reset teleports are already excluded | none |
+| Tiers 3-5 fall and reset every 2-5 s | no trained dribble/scramble/shot policy; the dummy fallback runs | needs training (queue `grandma_20261116`) |
+
+Build OK, `Streetball.*` 16/16 pass. Tier 1/3 replays show the orange ball and real colours; the apron in the
+high shot is built and tested but has no clean screenshot (the capture grabbed the desktop).

@@ -58,6 +58,7 @@ struct STREETBALLGYM_API FBroadcastLogic
 	double SprintSpeed = 2.0;
 	double CutHysteresis = 2.0;
 	float FovMin = 22.f, FovMax = 60.f;
+	float PressBoxFovMax = 80.f;    // scrambles can spread athlete and ball across the court
 	int32 ForcedShot = -1;          // -1 auto; else EBroadcastShot
 
 	EBroadcastShot Current = EBroadcastShot::Sideline;
