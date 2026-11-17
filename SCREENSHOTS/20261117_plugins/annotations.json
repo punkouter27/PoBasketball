@@ -1,0 +1,51 @@
+{
+  "annotate": [
+    {"src": "cap_gif_drop_004.png", "out": "ann_hoop.jpg", "callouts": [
+      {"label": "Net (WPO wobble on rim hits)", "box": [705, 320, 895, 510], "label_at": [700, 560]},
+      {"label": "Backboard marks (Substrate)", "box": [645, 0, 1200, 412], "label_at": [1210, 120]},
+      {"label": "Pole now inside the fence", "box": [1130, 380, 1205, 900], "label_at": [1215, 640]},
+      {"label": "Chain-link fence material", "box": [0, 225, 640, 650], "label_at": [20, 680]},
+      {"label": "PCG street: car, brownstones", "box": [435, 340, 705, 505], "label_at": [330, 250]}
+    ]},
+    {"src": "cap_a_face_000.png", "out": "ann_neighbourhood.jpg", "callouts": [
+      {"label": "PCG brownstone row", "box": [775, 0, 1315, 385], "label_at": [880, 400]},
+      {"label": "Street tree", "box": [495, 0, 775, 385], "label_at": [430, 400]},
+      {"label": "Parked car", "box": [225, 365, 805, 540], "label_at": [230, 560]},
+      {"label": "Weeds at the fence base", "box": [895, 550, 965, 620], "label_at": [990, 640]},
+      {"label": "Baked voice line + subtitle", "box": [535, 812, 1065, 852], "label_at": [560, 740]}
+    ]},
+    {"src": "cap_a_body_000.png", "out": "ann_grandma.jpg", "callouts": [
+      {"label": "Strand hair flyaways (Groom)", "box": [170, 0, 470, 250], "label_at": [480, 200]},
+      {"label": "Substrate knit fuzz + skin SSS", "box": [300, 80, 1040, 420], "label_at": [1050, 300]},
+      {"label": "Chaos Cloth hem", "box": [700, 330, 1035, 545], "label_at": [1050, 470]},
+      {"label": "Leather ball with seams", "box": [180, 540, 330, 775], "label_at": [20, 790]},
+      {"label": "Court wear: cracks", "box": [1060, 600, 1600, 900], "label_at": [1100, 550]}
+    ]},
+    {"src": "cap_a_neighbourhood_000.png", "out": "ann_court.jpg", "callouts": [
+      {"label": "Painted lines, faded centre circle", "box": [605, 350, 995, 555], "label_at": [560, 600]},
+      {"label": "Faded key paint", "box": [1105, 0, 1600, 240], "label_at": [1150, 260]},
+      {"label": "Hairline cracks", "box": [620, 285, 800, 350], "label_at": [500, 220]},
+      {"label": "Chain-link fence", "box": [1180, 580, 1600, 900], "label_at": [1050, 520]}
+    ]},
+    {"src": "cap_a_broadcast_000.png", "out": "ann_issue_hem.jpg", "callouts": [
+      {"label": "Groom flyaways", "box": [425, 0, 780, 320], "label_at": [800, 60]},
+      {"label": "Known issue: hem seam opens", "box": [575, 410, 745, 765], "label_at": [800, 520]}
+    ]}
+  ],
+  "plain": [
+    {"src": "cap_b_hoop_000.png", "out": "before_hoop.jpg"},
+    {"src": "cap_gif_drop_004.png", "out": "after_hoop.jpg"},
+    {"src": "cap_b_body_000.png", "out": "before_grandma.jpg"},
+    {"src": "cap_a_body_000.png", "out": "after_grandma.jpg"},
+    {"src": "cap_b_face_000.png", "out": "before_street.jpg"},
+    {"src": "cap_a_face_000.png", "out": "after_street.jpg"},
+    {"src": "cap_b_neighbourhood_000.png", "out": "before_court.jpg"},
+    {"src": "cap_a_neighbourhood_000.png", "out": "after_court.jpg"}
+  ],
+  "gifs": [
+    {"burst": "gif_drop", "out": "gif_hoop_drop.gif", "fps": 5, "width": 720},
+    {"burst": "gif_scramble", "out": "gif_grandma_scramble.gif", "fps": 5, "width": 720},
+    {"burst": "gif_face", "out": "gif_grandma_close.gif", "fps": 5, "width": 720},
+    {"burst": "gif_broadcast", "out": "gif_broadcast.gif", "fps": 5, "width": 720}
+  ]
+}

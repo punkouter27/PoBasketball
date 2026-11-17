@@ -27,7 +27,7 @@ BOARD_W, BOARD_H, BOARD_T = 1.80, 1.05, 0.03
 BOARD_BOTTOM = 2.90
 BOARD_FROM_BASELINE = 1.20  # backboard face to baseline
 POLE_R = 0.06
-POLE_FROM_BASELINE = 2.20   # outdoor goose-neck pole behind the board
+POLE_FROM_BASELINE = 1.00   # outdoor goose-neck pole behind the board, inside the fence (was 2.20 = 20 cm outside it; 2026-11-17)
 POLE_H = 3.95
 
 # --- Ball --------------------------------------------------------------------

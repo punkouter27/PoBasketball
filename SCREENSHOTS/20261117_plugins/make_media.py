@@ -21,7 +21,7 @@ INK = (16, 20, 26)
 
 
 def font(size):
-    for f in ("C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf"):
+    for f in ("C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/segoeuib.ttf"):
         if os.path.exists(f):
             return ImageFont.truetype(f, size)
     return ImageFont.load_default()
@@ -47,6 +47,7 @@ def annotate(spec):
         lx, ly = c.get("label_at", (x0, max(0, y0 - 52)))
         text = f"{i}  {c['label']}"
         tw = d.textlength(text, font=f)
+        lx = max(8, min(lx, im.width - tw - 40))       # keep the label inside the frame
         d.rounded_rectangle((lx, ly, lx + tw + 28, ly + 46), radius=8, fill=ACCENT)
         d.text((lx + 14, ly + 6), text, fill=INK, font=f)
         if "label_at" in c:

@@ -6,6 +6,7 @@
 
 class USkeletalMesh;
 class UNiagaraSystem;
+class UMaterialInterface;
 
 /**
  * Headless asset-authoring helpers for Python (unreal.StreetballEditorLibrary). Generic reflection access lets the
@@ -46,6 +47,10 @@ public:
 	/** Recompile a system after edits and wait for it. */
 	UFUNCTION(BlueprintCallable, Category = "Streetball|Editor")
 	static bool CompileNiagaraSystem(UNiagaraSystem* System);
+
+	/** Compile a material for the running shader platform and return its compile errors (empty = compiles). */
+	UFUNCTION(BlueprintCallable, Category = "Streetball|Editor")
+	static TArray<FString> GetMaterialCompileErrors(UMaterialInterface* Material);
 
 	/**
 	 * Turn one render section of a skeletal mesh into Chaos cloth. Max Distance is painted from height: the top

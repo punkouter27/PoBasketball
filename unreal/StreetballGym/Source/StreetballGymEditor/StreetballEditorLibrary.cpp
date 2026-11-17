@@ -10,6 +10,10 @@
 #include "NiagaraSystem.h"
 #include "PointWeightMap.h"
 #include "UObject/UObjectHash.h"
+#include "Materials/Material.h"
+#include "MaterialShared.h"
+#include "ShaderCompiler.h"
+#include "RHIShaderPlatform.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogStreetballEditor, Log, All);
 
@@ -225,4 +229,24 @@ UObject* UStreetballEditorLibrary::CreateClothFromSection(USkeletalMesh* Mesh, i
 	UE_LOG(LogStreetballEditor, Log, TEXT("Cloth %s: %d particles, z %.1f..%.1f cm, mask %s, max %.1f cm"),
 		*AssetName, V.Num(), ZMin, ZMax, bPainted ? TEXT("vertex colour R") : TEXT("height"), MaxDistanceCm);
 	return Cloth;
+}
+
+TArray<FString> UStreetballEditorLibrary::GetMaterialCompileErrors(UMaterialInterface* Material)
+{
+	TArray<FString> Out;
+	UMaterial* M = Material ? Material->GetMaterial() : nullptr;
+	if (!M) { Out.Add(TEXT("no material")); return Out; }
+	const EShaderPlatform Platform = GMaxRHIShaderPlatform;
+	M->ForceRecompileForRendering();
+	if (GShaderCompilingManager) GShaderCompilingManager->FinishAllCompilation();
+	if (FMaterialResource* R = M->GetMaterialResource(Platform))
+	{
+		R->FinishCompilation();
+		Out = R->GetCompileErrors();
+	}
+	else
+	{
+		Out.Add(TEXT("no material resource for the shader platform"));
+	}
+	return Out;
 }

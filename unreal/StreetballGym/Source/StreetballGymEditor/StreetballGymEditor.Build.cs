@@ -10,7 +10,7 @@ public class StreetballGymEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[] {
 			"UnrealEd", "Niagara", "NiagaraCore",
 			"ClothingSystemRuntimeCommon", "ClothingSystemRuntimeInterface", "ClothingSystemEditorInterface",
-			"ChaosCloth"
+			"ChaosCloth", "RenderCore", "RHI"
 		});
 	}
 }

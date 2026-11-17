@@ -19,7 +19,7 @@ Date: 2026-11-06
 |---|---|
 | `sim/assets/scene.xml` | `84bec5b08691e5fd` |
 | `sim/assets/humanoid.xml` | `01a3f59b037ef5e7` (self-collision on, 2026-11-06 late; was `4b8e68bd819c960d`) |
-| `sim/assets/court.xml` | `1eba556a91fae556` |
+| `sim/assets/court.xml` | `c1c2207912c56781` (2026-11-17: hoop poles moved inside the fence, `POLE_FROM_BASELINE` 2.20 -> 1.00; rims/boards unchanged; was `1eba556a91fae556`) |
 
 Any change to the generators must bump these in this file and re-run A5, A6, A8.
 

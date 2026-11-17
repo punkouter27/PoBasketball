@@ -56,9 +56,10 @@ def grandma_material():
     if td.get_editor_property("texture") is None or tn.get_editor_property("texture") is None:
         raise RuntimeError("texture assignment did not stick")
     masks = g.custom(SKIN_HLSL, [("C", (td, "RGB"))], unreal.CustomMaterialOutputType.CMOT_FLOAT4, "SkinKnitMasks")
-    skin = g.e(unreal.MaterialExpressionComponentMask, r=True)
+    # ComponentMask defaults to R+G on: set all four channels explicitly
+    skin = g.e(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False)
     g.link(masks, "", skin, "")
-    knit = g.e(unreal.MaterialExpressionComponentMask, g=True)
+    knit = g.e(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False)
     g.link(masks, "", knit, "")
     mfp = g.e(unreal.MaterialExpressionMultiply)
     g.link(g.const3(1.0, 0.37, 0.20), "", mfp, "A")
@@ -110,11 +111,18 @@ def import_cloth_mesh():
 
 
 def assign_material(mesh, mat):
+    """Set every slot and read it back (a mesh rebuild, e.g. adding cloth, can reset slots to WorldGridMaterial)."""
+    # set_editor_property("materials") is silently ignored on skeletal meshes in 5.8: go through reflection text
+    import re
+    txt = L.get_property_text(mesh, "Materials")
+    txt = re.sub(r"MaterialInterface=[^,)]*", f"MaterialInterface=\"{mat.get_path_name()}\"", txt)
+    if not L.set_property_text(mesh, "Materials", txt):
+        raise RuntimeError(f"{mesh.get_name()}: Materials text rejected: {txt[:300]}")
     mats = mesh.get_editor_property("materials")
-    for sm in mats:
-        sm.set_editor_property("material_interface", mat)
-    mesh.set_editor_property("materials", mats)
     EAL.save_loaded_asset(mesh)
+    back = [s.get_editor_property("material_interface") for s in mesh.get_editor_property("materials")]
+    if any(b is None or b.get_name() != mat.get_name() for b in back):
+        raise RuntimeError(f"{mesh.get_name()}: material did not stick: {[b.get_name() if b else None for b in back]}")
     return len(mats)
 
 
@@ -185,6 +193,14 @@ def import_groom():
 
 
 def main():
+    if "assign" in _sys.argv[1:]:
+        mat = unreal.load_asset(f"{DEST}/M_GrandmaSubstrate")
+        for name in ("SK_Grandma", "SK_Grandma_Cloth"):
+            mesh = unreal.load_asset(f"{DEST}/{name}")
+            if mesh:
+                unreal.log(f"GRANDMA {name} material slots set: {assign_material(mesh, mat)}")
+        unreal.log("GRANDMA_EXTRAS OK assign-only")
+        return
     if "groom" in _sys.argv[1:]:
         groom = import_groom()
         unreal.log(f"GRANDMA_EXTRAS OK groom-only groom={'yes' if groom else 'no'}")
@@ -200,13 +216,13 @@ def main():
     cloth_mesh = import_cloth_mesh()
     cloth = None
     if cloth_mesh:
-        if mat:
-            unreal.log(f"GRANDMA SK_Grandma_Cloth material slots set: {assign_material(cloth_mesh, mat)}")
         mats = cloth_mesh.get_editor_property("materials")
         section = next((i for i, sm in enumerate(mats) if str(sm.get_editor_property("material_slot_name")).startswith("Cardigan_Hem")), 1)
         cloth = L.create_cloth_from_section(cloth_mesh, 0, section, 6.0, 0.0, "Cardigan_Hem_Cloth")
         EAL.save_loaded_asset(cloth_mesh)
         unreal.log(f"GRANDMA cloth on section {section}: {'ok' if cloth else 'FAILED'}")
+        if mat:   # after the cloth step: binding cloth rebuilds the mesh
+            unreal.log(f"GRANDMA SK_Grandma_Cloth material slots set: {assign_material(cloth_mesh, mat)}")
     groom = None
     try:
         groom = import_groom()

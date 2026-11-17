@@ -65,3 +65,25 @@ ACE/Audio2Face as an offline bake (no runtime GPU/network).
 New editor-only module `StreetballGymEditor` (reflection access to Niagara lightweight modules, cloth-from-section).
 One-shot rebuild: `Scripts/build_presentation_assets.ps1`. Flags: `-StreetballNoPresentation`, `-StreetballNoCloth`,
 `-StreetballNoGroom`, `-StreetballCharacterMesh=`.
+
+### 18:40 — follow-ups after the first in-game look
+
+- **Contract change (user request): hoop poles moved inside the fence.** `sim/tools/build_court.py`
+  `POLE_FROM_BASELINE` 2.20 -> 1.00 m: poles at x = ±15.0 (were ±16.2, 20 cm outside the ±16.0 fence). Only `pole_*` / `arm_*`
+  geoms changed; rims, boards, fence, floor, ball and the ball contact pair are byte-identical. `sim/assets/court.xml` and
+  `Content/Sim/court.xml` regenerated, hash bumped in `PhaseA_summary.md` (`c1c2207912c56781`). Re-checks: A5 ball tuning PASS
+  (same solref, ratios 0.70-0.76); A8 Warp-vs-CPU drift within gates (root 0.03 cm, joints 0.15°) but the Warp world-to-world
+  spread is 4.1e-2 vs the 1e-3 gate — **same 4.0e-2 with the old court file**, so pre-existing, not caused by this change.
+  A6 (axes) is unaffected by court geometry and was not re-run. No policy retrained.
+- Puddles removed from the court material (user request); cracks and scuffs kept.
+- Grey materials in game, three causes fixed: (1) generated materials lacked `bUsedWithInstancedStaticMeshes`, so every PCG
+  instance fell back to WorldGridMaterial; (2) `set_editor_property("materials")` on a skeletal mesh is silently ignored in 5.8,
+  so the grandma never got her material (now set through reflection with a read-back check); (3) a ComponentMask defaults to
+  R+G, which made `M_GrandmaSubstrate` fail to compile (float3 x float2). New editor helper `GetMaterialCompileErrors`
+  (run inside the editor, not a commandlet).
+- FX particle materials failed to compile (alpha masked from ParticleColor's RGB output); now wired from its A output.
+- Tests: 20/21 Streetball automation tests pass incl. 4 new `Streetball.Presentation.*`. `Streetball.C3.WorldLoop` fails
+  because the newly trained scramble policy (commit e261350) saves the ball; it passes with
+  `-StreetballPolicy_scramble=policies/dummy_policy.onnx`. Proposed fix: the test forces the dummy scramble policy.
+- Known issue: the cloth hem can open a gap along its top edge when it swings (section edge is not welded).
+- Feature page with annotated captures, GIFs and voice samples: `SCREENSHOTS/20261117_plugins/index.html`.

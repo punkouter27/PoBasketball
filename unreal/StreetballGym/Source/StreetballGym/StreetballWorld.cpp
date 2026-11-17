@@ -510,7 +510,8 @@ void AStreetballWorld::UpdateCaptureSchedule()
 	const auto ToUE = [](const FVector3d& P) { return FVector(P.X * 100.0, -P.Y * 100.0, P.Z * 100.0); };
 	for (FCaptureJob& J : Jobs)
 	{
-		const bool bActive = T >= J.T - 0.6f && T <= J.T + J.Dur + 0.05f && J.Frame >= 0;
+		// a still waits until it is taken (a shader-compile hitch can jump past a short window); bursts end on time
+		const bool bActive = J.Frame >= 0 && T >= J.T - 0.6f && (J.Dur <= 0.f || T <= J.T + J.Dur + 0.05f);
 		if (!bActive) continue;
 		// camera override (applied after the broadcast camera's own update this frame)
 		FVector3d From, To;
