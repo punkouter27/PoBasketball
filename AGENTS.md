@@ -54,3 +54,10 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, deployed
 - `/DOCS` holds the step documents (`01_…`, `02_…`, `03_…`), `phase_reports/`, and daily logs under `DOCS/<YYYYMMDD>/`.
 - Shared contracts (`shared/obs_spec.json`, `shared/humanoid_spec.json`, assets in `sim/assets/`) are frozen; a change bumps the hashes in `DOCS/phase_reports/PhaseA_summary.md` and re-runs A5/A6/A8.
 - Headless Unreal: always go through `unreal/StreetballGym/Scripts/run_headless.ps1`; never pass string CVars through `-ExecCmds`; never use `-nullrhi`.
+
+## CI/CD and Azure
+
+- A push to `master` runs `.github/workflows/deploy.yml` on a GitHub-hosted runner (no self-hosted runner): the CPU sim tests (`test_stand`, `test_penetration`), then `web/build.py` bakes `shared/golden/replay_*.json` into a three.js replay viewer and deploys it to the Azure Static Web App `pobasketball` (resource group `PoBasketball`). Pull requests run the tests and the build, never a deploy.
+- The Unreal project is not built in CI (GitHub's runners have no Unreal Engine). `test_env` / `test_determinism` need CUDA and stay local.
+- A replay recorded against an older body (qpos length differs from `sim/assets/scene.xml`) is skipped with a warning; re-record it with `sim/tools/replay_recorder.py` after changing the humanoid.
+- Repo secret: `AZURE_STATIC_WEB_APPS_API_TOKEN`.

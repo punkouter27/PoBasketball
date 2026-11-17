@@ -1,0 +1,4 @@
+{
+  "globalHeaders": { "Cache-Control": "no-cache" },
+  "mimeTypes": { ".json": "application/json" }
+}

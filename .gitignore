@@ -24,3 +24,6 @@ SCREENSHOTS/*.png
 
 # AMP mocap (LocoMuJoCo data, CC BY-NC-ND 4.0: never commit or ship)
 sim/data/mocap/
+
+# Web viewer build output (web/build.py)
+web/dist/
