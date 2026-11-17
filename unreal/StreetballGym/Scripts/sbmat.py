@@ -16,6 +16,8 @@ def new_material(path, blend=unreal.BlendMode.BLEND_OPAQUE, shading=unreal.Mater
     m.set_editor_property("blend_mode", blend)
     m.set_editor_property("shading_model", shading)
     m.set_editor_property("two_sided", two_sided)
+    # PCG spawns instanced static meshes; without this flag the game silently falls back to the grey default material
+    m.set_editor_property("used_with_instanced_static_meshes", True)
     return m
 
 

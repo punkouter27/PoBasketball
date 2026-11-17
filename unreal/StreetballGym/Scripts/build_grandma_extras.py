@@ -46,11 +46,16 @@ def grandma_material():
     m.set_editor_property("used_with_morph_targets", True)
     m.set_editor_property("used_with_clothing", True)
     g = Graph(m)
-    td = g.e(unreal.MaterialExpressionTextureSample, texture=diff)
-    tn = g.e(unreal.MaterialExpressionTextureSample, texture=norm, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
-    rgb = g.e(unreal.MaterialExpressionComponentMask, r=True, g=True, b=True)
-    g.link(td, "RGB", rgb, "")
-    masks = g.custom(SKIN_HLSL, [("C", (rgb, ""))], unreal.CustomMaterialOutputType.CMOT_FLOAT4, "SkinKnitMasks")
+    if diff is None or norm is None:
+        raise RuntimeError("grandma textures missing (run import_grandma.py)")
+    td = g.e(unreal.MaterialExpressionTextureSampleParameter2D, parameter_name="Diffuse")
+    td.set_editor_property("texture", diff)
+    tn = g.e(unreal.MaterialExpressionTextureSampleParameter2D, parameter_name="Normal")
+    tn.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    tn.set_editor_property("texture", norm)
+    if td.get_editor_property("texture") is None or tn.get_editor_property("texture") is None:
+        raise RuntimeError("texture assignment did not stick")
+    masks = g.custom(SKIN_HLSL, [("C", (td, "RGB"))], unreal.CustomMaterialOutputType.CMOT_FLOAT4, "SkinKnitMasks")
     skin = g.e(unreal.MaterialExpressionComponentMask, r=True)
     g.link(masks, "", skin, "")
     knit = g.e(unreal.MaterialExpressionComponentMask, g=True)
@@ -60,13 +65,13 @@ def grandma_material():
     g.link(skin, "", mfp, "B")
     fuzz = g.e(unreal.MaterialExpressionMultiply)
     g.link(knit, "", fuzz, "A")
-    g.link(g.scalar("KnitFuzz", 0.75), "", fuzz, "B")
+    g.link(g.scalar("KnitFuzz", 0.45), "", fuzz, "B")
     rough = g.e(unreal.MaterialExpressionLinearInterpolate)
     g.link(g.const(0.62), "", rough, "A")
     g.link(g.const(0.48), "", rough, "B")
     g.link(skin, "", rough, "Alpha")
-    s = g.slab(albedo=(rgb, ""), normal=(tn, "RGB"), roughness=(rough, ""), sss_mfp=(mfp, ""), sss_mfp_scale=(g.scalar("SkinMFPScale", 0.35), ""),
-               fuzz_amount=(fuzz, ""), fuzz_color=(rgb, ""), fuzz_roughness=(g.const(0.5), ""))
+    s = g.slab(albedo=(td, "RGB"), normal=(tn, "RGB"), roughness=(rough, ""), sss_mfp=(mfp, ""), sss_mfp_scale=(g.scalar("SkinMFPScale", 0.12), ""),
+               fuzz_amount=(fuzz, ""), fuzz_color=(td, "RGB"), fuzz_roughness=(g.const(0.5), ""))
     g.front(s)
     return g.finish()
 

@@ -484,6 +484,11 @@ void AStreetballWorld::UpdateCaptureSchedule()
 			for (const FString& P : Parts) Drops.Add(FCString::Atof(*P));
 		}
 		FParse::Value(FCommandLine::Get(), TEXT("StreetballQuitAfter="), QuitAfter);
+		if (Jobs.Num() > 0)
+		{
+			// capture cameras cut every job; motion blur would smear those frames
+			if (IConsoleVariable* MB = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MotionBlurQuality"))) MB->Set(0, ECVF_SetByCode);
+		}
 	}
 	UWorld* W = GetWorld();
 	if (!W || !W->IsGameWorld() || !Camera) return;
@@ -512,9 +517,9 @@ void AStreetballWorld::UpdateCaptureSchedule()
 		bool bOverride = true;
 		const FVector3d Fwd(S.HeadingFwd.X, S.HeadingFwd.Y, 0.0), Left(S.HeadingLeft.X, S.HeadingLeft.Y, 0.0);
 		if (J.View == TEXT("close")) { const FVector3d Head = S.PelvisPos + FVector3d(0, 0, 0.66); From = Head + 1.15 * Fwd + 0.4 * Left + FVector3d(0, 0, 0.04); To = Head - FVector3d(0, 0, 0.02); }
-		else if (J.View == TEXT("body")) { From = S.PelvisPos + 2.7 * Fwd + 1.3 * Left + FVector3d(0, 0, 0.2); To = S.PelvisPos + FVector3d(0, 0, -0.05); }
+		else if (J.View == TEXT("body")) { From = S.PelvisPos + 3.6 * Fwd + 1.6 * Left + FVector3d(0, 0, 0.35); To = S.PelvisPos + FVector3d(0, 0, -0.1); }
 		else if (J.View == TEXT("hoop")) { From = FVector3d(9.2, -2.4, 3.55); To = FVector3d(12.42, 0.0, 2.75); }
-		else if (J.View == TEXT("high")) { From = FVector3d(-4.0, -36.0, 17.0); To = FVector3d(0.0, -4.0, 0.0); }
+		else if (J.View == TEXT("high")) { From = FVector3d(-26.0, -23.0, 21.0); To = FVector3d(0.0, 0.0, 0.0); }
 		else if (J.View == TEXT("street")) { From = FVector3d(-9.0, -12.2, 1.7); To = FVector3d(6.0, -24.0, 4.5); }
 		else bOverride = false;
 		if (bOverride)
