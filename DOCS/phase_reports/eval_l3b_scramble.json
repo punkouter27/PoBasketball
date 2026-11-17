@@ -1,22 +1,22 @@
 {
   "level": "l3b_scramble",
-  "checkpoint": "C:\\Users\\punko\\Downloads\\_CODEMATT\\PoBasketball\\sim\\runs\\l3b_scramble_n11q2\\model.pt",
+  "checkpoint": "C:\\Users\\punko\\Downloads\\_CODEMATT\\PoBasketball\\sim\\runs\\l3b_scramble_n16bq2\\model.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 150.0,
-  "success_rate": 0.8149999976158142,
+  "success_rate": 0.949999988079071,
   "pass_fraction": 0.8,
-  "passed": false,
-  "holds_100_straight": false,
+  "passed": true,
+  "holds_100_straight": true,
   "nan_grads": 0,
   "interface_sha": "ccfa18d6f9aaf2a5",
   "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
-  "fall_rate": 0.03500000014901161,
-  "mean_episode_s": 4.51669979095459,
+  "fall_rate": 0.014999999664723873,
+  "mean_episode_s": 4.841100215911865,
   "metrics": {
-    "m/regained": 0.5019440650939941,
-    "m/ball_dist": 0.9350720643997192,
-    "m/reach": 0.3666051924228668
+    "m/regained": 0.6250057220458984,
+    "m/ball_dist": 0.9167671799659729,
+    "m/reach": 0.5884931087493896
   },
-  "wall_s": 7.1018112000019755
+  "wall_s": 5.42792229999759
 }

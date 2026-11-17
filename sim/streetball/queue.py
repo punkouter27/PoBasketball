@@ -52,12 +52,12 @@ PLANS = {
     ],
     # 2026-11-16, 10 h, fresh clone (old sim/runs lost): both families restart from the production locomotion
     # actor, rebuilt from shared/policies/locomotion.onnx by tools/onnx_to_ckpt.py. Scramble first (it reached
-    # 81.5 % last time); dribble re-walks its lineage dribble_r -> cycles -> push. Run with --tag n16.
+    # 81.5 % last time); dribble re-walks its lineage dribble_r -> cycles -> push. {tag} = --tag.
     "grandma_20261116": [
         ("l3b_scramble", "scramble", 150, [], "l3b_scramble", "runs/production/locomotion.pt"),
         ("l2a_dribble_r", None, 75, ["--push-max", "80"], "l2a_dribble_r", "runs/production/locomotion.pt"),
-        ("l2a_cycles", None, 90, ["--push-max", "80"], "l2a_dribble_r", "runs/l2a_dribble_r_n16q1/model.pt"),
-        ("l2a_push", "dribble", 120, ["--push-max", "80"], "l2a_dribble_r", "runs/l2a_cycles_n16q1/model.pt"),
+        ("l2a_cycles", None, 90, ["--push-max", "80"], "l2a_dribble_r", "runs/l2a_dribble_r_{tag}q1/model.pt"),
+        ("l2a_push", "dribble", 120, ["--push-max", "80"], "l2a_dribble_r", "runs/l2a_cycles_{tag}q1/model.pt"),
         ("l3b_scramble", "scramble", 60, [], "l3b_scramble", None),
         ("l2a_push", "dribble", None, ["--push-max", "80"], "l2a_dribble_r", None),
     ],
@@ -215,7 +215,10 @@ class Queue:
                 self.log(f"skipping {level}: only {self.minutes_left():.0f} min left")
                 continue
             attempts[level] = attempts.get(level, 0) + 1
-            init_path = str(ROOT / init) if init else None
+            init_path = str(ROOT / init.format(tag=self.tag)) if init else None
+            if init_path and not pathlib.Path(init_path).exists():
+                self.log(f"skipping {level}: init checkpoint {init_path} missing")
+                continue
             self.train_stage(level, family, budget, extra, attempts[level], eval_level, init_path)
         self.log("plan finished; writing the final report")
         self.write_manifest()

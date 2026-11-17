@@ -1,0 +1,15 @@
+{
+  "checkpoint": "C:\\Users\\punko\\Downloads\\_CODEMATT\\PoBasketball\\sim\\runs\\l3b_scramble_n16bq2\\model.pt",
+  "obs_spec_sha256_16": "ccfa18d6f9aaf2a5",
+  "n_obs": 119,
+  "n_action": 27,
+  "opset": 17,
+  "ort_vs_torch_max_abs_diff": 2.7045607566833496e-06,
+  "input": "obs[1,119]",
+  "output": "action[1,27] in [-1,1]",
+  "level": "l3b_scramble",
+  "interface_sha": "ccfa18d6f9aaf2a5",
+  "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
+  "train_steps": 114819072,
+  "nan_grads": 0
+}

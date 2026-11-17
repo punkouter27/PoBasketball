@@ -101,3 +101,10 @@ high shot is built and tested but has no clean screenshot (the capture grabbed t
 return about 67, 0 NaN batches. Only 3.3k fps (the GPU was shared with another job), about 10x slower than the
 morning run. Not evaluated (no realistic chance at the gate after so few steps); no export, production unchanged.
 Tiers 3-5 still need the full queue: `uv run python -m streetball.queue --hours 10 --plan grandma_20261116 --tag n16`.
+
+## 20:38 — full 10 h queue relaunched (user: "training for next 10 hours")
+
+`sim/runs/queue_n16b_20261116.ps1` (hidden, WMI) -> `uv run python -m streetball.queue --hours 10 --plan grandma_20261116 --tag n16b`.
+New tag `n16b` so the morning `n16q1`/`n16q2` runs are kept. Deadline about 06:38 (Nov 17). Output
+`sim/runs/queue_n16b_20261116.txt`; hourly status `DOCS/20261116/hourly_status.md`. First iterations: about 48k fps,
+0 NaN, same interface/physics SHA. No UE editor or C++ build while it runs.
