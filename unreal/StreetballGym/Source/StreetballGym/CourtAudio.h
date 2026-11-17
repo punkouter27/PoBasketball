@@ -18,10 +18,16 @@ enum class ECourtSound : uint8
 	BallRim,
 	BallBoard,
 	NetRattle,
+	CrowdCheer,     // presentation events (make / swish / save)
+	CrowdGroan,     // miss / fall
+	Grunt,          // grandma effort on jumps
 	Count UMETA(Hidden)
 };
 
-/** PRD 3.2 sound mapping. Placeholder waves come from Scripts/make_audio_assets.py; swap in real samples here. */
+/**
+ * PRD 3.2 sound mapping. Slots hold MetaSound sources (Scripts/make_metasounds.py) that read the float input
+ * "Impact" (0..1, impact speed / SpeedForFullVolume); plain sound waves still work and ignore it.
+ */
 UCLASS(BlueprintType)
 class STREETBALLGYM_API UCourtAudioBank : public UDataAsset
 {
@@ -33,6 +39,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Sounds") TObjectPtr<USoundBase> BallRim;
 	UPROPERTY(EditAnywhere, Category = "Sounds") TObjectPtr<USoundBase> BallBoard;
 	UPROPERTY(EditAnywhere, Category = "Sounds") TObjectPtr<USoundBase> NetRattle;
+	UPROPERTY(EditAnywhere, Category = "Sounds") TObjectPtr<USoundBase> CrowdCheer;
+	UPROPERTY(EditAnywhere, Category = "Sounds") TObjectPtr<USoundBase> CrowdGroan;
+	UPROPERTY(EditAnywhere, Category = "Sounds") TObjectPtr<USoundBase> Grunt;
+	/** Looping city soundscape (MetaSound), started once at setup, 2D. */
+	UPROPERTY(EditAnywhere, Category = "Sounds") TObjectPtr<USoundBase> Ambience;
+	UPROPERTY(EditAnywhere, Category = "Mapping") float AmbienceVolume = 0.6f;
 	/** Impact speed (m/s) that maps to full volume. */
 	UPROPERTY(EditAnywhere, Category = "Mapping") float SpeedForFullVolume = 8.f;
 	UPROPERTY(EditAnywhere, Category = "Mapping") float MinVolume = 0.15f;
@@ -87,10 +99,14 @@ class STREETBALLGYM_API FCourtAudioPlayer
 public:
 	void Initialize(AActor* Owner, UCourtAudioBank* InBank, int32 PoolSize = 8);
 	void Play(const FCourtAudioEvent& E);
+	/** Start the looping ambience (2D). Call once after Initialize. */
+	void StartAmbience(AActor* Owner);
 	bool HasBank() const { return Bank != nullptr; }
+	bool IsAmbiencePlaying() const;
 	int32 PlayedCount = 0;
 private:
 	TWeakObjectPtr<UCourtAudioBank> Bank;
 	TArray<TWeakObjectPtr<UAudioComponent>> Pool;
+	TWeakObjectPtr<UAudioComponent> AmbienceComp;
 	int32 Next = 0;
 };

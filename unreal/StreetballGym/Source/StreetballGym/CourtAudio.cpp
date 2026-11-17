@@ -15,6 +15,9 @@ USoundBase* UCourtAudioBank::SoundFor(ECourtSound S) const
 	case ECourtSound::BallRim: return BallRim;
 	case ECourtSound::BallBoard: return BallBoard;
 	case ECourtSound::NetRattle: return NetRattle;
+	case ECourtSound::CrowdCheer: return CrowdCheer;
+	case ECourtSound::CrowdGroan: return CrowdGroan;
+	case ECourtSound::Grunt: return Grunt;
 	default: return nullptr;
 	}
 }
@@ -125,5 +128,28 @@ void FCourtAudioPlayer::Play(const FCourtAudioEvent& E)
 	AC->SetSound(Snd);
 	AC->SetVolumeMultiplier(E.Volume);
 	AC->SetPitchMultiplier(E.Pitch);
+	// MetaSound input; ignored by plain waves.
+	AC->SetFloatParameter(TEXT("Impact"), FMath::Clamp(E.Speed / FMath::Max(Bank->SpeedForFullVolume, 0.1f), 0.f, 1.f));
 	AC->Play();
+}
+
+void FCourtAudioPlayer::StartAmbience(AActor* Owner)
+{
+	if (!Owner || !Bank.IsValid() || !Bank->Ambience) return;
+	UAudioComponent* AC = NewObject<UAudioComponent>(Owner, TEXT("CourtAmbience"));
+	AC->bAutoActivate = false;
+	AC->bAllowSpatialization = false;
+	AC->bIsUISound = false;
+	AC->SetupAttachment(Owner->GetRootComponent());
+	AC->RegisterComponent();
+	AC->SetSound(Bank->Ambience);
+	AC->SetVolumeMultiplier(Bank->AmbienceVolume);
+	AC->Play();
+	AmbienceComp = AC;
+}
+
+bool FCourtAudioPlayer::IsAmbiencePlaying() const
+{
+	const UAudioComponent* AC = AmbienceComp.Get();
+	return AC && AC->IsPlaying();
 }

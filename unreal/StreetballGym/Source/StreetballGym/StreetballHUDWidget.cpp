@@ -84,6 +84,17 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 		BotSlot->SetPosition(FVector2D(0.f, -StreetballUiTheme::SafeAreaMargin));
 		BotSlot->SetAutoSize(true);
 
+		// Voice subtitle (bottom-centre, above the hint bar)
+		SubtitleText = MakeStyledText(TEXT("Subtitle"), StreetballUiTheme::FontL, StreetballUiTheme::AccentGold);
+		SubtitleText->SetShadowOffset(FVector2D(1.f, 1.f));
+		SubtitleText->SetShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.85f));
+		SubtitleText->SetVisibility(ESlateVisibility::Collapsed);
+		UCanvasPanelSlot* SubSlot = Canvas->AddChildToCanvas(SubtitleText);
+		SubSlot->SetAnchors(FAnchors(0.5f, 1.f));
+		SubSlot->SetAlignment(FVector2D(0.5f, 1.f));
+		SubSlot->SetPosition(FVector2D(0.f, -StreetballUiTheme::SafeAreaMargin - 40.f));
+		SubSlot->SetAutoSize(true);
+
 		// Anchor 5: UU_AGENT build stamp: compile date as YYMMDD, bottom-right corner.
 		UTextBlock* Stamp = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("BuildStamp"));
 		FSlateFontInfo SF = Stamp->GetFont();
@@ -207,4 +218,24 @@ int32 UStreetballHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		FSlateDrawElement::MakeLines(Out, LayerId + 2, Geo.ToPaintGeometry(), Arc, ESlateDrawEffect::None, FLinearColor(1.f, 0.45f, 0.25f, 0.95f), true, 6.f);
 	}
 	return LayerId + 2;
+}
+
+void UStreetballHUDWidget::SetSubtitle(const FString& Text)
+{
+	if (!SubtitleText) return;
+	if (Text.IsEmpty())
+	{
+		if (!LastSubtitle.IsEmpty()) SubtitleText->SetVisibility(ESlateVisibility::Collapsed);
+		LastSubtitle.Reset();
+		return;
+	}
+	if (Text == LastSubtitle) return;
+	LastSubtitle = Text;
+	SubtitleText->SetText(FText::FromString(FString::Printf(TEXT("Grandma: \"%s\""), *Text)));
+	SubtitleText->SetVisibility(ESlateVisibility::HitTestInvisible);
+}
+
+FString UStreetballHUDWidget::GetSubtitle() const
+{
+	return LastSubtitle;
 }

@@ -24,6 +24,9 @@ public:
 	void UpdateTelemetry(const FString& ModeLabel, const FString& CameraLabel, const FString& PolicyLabel,
 	                     int32 Seed, float EpisodeReward, int32 NanInfCount, float Fps, bool bPaused, bool bFallbackPolicy);
 	void SetTelemetryVisible(bool bVisible);
+	/** Grandma voice subtitle above the bottom bar; empty hides it. */
+	void SetSubtitle(const FString& Text);
+	FString GetSubtitle() const;
 	bool IsTelemetryVisible() const { return bTelemetryVisible; }
 	/** Compile date as YYMMDD for the UU_AGENT build stamp. */
 	static FString BuildStampYYMMDD();
@@ -58,6 +61,8 @@ protected:
 	UPROPERTY() TObjectPtr<UTextBlock> PolicyFpsText;
 	UPROPERTY() TObjectPtr<UTextBlock> TelemetryText;
 	UPROPERTY() TObjectPtr<UTextBlock> BottomBarText;
+	UPROPERTY() TObjectPtr<UTextBlock> SubtitleText;
+	FString LastSubtitle;
 
 	bool bLoose = false;
 	bool bTelemetryVisible = true;

@@ -21,6 +21,11 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/Paths.h"
 #include "UObject/ConstructorHelpers.h"
+#include "GroomComponent.h"
+#include "UnrealClient.h"
+#include "EngineUtils.h"
+#include "GroomAsset.h"
+#include "GroomBindingAsset.h"
 
 // ---------------------------------------------------------------------------- character
 AStreetballCharacter::AStreetballCharacter()
@@ -49,20 +54,77 @@ FString AStreetballCharacter::ApplyMainCharacterMesh()
 	FParse::Value(FCommandLine::Get(), TEXT("StreetballCharacter="), Which);
 	if (!Which.Equals(TEXT("Manny"), ESearchCase::IgnoreCase))
 	{
-		if (USkeletalMesh* Grandma = LoadObject<USkeletalMesh>(nullptr, GrandmaMeshPath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+		// Override first (MetaHuman body or any UE5-skeleton mesh), then the cloth grandma, then the plain grandma.
+		TArray<FString, TInlineAllocator<3>> Candidates;
+		FString Override;
+		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballCharacterMesh="), Override) && !Override.IsEmpty()) Candidates.Add(Override);
+		if (!FParse::Param(FCommandLine::Get(), TEXT("StreetballNoCloth"))) Candidates.Add(GrandmaClothMeshPath);
+		Candidates.Add(GrandmaMeshPath);
+		bool bFound = false;
+		for (const FString& Path : Candidates)
 		{
-			// Same mannequin bone names and bind joints as Manny, also faces mesh +Y: the -90 deg yaw still applies.
-			Mesh->SetSkeletalMeshAsset(Grandma);
+			if (USkeletalMesh* SM = LoadObject<USkeletalMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet))
+			{
+				// Same mannequin bone names and bind joints as Manny, also faces mesh +Y: the -90 deg yaw still applies.
+				Mesh->SetSkeletalMeshAsset(SM);
+				bFound = true;
+				break;
+			}
 		}
-		else
-		{
-			UE_LOG(LogStreetball, Log, TEXT("Character: %s not imported yet, using Manny"), GrandmaMeshPath);
-		}
+		if (!bFound) UE_LOG(LogStreetball, Log, TEXT("Character: %s not imported yet, using Manny"), GrandmaMeshPath);
 	}
 	const USkeletalMesh* InUse = Mesh->GetSkeletalMeshAsset();
 	const FString Name = InUse ? InUse->GetName() : FString(TEXT("none"));
-	UE_LOG(LogStreetball, Log, TEXT("Character mesh: %s"), *Name);
+	UE_LOG(LogStreetball, Log, TEXT("Character mesh: %s (cloth %s)"), *Name, HasCloth() ? TEXT("yes") : TEXT("no"));
 	return Name;
+}
+
+bool AStreetballCharacter::HasCloth() const
+{
+	USkeletalMesh* SM = Mesh ? Mesh->GetSkeletalMeshAsset() : nullptr;
+	return SM && SM->GetMeshClothingAssets().Num() > 0;
+}
+
+int32 AStreetballCharacter::NumGrooms() const
+{
+	int32 N = 0;
+	for (const UGroomComponent* G : Grooms) N += (G && G->GroomAsset) ? 1 : 0;
+	return N;
+}
+
+void AStreetballCharacter::AttachExtras()
+{
+	const USkeletalMesh* SM = Mesh->GetSkeletalMeshAsset();
+	if (!SM || !SM->GetName().StartsWith(TEXT("SK_Grandma")) || FParse::Param(FCommandLine::Get(), TEXT("StreetballNoGroom"))) return;
+	// Strands are authored in the grandma's bind-pose mesh space. With a binding asset they skin with the mesh;
+	// without one they ride rigidly on the head bone (offset = inverse of the head's bind transform).
+	const FReferenceSkeleton& Ref = SM->GetRefSkeleton();
+	FTransform HeadCS = FTransform::Identity;
+	for (int32 b = Ref.FindBoneIndex(TEXT("head")); b != INDEX_NONE; b = Ref.GetParentIndex(b)) HeadCS = HeadCS * Ref.GetRefBonePose()[b];
+	const TCHAR* Paths[2] = { GroomFlyawaysPath, GroomBrowsPath };
+	for (int32 i = 0; i < 2; ++i)
+	{
+		UGroomAsset* GA = LoadObject<UGroomAsset>(nullptr, Paths[i], nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!GA) continue;
+		const FString BindingPath = FString(Paths[i]).Replace(TEXT("GR_"), TEXT("GB_"));
+		UGroomBindingAsset* Binding = LoadObject<UGroomBindingAsset>(nullptr, *BindingPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		UGroomComponent* G = NewObject<UGroomComponent>(this, *FString::Printf(TEXT("Groom%d"), i));
+		G->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (Binding)
+		{
+			G->SetupAttachment(Mesh);
+			G->SetGroomAsset(GA, Binding);
+		}
+		else
+		{
+			G->SetupAttachment(Mesh, TEXT("head"));
+			G->SetRelativeTransform(HeadCS.Inverse());
+			G->SetGroomAsset(GA);
+		}
+		G->RegisterComponent();
+		Grooms.Add(G);
+		UE_LOG(LogStreetball, Log, TEXT("Character groom: %s (%s)"), *GA->GetName(), Binding ? TEXT("bound to mesh") : TEXT("rigid on head"));
+	}
 }
 
 // ---------------------------------------------------------------------------- geom actor
@@ -82,6 +144,26 @@ AStreetballWorld::AStreetballWorld()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickGroup = TG_PrePhysics;
+	// Substrate court materials (Scripts/make_court_materials.py). Prefix match on the MJCF geom name, longest wins.
+	GeomMaterialOverrides.Add(TEXT("floor"), TEXT("/Game/Art/Materials/MI_CourtAsphalt.MI_CourtAsphalt"));
+	GeomMaterialOverrides.Add(TEXT("ball"), TEXT("/Game/Art/Materials/MI_Basketball.MI_Basketball"));
+	GeomMaterialOverrides.Add(TEXT("rim_bracket"), TEXT("/Game/Art/Materials/MI_SteelPaint.MI_SteelPaint"));
+	GeomMaterialOverrides.Add(TEXT("rim_"), TEXT("/Game/Art/Materials/MI_RimPaint.MI_RimPaint"));
+	GeomMaterialOverrides.Add(TEXT("board_"), TEXT("/Game/Art/Materials/MI_Backboard.MI_Backboard"));
+	GeomMaterialOverrides.Add(TEXT("pole_"), TEXT("/Game/Art/Materials/MI_SteelPaint.MI_SteelPaint"));
+	GeomMaterialOverrides.Add(TEXT("arm_"), TEXT("/Game/Art/Materials/MI_SteelPaint.MI_SteelPaint"));
+	GeomMaterialOverrides.Add(TEXT("fence_"), TEXT("/Game/Art/Materials/MI_ChainLink.MI_ChainLink"));
+}
+
+UMaterialInterface* AStreetballWorld::MaterialOverrideFor(const FString& GeomName) const
+{
+	UMaterialInterface* Best = nullptr;
+	int32 BestLen = -1;
+	for (const TPair<FString, TObjectPtr<UMaterialInterface>>& P : LoadedOverrides)
+	{
+		if (P.Value && P.Key.Len() > BestLen && GeomName.StartsWith(P.Key)) { Best = P.Value; BestLen = P.Key.Len(); }
+	}
+	return Best;
 }
 
 void AStreetballWorld::BeginPlay()
@@ -193,6 +275,16 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		}
 	}
 
+	LoadedOverrides.Reset();
+	MaterialOverrideCount = 0;
+	if (bPresentation && !FParse::Param(FCommandLine::Get(), TEXT("StreetballNoPresentation")))
+	{
+		for (const TPair<FString, FString>& P : GeomMaterialOverrides)
+		{
+			if (UMaterialInterface* MI = LoadObject<UMaterialInterface>(nullptr, *P.Value, nullptr, LOAD_NoWarn | LOAD_Quiet)) LoadedOverrides.Add(P.Key, MI);
+		}
+	}
+
 	GeomActors.Reset();
 	const int32 NG = Sim->NumGeoms();
 	for (int32 g = 0; g < NG; ++g)
@@ -215,7 +307,12 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		// Textured MJCF materials (the asphalt floor) keep the engine material.
 		const bool bMjcfMaterial = Sim->GetModel()->geom_matid[g] >= 0;
 		UMaterialInterface* Base = bMjcfMaterial ? A->Mesh->GetMaterial(0) : ShapeMaterial;
-		if (Base && !bMjcfMaterial)
+		if (UMaterialInterface* Override = bHumanoid ? nullptr : MaterialOverrideFor(Sim->GeomName(g)))
+		{
+			A->Mesh->SetMaterial(0, Override);
+			++MaterialOverrideCount;
+		}
+		else if (Base && !bMjcfMaterial)
 		{
 			if (UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, A))
 			{
@@ -236,6 +333,7 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	BoneMapper = NewObject<UMuJoCoBoneMapper>(this, TEXT("BoneMapper"));
 	Character->ApplyMainCharacterMesh();
 	BoneMapper->Initialize(Character->Mesh, Sim, Streetball::HumanoidSpecPath());
+	if (bPresentation && !FParse::Param(FCommandLine::Get(), TEXT("StreetballNoPresentation"))) Character->AttachExtras();
 	Tracker = NewObject<UStreetballTracker>(this, TEXT("Tracker"));
 	Director = NewObject<UStreetballDirector>(this, TEXT("Director"));
 
@@ -318,6 +416,7 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	AudioProc.Initialize(Sim);
 	if (AudioBank) { AudioProc.SpeedForFullVolume = AudioBank->SpeedForFullVolume; AudioProc.MinVolume = AudioBank->MinVolume; AudioProc.PitchRange = AudioBank->PitchRange; }
 	AudioPlayer.Initialize(this, AudioBank, 8);
+	SetupPresentation();
 
 	Clock->Initialize(Sim, 10);
 	Clock->OnControlStep.BindUObject(this, &AStreetballWorld::OnControlStep);
@@ -333,6 +432,211 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	UE_LOG(LogStreetball, Log, TEXT("World ready: %d geom actors, %d trained policies (%s), fallback %s"),
 		GeomActors.Num(), RealPolicies.Num(), *FString::Join(RealPolicies, TEXT(",")), Fallback ? TEXT("loaded") : TEXT("none"));
 	return true;
+}
+
+namespace
+{
+	/** One capture job from -StreetballCapture=<t>:<dur>:<fps>:<view>:<name>+... (dur 0 = a single still). */
+	struct FCaptureJob
+	{
+		float T = 0.f, Dur = 0.f, Fps = 10.f;
+		FString View, Name;
+		int32 Frame = 0;
+		float NextT = 0.f;
+	};
+}
+
+void AStreetballWorld::UpdateCaptureSchedule()
+{
+	// Deterministic captures for the UU_AGENT before/after reports and the feature page (SCREENSHOTS/):
+	//   -StreetballCapture=8:0:0:close:face+12:4:12:hoop:drop   -> Saved/Screenshots/cap_<name>_<frame>.png
+	//   views: bc (broadcast, untouched), close (face), body (full body), hoop (east rim), high (neighbourhood), street
+	//   -StreetballDemoDrop=12,30   drop the ball onto the east rim through the normal reset API (real contacts)
+	//   -StreetballQuitAfter=40
+	static bool bParsed = false;
+	static TArray<FCaptureJob> Jobs;
+	static TArray<float> Drops;
+	static float QuitAfter = -1.f;
+	if (!bParsed)
+	{
+		bParsed = true;
+		FString List;
+		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballCapture="), List, false))
+		{
+			TArray<FString> Items;
+			List.ParseIntoArray(Items, TEXT("+"));
+			for (const FString& It : Items)
+			{
+				TArray<FString> F;
+				It.ParseIntoArray(F, TEXT(":"), false);
+				if (F.Num() < 5) continue;
+				FCaptureJob J;
+				J.T = FCString::Atof(*F[0]); J.Dur = FCString::Atof(*F[1]); J.Fps = FMath::Max(1.f, FCString::Atof(*F[2]));
+				J.View = F[3]; J.Name = F[4]; J.NextT = J.T;
+				Jobs.Add(J);
+			}
+		}
+		FString DropList;
+		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballDemoDrop="), DropList, false))
+		{
+			TArray<FString> Parts;
+			DropList.ParseIntoArray(Parts, TEXT(","));
+			for (const FString& P : Parts) Drops.Add(FCString::Atof(*P));
+		}
+		FParse::Value(FCommandLine::Get(), TEXT("StreetballQuitAfter="), QuitAfter);
+	}
+	UWorld* W = GetWorld();
+	if (!W || !W->IsGameWorld() || !Camera) return;
+	const float T = W->GetTimeSeconds();
+
+	for (int32 i = Drops.Num() - 1; i >= 0; --i)
+	{
+		if (T < Drops[i]) continue;
+		FStreetballResetSpec Spec;
+		Spec.bRequested = true;
+		Spec.bPlaceBall = true;
+		Spec.BallPos = FVector3d(12.425 - 0.21, 0.06, 4.6);
+		Spec.Reason = TEXT("demo: ball dropped onto the east rim");
+		ApplyReset(Spec);
+		Drops.RemoveAt(i);
+	}
+
+	const FTrackedState& S = Tracker->State();
+	const auto ToUE = [](const FVector3d& P) { return FVector(P.X * 100.0, -P.Y * 100.0, P.Z * 100.0); };
+	for (FCaptureJob& J : Jobs)
+	{
+		const bool bActive = T >= J.T - 0.6f && T <= J.T + J.Dur + 0.05f && J.Frame >= 0;
+		if (!bActive) continue;
+		// camera override (applied after the broadcast camera's own update this frame)
+		FVector3d From, To;
+		bool bOverride = true;
+		const FVector3d Fwd(S.HeadingFwd.X, S.HeadingFwd.Y, 0.0), Left(S.HeadingLeft.X, S.HeadingLeft.Y, 0.0);
+		if (J.View == TEXT("close")) { const FVector3d Head = S.PelvisPos + FVector3d(0, 0, 0.66); From = Head + 1.15 * Fwd + 0.4 * Left + FVector3d(0, 0, 0.04); To = Head - FVector3d(0, 0, 0.02); }
+		else if (J.View == TEXT("body")) { From = S.PelvisPos + 2.7 * Fwd + 1.3 * Left + FVector3d(0, 0, 0.2); To = S.PelvisPos + FVector3d(0, 0, -0.05); }
+		else if (J.View == TEXT("hoop")) { From = FVector3d(9.2, -2.4, 3.55); To = FVector3d(12.42, 0.0, 2.75); }
+		else if (J.View == TEXT("high")) { From = FVector3d(-4.0, -36.0, 17.0); To = FVector3d(0.0, -4.0, 0.0); }
+		else if (J.View == TEXT("street")) { From = FVector3d(-9.0, -12.2, 1.7); To = FVector3d(6.0, -24.0, 4.5); }
+		else bOverride = false;
+		if (bOverride)
+		{
+			const FVector P = ToUE(From);
+			Camera->SetActorLocationAndRotation(P, FRotationMatrix::MakeFromX(ToUE(To) - P).Rotator());
+		}
+		if (T >= J.NextT && T >= J.T)
+		{
+			const FString File = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Screenshots"),
+				FString::Printf(TEXT("cap_%s_%03d.png"), *J.Name, J.Frame)));
+			FScreenshotRequest::RequestScreenshot(File, true, false);
+			if (J.Frame == 0)
+			{
+				UE_LOG(LogStreetball, Log, TEXT("Capture %s (%s) starts at %.1f s, state %s"), *J.Name, *J.View, T, *UStreetballDirector::StateName(Director->GetState()));
+			}
+			++J.Frame;
+			J.NextT = J.T + J.Frame / J.Fps;
+			if (J.Dur <= 0.f) J.Frame = -1 - J.Frame;      // a still: done
+		}
+	}
+
+	if (QuitAfter > 0.f && T >= QuitAfter)
+	{
+		QuitAfter = -1.f;
+		UE_LOG(LogStreetball, Log, TEXT("Capture schedule done: voice lines %d, fx bursts %d, net kicks %d, makes %d, misses %d, scrambles %d, saves %d, jumps %d"),
+			Voice.GetLinesPlayed(), FXPlayer.PlayedCount, FXPlayer.NetKicks, PresentationCounts[(int32)EPresentationEvent::Make],
+			PresentationCounts[(int32)EPresentationEvent::Miss], PresentationCounts[(int32)EPresentationEvent::ScrambleStart],
+			PresentationCounts[(int32)EPresentationEvent::ScrambleSave], PresentationCounts[(int32)EPresentationEvent::Jump]);
+		FPlatformMisc::RequestExit(false);
+	}
+}
+
+void AStreetballWorld::SetupPresentation()
+{
+	EventDetector.Reset();
+	PendingPresentation.Reset();
+	PendingPresentation.Reserve(32);
+	for (int32& N : PresentationCounts) N = 0;
+	if (!bPresentation || FParse::Param(FCommandLine::Get(), TEXT("StreetballNoPresentation")))
+	{
+		// also hide the PCG neighbourhood (its generated instances are components of the tagged volume)
+		if (UWorld* W = GetWorld())
+		{
+			for (TActorIterator<AActor> It(W); It; ++It)
+			{
+				if (It->ActorHasTag(TEXT("StreetballNeighbourhood"))) It->SetActorHiddenInGame(true);
+			}
+		}
+		UE_LOG(LogStreetball, Log, TEXT("Presentation: off"));
+		return;
+	}
+	const FTrackedState& S = Tracker->State();
+	const FVector Rims[2] = {
+		FVector(S.RimPos[0].X * 100.0, -S.RimPos[0].Y * 100.0, S.RimPos[0].Z * 100.0),
+		FVector(S.RimPos[1].X * 100.0, -S.RimPos[1].Y * 100.0, S.RimPos[1].Z * 100.0) };
+	FXBank = FXBankPath.IsEmpty() ? nullptr : LoadObject<UCourtFXBank>(nullptr, *FXBankPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	FXPlayer.Initialize(this, FXBank, Rims, 4);
+	VoiceBank = VoiceBankPath.IsEmpty() ? nullptr : LoadObject<UGrandmaVoiceBank>(nullptr, *VoiceBankPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	// The CC face morphs live on the grandma body mesh; other skins simply ignore unknown morph names.
+	Voice.Initialize(this, Character ? Character->GetFaceMesh() : nullptr, VoiceBank, DirectorSeed);
+	AudioPlayer.StartAmbience(this);
+	UE_LOG(LogStreetball, Log, TEXT("Presentation: fx bank %s, voice %d lines, ambience %s, %d material overrides, grooms %d, cloth %s"),
+		FXBank ? TEXT("loaded") : TEXT("missing"), VoiceBank ? VoiceBank->Lines.Num() : 0,
+		AudioPlayer.IsAmbiencePlaying() ? TEXT("on") : TEXT("off"), MaterialOverrideCount,
+		Character ? Character->NumGrooms() : 0, (Character && Character->HasCloth()) ? TEXT("yes") : TEXT("no"));
+}
+
+void AStreetballWorld::UpdatePresentation(float Dt)
+{
+	UWorld* W = GetWorld();
+	const double Now = W ? W->GetTimeSeconds() : 0.0;
+	const FTrackedState& S = Tracker->State();
+	const auto ToUE = [](const FVector3d& P) { return FVector(P.X * 100.0, -P.Y * 100.0, P.Z * 100.0); };
+	const auto NearestRim = [&S](const FVector3d& P) { return (P - S.RimPos[0]).SizeSquared() <= (P - S.RimPos[1]).SizeSquared() ? 0 : 1; };
+
+	// contact events -> bursts, net knocks, pigeons
+	for (const FCourtAudioEvent& E : PendingEvents)
+	{
+		FCourtFXCue Cue;
+		if (FXPlayer.GetMapping().FromAudioEvent(E, Cue)) FXPlayer.Play(Cue);
+		const FVector3d PSim(E.PositionUE.X / 100.0, -E.PositionUE.Y / 100.0, E.PositionUE.Z / 100.0);
+		if (E.Kind == ECourtSound::BallRim || E.Kind == ECourtSound::BallBoard) FXPlayer.KickNet(NearestRim(PSim), false, Now);
+		if (E.Kind == ECourtSound::BallFloor) FXPlayer.NotifyBallLanding(E.PositionUE, Now);
+	}
+
+	// game events -> voice, crowd, grunts, sweat, net swish
+	for (const EPresentationEvent Ev : PendingPresentation)
+	{
+		++PresentationCounts[(int32)Ev];
+		switch (Ev)
+		{
+		case EPresentationEvent::Make:
+			AudioPlayer.Play(AudioProc.MakeEvent(ECourtSound::CrowdCheer, S.Time, S.RimPos[NearestRim(S.BallPos)], 6.f, TEXT("crowd")));
+			FXPlayer.KickNet(NearestRim(S.BallPos), true, Now);
+			break;
+		case EPresentationEvent::Miss:
+		case EPresentationEvent::Fall:
+			AudioPlayer.Play(AudioProc.MakeEvent(ECourtSound::CrowdGroan, S.Time, S.PelvisPos, 4.f, TEXT("crowd")));
+			break;
+		case EPresentationEvent::ScrambleSave:
+		{
+			AudioPlayer.Play(AudioProc.MakeEvent(ECourtSound::CrowdCheer, S.Time, S.PelvisPos, 3.f, TEXT("crowd")));
+			FCourtFXCue Sweat; Sweat.Fx = ECourtFX::Sweat; Sweat.PositionUE = ToUE(S.PelvisPos) + FVector(0, 0, 85.0); Sweat.Scale = 1.f;
+			FXPlayer.Play(Sweat);
+			break;
+		}
+		case EPresentationEvent::Jump:
+		{
+			AudioPlayer.Play(AudioProc.MakeEvent(ECourtSound::Grunt, S.Time, S.PelvisPos + FVector3d(0, 0, 0.7), 5.f, TEXT("grunt")));
+			FCourtFXCue Sweat; Sweat.Fx = ECourtFX::Sweat; Sweat.PositionUE = ToUE(S.PelvisPos) + FVector(0, 0, 85.0); Sweat.Scale = 0.7f;
+			FXPlayer.Play(Sweat);
+			break;
+		}
+		default: break;
+		}
+		if (Voice.OnEvent(Ev, Now)) EventDetector.MarkActivity(S.Time);
+	}
+	PendingPresentation.Reset();
+
+	Voice.Tick(Now, Dt);
+	if (HUD) HUD->SetSubtitle(Now < Voice.GetSubtitleUntil() ? Voice.GetSubtitle() : FString());
 }
 
 void AStreetballWorld::ApplyReset(const FStreetballResetSpec& Spec)
@@ -371,6 +675,7 @@ void AStreetballWorld::ApplyReset(const FStreetballResetSpec& Spec)
 	Sim->SetQVel(VBuf);
 	Sim->SetCtrl(HoldCtrl);
 	Sim->Forward();
+	if (Character && Character->Mesh) Character->Mesh->ForceClothNextUpdateTeleportAndReset();
 	Tracker->ResetState();
 	Director->NotifyResetApplied(Tracker->State());
 	if (Director->GetProgress().ActiveTier >= 3) Tracker->GrantControl();   // ball starts at the hand
@@ -386,6 +691,7 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 	const double Dt = Clock ? Clock->GetTimestep() * Clock->GetSubstepsPerControl() : 0.02;
 	const FTrackedState& S = Tracker->Update(Dt);
 	Director->Update(S, Dt, DirOut);
+	EventDetector.Update(S, DirOut, Director->GetProgress(), Director->GetState(), PendingPresentation);   // pre-reserved, read only
 	if (DirOut.bScoreEvent)
 	{
 		FCourtAudioEvent E = AudioProc.MakeEvent(ECourtSound::NetRattle, S.Time, S.RimPos[0], 4.f, TEXT("score"));
@@ -490,6 +796,8 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 	}
 	UpdateVisuals();
 	UpdateCameraAndHUD(DeltaSeconds);
+	UpdatePresentation(DeltaSeconds);
+	UpdateCaptureSchedule();
 	for (const FCourtAudioEvent& E : PendingEvents)
 	{
 		AudioPlayer.Play(E);

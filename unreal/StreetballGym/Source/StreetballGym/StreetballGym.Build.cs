@@ -18,7 +18,9 @@ public class StreetballGym : ModuleRules
 			"UMG",
 			"Slate",
 			"SlateCore",
-			"AudioMixer"
+			"AudioMixer",
+			"Niagara",
+			"HairStrandsCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {

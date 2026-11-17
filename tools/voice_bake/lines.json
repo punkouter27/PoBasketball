@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "voice_note": "Feisty grandma, family-friendly trash talk. Keep every line under ~4 s spoken.",
+  "lines": [
+    {"id": "make_01", "event": "make", "text": "Buckets! Put that on the fridge.", "mood": "happy"},
+    {"id": "make_02", "event": "make", "text": "Still got it. Never lost it, sweetie.", "mood": "smug"},
+    {"id": "make_03", "event": "make", "text": "That's how we did it in nineteen fifty-eight!", "mood": "happy"},
+    {"id": "make_04", "event": "make", "text": "Count it! And count my pills while you're at it.", "mood": "smug"},
+    {"id": "make_05", "event": "make", "text": "Easy as baking cookies.", "mood": "happy"},
+
+    {"id": "miss_01", "event": "miss", "text": "Oh, fiddlesticks!", "mood": "annoyed"},
+    {"id": "miss_02", "event": "miss", "text": "Who moved the hoop? Somebody moved the hoop.", "mood": "annoyed"},
+    {"id": "miss_03", "event": "miss", "text": "My glasses were foggy. That one doesn't count.", "mood": "annoyed"},
+    {"id": "miss_04", "event": "miss", "text": "Warm-up shot. Obviously.", "mood": "smug"},
+    {"id": "miss_05", "event": "miss", "text": "Well, butter my biscuits.", "mood": "surprised"},
+
+    {"id": "swish_01", "event": "swish", "text": "Nothing but net, honey!", "mood": "smug"},
+    {"id": "swish_02", "event": "swish", "text": "Smooth as my mashed potatoes.", "mood": "happy"},
+    {"id": "swish_03", "event": "swish", "text": "Did you hear that? That's the sound of class.", "mood": "smug"},
+    {"id": "swish_04", "event": "swish", "text": "Splash! Grandma's in the kitchen!", "mood": "happy"},
+
+    {"id": "rim_out_01", "event": "rim_out", "text": "Oh, that rim is rude!", "mood": "annoyed"},
+    {"id": "rim_out_02", "event": "rim_out", "text": "In and out? Now that is just mean.", "mood": "annoyed"},
+    {"id": "rim_out_03", "event": "rim_out", "text": "Spit it back, will you? How dare you.", "mood": "surprised"},
+    {"id": "rim_out_04", "event": "rim_out", "text": "So close! I'll write a letter to the rim.", "mood": "determined"},
+
+    {"id": "scramble_start_01", "event": "scramble_start", "text": "Get back here, you rascal!", "mood": "determined"},
+    {"id": "scramble_start_02", "event": "scramble_start", "text": "Loose ball! Out of my way!", "mood": "determined"},
+    {"id": "scramble_start_03", "event": "scramble_start", "text": "Oh no you don't!", "mood": "surprised"},
+    {"id": "scramble_start_04", "event": "scramble_start", "text": "I'm coming, and I'm not happy.", "mood": "annoyed"},
+    {"id": "scramble_start_05", "event": "scramble_start", "text": "Hips, don't fail me now!", "mood": "determined"},
+
+    {"id": "scramble_save_01", "event": "scramble_save", "text": "Gotcha! Nobody escapes Grandma.", "mood": "smug"},
+    {"id": "scramble_save_02", "event": "scramble_save", "text": "Mine! Back to the kitchen with you.", "mood": "happy"},
+    {"id": "scramble_save_03", "event": "scramble_save", "text": "Hustle never retires, baby.", "mood": "smug"},
+    {"id": "scramble_save_04", "event": "scramble_save", "text": "Still faster than the mail man.", "mood": "happy"},
+
+    {"id": "fall_01", "event": "fall", "text": "I meant to do that.", "mood": "annoyed"},
+    {"id": "fall_02", "event": "fall", "text": "Nobody saw that. Nobody!", "mood": "annoyed"},
+    {"id": "fall_03", "event": "fall", "text": "Just checking the floor. It's still there.", "mood": "smug"},
+    {"id": "fall_04", "event": "fall", "text": "Oof! Who waxed this court?", "mood": "surprised"},
+    {"id": "fall_05", "event": "fall", "text": "Up we go. Grandma doesn't quit.", "mood": "determined"},
+
+    {"id": "tier_up_01", "event": "tier_up", "text": "Level up! Somebody call the newspaper.", "mood": "happy"},
+    {"id": "tier_up_02", "event": "tier_up", "text": "New trick unlocked. Eat your heart out.", "mood": "smug"},
+    {"id": "tier_up_03", "event": "tier_up", "text": "Eighty years of practice, people.", "mood": "smug"},
+    {"id": "tier_up_04", "event": "tier_up", "text": "Ooh! I'm getting dangerous.", "mood": "surprised"},
+
+    {"id": "idle_01", "event": "idle", "text": "Bounce, bounce. Mm-hmm.", "mood": "determined"},
+    {"id": "idle_02", "event": "idle", "text": "Where's my competition? Scared, I bet.", "mood": "smug"},
+    {"id": "idle_03", "event": "idle", "text": "Back in my day, the ball was heavier.", "mood": "annoyed"},
+    {"id": "idle_04", "event": "idle", "text": "Okay. Focus, Grandma. Focus.", "mood": "determined"},
+    {"id": "idle_05", "event": "idle", "text": "I should have brought a sweater.", "mood": "annoyed"},
+
+    {"id": "crossover_01", "event": "crossover", "text": "Left, right, and goodnight!", "mood": "smug"},
+    {"id": "crossover_02", "event": "crossover", "text": "Broke your ankles, dear.", "mood": "smug"},
+    {"id": "crossover_03", "event": "crossover", "text": "Shake and bake!", "mood": "happy"},
+    {"id": "crossover_04", "event": "crossover", "text": "Too quick for you? Bless your heart.", "mood": "smug"}
+  ]
+}

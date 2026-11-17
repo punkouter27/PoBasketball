@@ -9,5 +9,6 @@ public class StreetballGymEditorTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V7;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
 		ExtraModuleNames.Add("StreetballGym");
+		ExtraModuleNames.Add("StreetballGymEditor");
 	}
 }

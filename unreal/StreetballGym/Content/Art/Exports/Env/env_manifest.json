@@ -1,0 +1,567 @@
+{
+  "generator": "Scripts/make_env_proxies_blender.py",
+  "units": "FBX 1 unit = 1 cm, Z-up, +X forward (Unreal axes); bounds below in metres",
+  "uv_modes": {
+    "world_1m": "box-mapped, 1 UV unit = 1 m",
+    "box_0_1": "box-mapped, normalised to 0..1"
+  },
+  "meshes": [
+    {
+      "name": "SM_Brownstone_A",
+      "fbx": "SM_Brownstone_A.fbx",
+      "bounds_m": [
+        13.252,
+        8.0,
+        13.4
+      ],
+      "bbox_min_m": [
+        -5.08,
+        -4.0,
+        -0.0
+      ],
+      "bbox_max_m": [
+        8.172,
+        4.0,
+        13.4
+      ],
+      "tris": 2400,
+      "material_slots": [
+        "M_Brick",
+        "M_Concrete",
+        "M_Wood",
+        "M_Glass",
+        "M_Window",
+        "M_Paint",
+        "M_Metal"
+      ],
+      "front_axis": "+X",
+      "pivot": "bottom centre of the main block footprint (z=0 ground); facade plane at x=+5.00 m, stoop/cornice/fire escape protrude beyond it toward +X",
+      "swap_slot": "building",
+      "uv_mode": "world_1m",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "3 storeys, 3 bays, front wall plane x=+5.00 m; sides are party walls"
+    },
+    {
+      "name": "SM_Brownstone_B",
+      "fbx": "SM_Brownstone_B.fbx",
+      "bounds_m": [
+        13.252,
+        9.0,
+        15.6
+      ],
+      "bbox_min_m": [
+        -5.08,
+        -4.5,
+        -0.0
+      ],
+      "bbox_max_m": [
+        8.172,
+        4.5,
+        15.6
+      ],
+      "tris": 5004,
+      "material_slots": [
+        "M_Brick",
+        "M_Concrete",
+        "M_Glass",
+        "M_Window",
+        "M_Metal",
+        "M_Wood",
+        "M_Paint"
+      ],
+      "front_axis": "+X",
+      "pivot": "bottom centre of the main block footprint (z=0 ground); facade plane at x=+5.00 m, stoop/cornice/fire escape protrude beyond it toward +X",
+      "swap_slot": "building",
+      "uv_mode": "world_1m",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "4 storeys, 3 bays, front wall plane x=+5.00 m; sides are party walls"
+    },
+    {
+      "name": "SM_Brownstone_C",
+      "fbx": "SM_Brownstone_C.fbx",
+      "bounds_m": [
+        13.252,
+        10.0,
+        14.85
+      ],
+      "bbox_min_m": [
+        -5.08,
+        -5.0,
+        -0.0
+      ],
+      "bbox_max_m": [
+        8.172,
+        5.0,
+        14.85
+      ],
+      "tris": 3040,
+      "material_slots": [
+        "M_Brick",
+        "M_Concrete",
+        "M_Glass",
+        "M_Window",
+        "M_Metal",
+        "M_Wood",
+        "M_Paint"
+      ],
+      "front_axis": "+X",
+      "pivot": "bottom centre of the main block footprint (z=0 ground); facade plane at x=+5.00 m, stoop/cornice/fire escape protrude beyond it toward +X",
+      "swap_slot": "building",
+      "uv_mode": "world_1m",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "3 storeys, 4 bays, front wall plane x=+5.00 m; sides are party walls"
+    },
+    {
+      "name": "SM_Bench",
+      "fbx": "SM_Bench.fbx",
+      "bounds_m": [
+        0.6166,
+        1.8,
+        0.9363
+      ],
+      "bbox_min_m": [
+        -0.3866,
+        -0.9,
+        -0.0
+      ],
+      "bbox_max_m": [
+        0.23,
+        0.9,
+        0.9363
+      ],
+      "tris": 252,
+      "material_slots": [
+        "M_Wood",
+        "M_Metal"
+      ],
+      "front_axis": "+X",
+      "pivot": "bottom centre of footprint (z=0)",
+      "swap_slot": "bench",
+      "uv_mode": "world_1m",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "seat faces +X, length along Y"
+    },
+    {
+      "name": "SM_TrashCan",
+      "fbx": "SM_TrashCan.fbx",
+      "bounds_m": [
+        0.624,
+        0.624,
+        0.892
+      ],
+      "bbox_min_m": [
+        -0.312,
+        -0.312,
+        -0.0
+      ],
+      "bbox_max_m": [
+        0.312,
+        0.312,
+        0.892
+      ],
+      "tris": 1036,
+      "material_slots": [
+        "M_Metal",
+        "M_Plastic"
+      ],
+      "front_axis": "+X",
+      "pivot": "bottom centre of footprint (z=0)",
+      "swap_slot": "trash_can",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "wire basket + liner bag"
+    },
+    {
+      "name": "SM_WaterFountain",
+      "fbx": "SM_WaterFountain.fbx",
+      "bounds_m": [
+        0.6,
+        0.6,
+        1.0402
+      ],
+      "bbox_min_m": [
+        -0.3,
+        -0.3,
+        -0.0
+      ],
+      "bbox_max_m": [
+        0.3,
+        0.3,
+        1.0402
+      ],
+      "tris": 264,
+      "material_slots": [
+        "M_Concrete",
+        "M_Metal",
+        "M_Water"
+      ],
+      "front_axis": "+X",
+      "pivot": "bottom centre of footprint (z=0)",
+      "swap_slot": "fountain",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "push button on +X"
+    },
+    {
+      "name": "SM_ParkedCar",
+      "fbx": "SM_ParkedCar.fbx",
+      "bounds_m": [
+        4.72,
+        1.96,
+        1.47
+      ],
+      "bbox_min_m": [
+        -2.36,
+        -0.98,
+        -0.0
+      ],
+      "bbox_max_m": [
+        2.36,
+        0.98,
+        1.47
+      ],
+      "tris": 600,
+      "material_slots": [
+        "M_CarPaint",
+        "M_Glass",
+        "M_Rubber",
+        "M_Metal",
+        "M_TailLight"
+      ],
+      "front_axis": "+X",
+      "pivot": "bottom centre of footprint (z=0, tyres touch ground)",
+      "swap_slot": "car",
+      "uv_mode": "world_1m",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "sedan, front +X"
+    },
+    {
+      "name": "SM_Tree_A",
+      "fbx": "SM_Tree_A.fbx",
+      "bounds_m": [
+        4.8794,
+        5.8407,
+        7.8387
+      ],
+      "bbox_min_m": [
+        -2.2613,
+        -3.0213,
+        -0.0
+      ],
+      "bbox_max_m": [
+        2.6181,
+        2.8194,
+        7.8387
+      ],
+      "tris": 1830,
+      "material_slots": [
+        "M_Bark",
+        "M_Leaf"
+      ],
+      "front_axis": "none (radially symmetric)",
+      "pivot": "base of trunk (z=0)",
+      "swap_slot": "tree",
+      "uv_mode": "world_1m",
+      "fbx_unit_scale_factor_cm": 1.0
+    },
+    {
+      "name": "SM_Tree_B",
+      "fbx": "SM_Tree_B.fbx",
+      "bounds_m": [
+        6.4317,
+        7.3282,
+        6.1461
+      ],
+      "bbox_min_m": [
+        -3.2577,
+        -3.8117,
+        -0.0
+      ],
+      "bbox_max_m": [
+        3.174,
+        3.5165,
+        6.1461
+      ],
+      "tris": 2170,
+      "material_slots": [
+        "M_Bark",
+        "M_Leaf"
+      ],
+      "front_axis": "none (radially symmetric)",
+      "pivot": "base of trunk (z=0)",
+      "swap_slot": "tree",
+      "uv_mode": "world_1m",
+      "fbx_unit_scale_factor_cm": 1.0
+    },
+    {
+      "name": "SM_StreetLight",
+      "fbx": "SM_StreetLight.fbx",
+      "bounds_m": [
+        2.35,
+        0.64,
+        6.455
+      ],
+      "bbox_min_m": [
+        -0.18,
+        -0.32,
+        -0.0
+      ],
+      "bbox_max_m": [
+        2.17,
+        0.32,
+        6.455
+      ],
+      "tris": 340,
+      "material_slots": [
+        "M_Metal",
+        "M_Emissive"
+      ],
+      "front_axis": "+X (arm/lamp reach toward +X)",
+      "pivot": "base of pole (z=0)",
+      "swap_slot": "streetlight",
+      "uv_mode": "world_1m",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "lamp lens slot M_Emissive at ~6.24 m, 1.85 m out along +X"
+    },
+    {
+      "name": "SM_Hydrant",
+      "fbx": "SM_Hydrant.fbx",
+      "bounds_m": [
+        0.4,
+        0.44,
+        0.8
+      ],
+      "bbox_min_m": [
+        -0.16,
+        -0.22,
+        -0.0
+      ],
+      "bbox_max_m": [
+        0.24,
+        0.22,
+        0.8
+      ],
+      "tris": 360,
+      "material_slots": [
+        "M_HydrantPaint",
+        "M_Metal"
+      ],
+      "front_axis": "+X (pumper nozzle)",
+      "pivot": "bottom centre of footprint (z=0)",
+      "swap_slot": "hydrant",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0
+    },
+    {
+      "name": "SM_Litter_Can",
+      "fbx": "SM_Litter_Can.fbx",
+      "bounds_m": [
+        0.066,
+        0.066,
+        0.122
+      ],
+      "bbox_min_m": [
+        -0.033,
+        -0.033,
+        -0.0
+      ],
+      "bbox_max_m": [
+        0.033,
+        0.033,
+        0.122
+      ],
+      "tris": 112,
+      "material_slots": [
+        "M_Metal",
+        "M_Label"
+      ],
+      "front_axis": "none",
+      "pivot": "bottom centre (z=0), upright; rotate 90 deg to lie it down",
+      "swap_slot": "litter",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0
+    },
+    {
+      "name": "SM_Litter_Paper",
+      "fbx": "SM_Litter_Paper.fbx",
+      "bounds_m": [
+        0.1584,
+        0.1218,
+        0.106
+      ],
+      "bbox_min_m": [
+        -0.0742,
+        -0.0609,
+        0.0
+      ],
+      "bbox_max_m": [
+        0.0841,
+        0.0609,
+        0.106
+      ],
+      "tris": 80,
+      "material_slots": [
+        "M_Paper"
+      ],
+      "front_axis": "none",
+      "pivot": "bottom centre (z=0)",
+      "swap_slot": "litter",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "crumpled ball"
+    },
+    {
+      "name": "SM_Litter_Cup",
+      "fbx": "SM_Litter_Cup.fbx",
+      "bounds_m": [
+        0.096,
+        0.096,
+        0.2005
+      ],
+      "bbox_min_m": [
+        -0.048,
+        -0.048,
+        -0.0
+      ],
+      "bbox_max_m": [
+        0.048,
+        0.048,
+        0.2005
+      ],
+      "tris": 104,
+      "material_slots": [
+        "M_Paper",
+        "M_Plastic"
+      ],
+      "front_axis": "none",
+      "pivot": "bottom centre (z=0), upright",
+      "swap_slot": "litter",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "takeaway cup with lid + straw"
+    },
+    {
+      "name": "SM_Weeds",
+      "fbx": "SM_Weeds.fbx",
+      "bounds_m": [
+        0.3216,
+        0.2788,
+        0.3193
+      ],
+      "bbox_min_m": [
+        -0.1494,
+        -0.0947,
+        -0.0
+      ],
+      "bbox_max_m": [
+        0.1721,
+        0.1841,
+        0.3193
+      ],
+      "tris": 220,
+      "material_slots": [
+        "M_Leaf"
+      ],
+      "front_axis": "none",
+      "pivot": "bottom centre (z=0)",
+      "swap_slot": "weeds",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "22 closed thin wedge blades (no two-sided needed)"
+    },
+    {
+      "name": "SM_BasketballNet",
+      "fbx": "SM_BasketballNet.fbx",
+      "bounds_m": [
+        0.4628,
+        0.4628,
+        0.4258
+      ],
+      "bbox_min_m": [
+        -0.2314,
+        -0.2314,
+        -0.4229
+      ],
+      "bbox_max_m": [
+        0.2314,
+        0.2314,
+        0.0029
+      ],
+      "tris": 1344,
+      "material_slots": [
+        "M_Net"
+      ],
+      "front_axis": "none",
+      "pivot": "top ring centre (z=0 = rim plane, net hangs to -Z)",
+      "swap_slot": "net",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "rim NOT included (MuJoCo rim drives it); top ring radius 0.2286 m at rim centre circle, bottom radius 0.15 m, length 0.42 m, 12 strands x 6 diamond rows, 6 mm open tubes. Vertex colour R = normalised distance down the net (0 top, 1 bottom); import with Vertex Color Import Option = Replace",
+      "vertex_color": {
+        "channel": "R",
+        "meaning": "normalised distance down the net (0 top, 1 bottom)",
+        "min": 0.0,
+        "max": 1.0
+      }
+    },
+    {
+      "name": "SM_Pigeon",
+      "fbx": "SM_Pigeon.fbx",
+      "bounds_m": [
+        0.3304,
+        0.5923,
+        0.1624
+      ],
+      "bbox_min_m": [
+        -0.1652,
+        -0.2961,
+        -0.0812
+      ],
+      "bbox_max_m": [
+        0.1652,
+        0.2961,
+        0.0812
+      ],
+      "tris": 176,
+      "material_slots": [
+        "M_Feather",
+        "M_Beak"
+      ],
+      "front_axis": "+X (head)",
+      "pivot": "bounds centre",
+      "swap_slot": "pigeon",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "wings spread (flight pose), span ~0.6 m"
+    },
+    {
+      "name": "SM_Leaf",
+      "fbx": "SM_Leaf.fbx",
+      "bounds_m": [
+        0.092,
+        0.034,
+        0.004
+      ],
+      "bbox_min_m": [
+        -0.052,
+        -0.017,
+        -0.002
+      ],
+      "bbox_max_m": [
+        0.04,
+        0.017,
+        0.002
+      ],
+      "tris": 5,
+      "material_slots": [
+        "M_Leaf"
+      ],
+      "front_axis": "+X (tip)",
+      "pivot": "centre",
+      "swap_slot": "leaf",
+      "uv_mode": "box_0_1",
+      "fbx_unit_scale_factor_cm": 1.0,
+      "notes": "single-sided card, normal +Z: use a two-sided material"
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "groom_file": "Groom_Grandma.abc",
+  "groups": {
+    "0": {
+      "name": "flyaways",
+      "strands": 5326,
+      "width_cm": 0.006
+    },
+    "1": {
+      "name": "eyebrows",
+      "strands": 300,
+      "width_cm": 0.01
+    }
+  },
+  "space": "SK_Grandma bind pose, UE component space (cm); identical to the skeletal mesh's component space",
+  "ue_import_conversion_settings": {
+    "rotation": [
+      90.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      100.0,
+      -100.0,
+      100.0
+    ]
+  },
+  "head_bone_rest_component_space": {
+    "location_cm": [
+      -5.255344492915981e-08,
+      0.6631157360970974,
+      162.5751256942749
+    ],
+    "source": "Blender bind pose * (100,-100,100)",
+    "location_cm_ue_dump": [
+      -2.0062964161127184e-06,
+      0.663089618953522,
+      162.57512700242
+    ],
+    "rotation_quat_xyzw": [
+      -0.15135924121232963,
+      -0.6907180578864446,
+      0.15134544255253105,
+      0.69071955352935
+    ],
+    "rotation": {
+      "pitch": 65.28104340911321,
+      "yaw": 89.99914459956292,
+      "roll": 90.00028921146988
+    },
+    "location_mismatch_cm": 2.6222767659812434e-05,
+    "dump": "grandma_bones_ue.json"
+  },
+  "attach_bound_to_mesh": {
+    "parent": "SkeletalMeshComponent (SK_Grandma)",
+    "socket": null,
+    "relative_location_cm": [
+      0,
+      0,
+      0
+    ],
+    "relative_rotation": {
+      "pitch": 0,
+      "yaw": 0,
+      "roll": 0
+    },
+    "binding": "GroomBindingAsset: target SK_Grandma, no source mesh (groom authored on this bind pose)"
+  },
+  "attach_rigid_to_head_socket": {
+    "parent": "SkeletalMeshComponent (SK_Grandma)",
+    "socket": "head",
+    "relative_location_cm": [
+      -147.95563031767475,
+      67.38132578754742,
+      0.00032821427626572586
+    ],
+    "relative_rotation_quat_xyzw": [
+      0.15135924121232963,
+      0.6907180578864446,
+      -0.15134544255253105,
+      0.69071955352935
+    ],
+    "relative_rotation": {
+      "pitch": -90.0,
+      "yaw": 71.45435713814346,
+      "roll": -96.17437995806225
+    },
+    "note": "= inverse(head bind transform): puts the groom's origin back on the component origin in bind pose"
+  }
+}

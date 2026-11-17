@@ -5,6 +5,9 @@
 #include "ObsBuilder.h"
 #include "CourtAudio.h"
 #include "StreetballDirector.h"
+#include "CourtFX.h"
+#include "GrandmaVoice.h"
+#include "PresentationEvents.h"
 #include "StreetballWorld.generated.h"
 
 class UMuJoCoSim;
@@ -17,6 +20,8 @@ class UStreetballHUDWidget;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class USceneComponent;
+class UGroomComponent;
+class UMaterialInterface;
 
 UENUM(BlueprintType)
 enum class EStreetballAppMode : uint8
@@ -35,11 +40,25 @@ public:
 	AStreetballCharacter();
 	/** Main character skin (visual only; re-proportioned onto Manny's joints by Scripts/retarget_grandma_blender.py). */
 	static constexpr const TCHAR* GrandmaMeshPath = TEXT("/Game/Art/Characters/Grandma/SK_Grandma.SK_Grandma");
-	/** Swap Manny for the grandma skin unless -StreetballCharacter=Manny; keeps Manny if the asset is missing.
-	 *  Must run before UMuJoCoBoneMapper::Initialize (offsets are captured from the bind pose). Returns the mesh in use. */
+	/** Same skin with the cardigan hem split into a Chaos Cloth section (Scripts/build_grandma_extras.py). Preferred. */
+	static constexpr const TCHAR* GrandmaClothMeshPath = TEXT("/Game/Art/Characters/Grandma/SK_Grandma_Cloth.SK_Grandma_Cloth");
+	static constexpr const TCHAR* GroomFlyawaysPath = TEXT("/Game/Art/Characters/Grandma/Groom/GR_Grandma_Flyaways.GR_Grandma_Flyaways");
+	static constexpr const TCHAR* GroomBrowsPath = TEXT("/Game/Art/Characters/Grandma/Groom/GR_Grandma_Brows.GR_Grandma_Brows");
+	/**
+	 * Mesh priority: -StreetballCharacterMesh=<object path> (e.g. a MetaHuman body on the UE5 skeleton), then the cloth
+	 * grandma, the plain grandma, Manny. -StreetballCharacter=Manny forces Manny. -StreetballNoCloth skips the cloth mesh.
+	 * Must run before UMuJoCoBoneMapper::Initialize (offsets are captured from the bind pose). Returns the mesh in use.
+	 */
 	FString ApplyMainCharacterMesh();
+	/** Cosmetic extras on the grandma skin: groom layers (bound to the mesh, or rigid on the head bone). */
+	void AttachExtras();
+	/** Face mesh whose morph targets the voice drives (the body itself for the CC grandma). */
+	USkeletalMeshComponent* GetFaceMesh() const { return Mesh; }
+	int32 NumGrooms() const;
+	bool HasCloth() const;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> Mesh;
+	UPROPERTY(VisibleAnywhere) TArray<TObjectPtr<UGroomComponent>> Grooms;
 };
 
 /** One visual proxy for a sim geom (static shapes for the court, the ball, and optional debug geoms). */
@@ -83,6 +102,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Streetball") FString TransitionTablePath = TEXT("transition_table.json");
 	UPROPERTY(EditAnywhere, Category = "Streetball") FString AudioBankPath = TEXT("/Game/Audio/DA_CourtAudioBank.DA_CourtAudioBank");
 	UPROPERTY(EditAnywhere, Category = "Streetball") int32 DirectorSeed = 7;
+	UPROPERTY(EditAnywhere, Category = "Presentation") FString FXBankPath = TEXT("/Game/VFX/DA_CourtFXBank.DA_CourtFXBank");
+	UPROPERTY(EditAnywhere, Category = "Presentation") FString VoiceBankPath = TEXT("/Game/Audio/Voice/DA_GrandmaVoiceBank.DA_GrandmaVoiceBank");
+	/** Cosmetic materials by sim geom name prefix (first match wins; longest prefixes first). Missing assets keep the MJCF colour. */
+	UPROPERTY(EditAnywhere, Category = "Presentation") TMap<FString, FString> GeomMaterialOverrides;
+	/** -StreetballNoPresentation turns voice/VFX/ambience off (gate replays). */
+	UPROPERTY(EditAnywhere, Category = "Presentation") bool bPresentation = true;
 
 	UMuJoCoSim* GetSim() const { return Sim; }
 	USimClock* GetClock() const { return Clock; }
@@ -103,6 +128,11 @@ public:
 	const TArray<float>& GetLastAction() const { return Action; }
 	const TArray<float>& GetPrevAction() const { return PrevAction; }
 	FName GetLastPolicyName() const { return LastPolicyName; }
+	const FCourtFXPlayer& GetFXPlayer() const { return FXPlayer; }
+	const FGrandmaVoicePlayer& GetVoice() const { return Voice; }
+	int32 GetPresentationEventCount(EPresentationEvent E) const { return PresentationCounts[(int32)E]; }
+	bool IsAmbiencePlaying() const { return AudioPlayer.IsAmbiencePlaying(); }
+	int32 GetMaterialOverrideCount() const { return MaterialOverrideCount; }
 
 	/** Builds the whole world against an already-loaded sim. Exposed so tests can drive it without a level. */
 	bool Setup(UWorld* InWorld);
@@ -130,6 +160,10 @@ private:
 	void OnControlStep(UMuJoCoSim* InSim);
 	void OnPhysicsStep(UMuJoCoSim* InSim);
 	void UpdateVisuals();
+	void UpdatePresentation(float Dt);
+	void SetupPresentation();
+	void UpdateCaptureSchedule();
+	UMaterialInterface* MaterialOverrideFor(const FString& GeomName) const;
 	void UpdateCameraAndHUD(float Dt);
 	UPolicyRunner* LoadPolicy(const FString& LevelName);
 	static bool EnginePrimitiveForGeom(int32 GeomType, const FVector& SizeM, FString& OutMeshPath, FVector& OutScale);
@@ -149,12 +183,21 @@ private:
 	UPROPERTY() TObjectPtr<ABroadcastCamera> Camera;
 	UPROPERTY() TObjectPtr<UCourtAudioBank> AudioBank;
 	UPROPERTY() TObjectPtr<UStreetballHUDWidget> HUD;
+	UPROPERTY() TObjectPtr<UCourtFXBank> FXBank;
+	UPROPERTY() TObjectPtr<UGrandmaVoiceBank> VoiceBank;
+	UPROPERTY() TMap<FString, TObjectPtr<UMaterialInterface>> LoadedOverrides;
 
 	FObsBuilder ObsBuilder;
 	FContactAudioProcessor AudioProc;
 	FCourtAudioPlayer AudioPlayer;
 	TArray<FCourtAudioEvent> PendingEvents;
 	TArray<FCourtAudioEvent> RecentEvents;
+	FCourtFXPlayer FXPlayer;
+	FGrandmaVoicePlayer Voice;
+	FPresentationEventDetector EventDetector;
+	TArray<EPresentationEvent> PendingPresentation;
+	int32 PresentationCounts[(int32)EPresentationEvent::Count] = {0};
+	int32 MaterialOverrideCount = 0;
 	TArray<FString> RealPolicies;
 	FStreetballDirectorOutput DirOut;
 	FName LastPolicyName;
