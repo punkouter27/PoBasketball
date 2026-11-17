@@ -96,7 +96,7 @@ namespace
 	/** Contacts and kinematics the 5 s rollout gate measures on the Unreal side after each control step. */
 	struct FRolloutProbe
 	{
-		int32 Floor = -1, FootGeom[2] = {-1, -1}, FootBody[2] = {-1, -1}, Pelvis = -1, RootV = 0;
+		int32 Floor = -1, FootGeom[2] = {-1, -1}, ToeGeom[2] = {-1, -1}, FootBody[2] = {-1, -1}, Pelvis = -1, RootV = 0;
 		bool PrevContact[2] = {false, false}, bHavePrev = false;
 		FVector2d PrevFoot[2];
 
@@ -104,6 +104,7 @@ namespace
 		{
 			Floor = Sim->GeomId(TEXT("floor"));
 			FootGeom[0] = Sim->GeomId(TEXT("foot_l")); FootGeom[1] = Sim->GeomId(TEXT("foot_r"));
+			ToeGeom[0] = Sim->GeomId(TEXT("toe_l")); ToeGeom[1] = Sim->GeomId(TEXT("toe_r"));
 			FootBody[0] = Sim->BodyId(TEXT("foot_l")); FootBody[1] = Sim->BodyId(TEXT("foot_r"));
 			Pelvis = Sim->BodyId(TEXT("pelvis"));
 			RootV = Sim->GetModel()->jnt_dofadr[Sim->JointId(TEXT("root"))];
@@ -119,8 +120,8 @@ namespace
 				if (g0 != Floor && g1 != Floor) continue;
 				const int32 Other = g0 == Floor ? g1 : g0;
 				G.MaxPenetrationMm = FMath::Max(G.MaxPenetrationMm, -FMath::Min(0.0, (double)D->contact[c].dist) * 1000.0);
-				if (Other == FootGeom[0]) Contact[0] = true;
-				if (Other == FootGeom[1]) Contact[1] = true;
+				if (Other == FootGeom[0] || (ToeGeom[0] >= 0 && Other == ToeGeom[0])) Contact[0] = true;
+				if (Other == FootGeom[1] || (ToeGeom[1] >= 0 && Other == ToeGeom[1])) Contact[1] = true;
 			}
 			for (int32 i = 0; i < 2; ++i)
 			{

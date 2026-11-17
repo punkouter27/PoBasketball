@@ -51,11 +51,13 @@ def export(ckpt: pathlib.Path, out: pathlib.Path, hidden=(512, 256, 128)) -> flo
     got = np.concatenate([sess.run(["action"], {"obs": x[i:i + 1]})[0] for i in range(len(x))], 0)
     diff = float(np.abs(got - ref).max())
 
-    spec_hash = hashlib.sha256((SHARED / "obs_spec.json").read_bytes()).hexdigest()[:16]
+    spec_bytes = (SHARED / "obs_spec.json").read_bytes()
+    spec_hash_full = hashlib.sha256(spec_bytes).hexdigest()
+    spec_hash = spec_hash_full[:16]
     out.with_suffix(".json").write_text(json.dumps({
-        "checkpoint": str(ckpt), "obs_spec_sha256_16": spec_hash, "n_obs": obs_spec.N_OBS,
-        "n_action": obs_spec.N_JOINTS, "opset": 17, "ort_vs_torch_max_abs_diff": diff,
-        "input": "obs[1,119]", "output": "action[1,27] in [-1,1]",
+        "checkpoint": str(ckpt), "obs_spec_sha256": spec_hash_full, "obs_spec_sha256_16": spec_hash,
+        "n_obs": obs_spec.N_OBS, "n_action": obs_spec.N_JOINTS, "opset": 17, "ort_vs_torch_max_abs_diff": diff,
+        "input": f"obs[1,{obs_spec.N_OBS}]", "output": f"action[1,{obs_spec.N_JOINTS}] in [-1,1]",
         "level": sd.get("level"), "interface_sha": sd.get("interface_sha"), "physics_sha": sd.get("physics_sha"),
         "train_steps": sd.get("steps"), "nan_grads": sd.get("nan_grads", 0),
     }, indent=2), encoding="utf-8")

@@ -87,9 +87,9 @@ bool FStreetballSimLoadTest::RunTest(const FString&)
 {
 	UMuJoCoSim* Sim = NewSim(*this);
 	if (!Sim) return false;
-	TestEqual(TEXT("nq"), Sim->NumQ(), 41);
-	TestEqual(TEXT("nv"), Sim->NumV(), 39);
-	TestEqual(TEXT("nu"), Sim->NumActuators(), 27);
+	TestEqual(TEXT("nq"), Sim->NumQ(), 43);
+	TestEqual(TEXT("nv"), Sim->NumV(), 41);
+	TestEqual(TEXT("nu"), Sim->NumActuators(), 29);
 	TestTrue(TEXT("keyframe stand"), Sim->ResetToKeyframe(TEXT("stand")));
 	TestTrue(TEXT("timestep 0.002"), FMath::IsNearlyEqual(Sim->GetTimestep(), 0.002f, 1e-6f));
 	// 500 steps and time the raw step cost
@@ -163,7 +163,7 @@ bool FStreetballBoneMapperTest::RunTest(const FString&)
 	AStreetballCharacter* Ch = W->GetCharacter();
 	if (!TestNotNull(TEXT("sim"), Sim) || !TestNotNull(TEXT("mapper"), Mapper) || !TestNotNull(TEXT("character"), Ch)) return false;
 	TestTrue(TEXT("mannequin mesh loaded"), Ch->Mesh->GetSkeletalMeshAsset() != nullptr);
-	TestEqual(TEXT("driven bones (pelvis + 3 spine + 12 limb)"), Mapper->GetDrivenBones().Num(), 16);
+	TestEqual(TEXT("driven bones (pelvis + 3 spine + 12 limb + 2 toe)"), Mapper->GetDrivenBones().Num(), 18);
 	TestFalse(TEXT("Chaos off on character"), Ch->Mesh->IsSimulatingPhysics());
 	TestEqual(TEXT("character collision disabled"), (int32)Ch->Mesh->GetCollisionEnabled(), (int32)ECollisionEnabled::NoCollision);
 

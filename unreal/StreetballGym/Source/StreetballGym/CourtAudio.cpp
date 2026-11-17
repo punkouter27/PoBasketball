@@ -30,6 +30,7 @@ bool FContactAudioProcessor::Initialize(UMuJoCoSim* Sim)
 	Floor = Sim->GeomId(TEXT("floor"));
 	Ball = Sim->GeomId(TEXT("ball"));
 	Foot[0] = Sim->GeomId(TEXT("foot_l")); Foot[1] = Sim->GeomId(TEXT("foot_r"));
+	Toe[0] = Sim->GeomId(TEXT("toe_l")); Toe[1] = Sim->GeomId(TEXT("toe_r"));
 	Palm[0] = Sim->GeomId(TEXT("palm_l")); Palm[1] = Sim->GeomId(TEXT("palm_r"));
 	FootBody[0] = Sim->BodyId(TEXT("foot_l")); FootBody[1] = Sim->BodyId(TEXT("foot_r"));
 	const int32 BallJ = Sim->JointId(TEXT("ball"));
@@ -78,9 +79,9 @@ void FContactAudioProcessor::Process(UMuJoCoSim* Sim, TArray<FCourtAudioEvent>& 
 		else if (HasBall && (Other == Palm[0] || Other == Palm[1])) { Kind = ECourtSound::BallPalm; Pair = TEXT("ball|palm"); Speed = (float)BallVel.Length(); bValid = true; }
 		else if (HasBall && RimMask.IsValidIndex(Other) && RimMask[Other]) { Kind = ECourtSound::BallRim; Pair = TEXT("ball|rim"); Speed = (float)BallVel.Length(); bValid = true; }
 		else if (HasBall && BoardMask.IsValidIndex(Other) && BoardMask[Other]) { Kind = ECourtSound::BallBoard; Pair = TEXT("ball|board"); Speed = (float)BallVel.Length(); bValid = true; }
-		else if (HasFloor && (Other == Foot[0] || Other == Foot[1]))
+		else if (HasFloor && (Other == Foot[0] || Other == Foot[1] || (Toe[0] >= 0 && Other == Toe[0]) || (Toe[1] >= 0 && Other == Toe[1])))
 		{
-			const int32 i = (Other == Foot[0]) ? 0 : 1;
+			const int32 i = (Other == Foot[0] || Other == Toe[0]) ? 0 : 1;
 			const FVector3d FV = Sim->GetBodyLinearVelocitySim(FootBody[i]);
 			const double Lateral = FVector2d(FV.X, FV.Y).Length();
 			if (Lateral > ShoeLateralMin) { Kind = ECourtSound::ShoeFloor; Pair = i == 0 ? TEXT("foot_l|floor") : TEXT("foot_r|floor"); Speed = (float)Lateral; bValid = true; }

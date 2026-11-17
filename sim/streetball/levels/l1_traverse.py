@@ -30,6 +30,7 @@ class L1Traverse(Level):
     def setup(self) -> None:
         N, dev = self.N, self.dev
         self._last_action = torch.zeros(N, self.env.N_ACT, device=dev)
+        self._prev2_action = torch.zeros(N, self.env.N_ACT, device=dev)
         self.wp = torch.zeros(N, 2, device=dev)
         self.speed_cmd = torch.ones(N, device=dev)
         self.reached = torch.zeros(N, dtype=torch.long, device=dev)
@@ -55,6 +56,7 @@ class L1Traverse(Level):
         self.reached[ids] = 0
         self._new_waypoint(ids)
         self._last_action[ids] = 0.0
+        self._prev2_action[ids] = 0.0
         self.prev_dist[ids] = -1.0
 
     def _rel(self):
@@ -96,9 +98,11 @@ class L1Traverse(Level):
             + 0.3 * r_head
             + 2.0 * progress
             + 10.0 * hit.float()
-            + 0.5 * self.r_upright()
+            + 0.8 * self.r_torso_upright()
             + 0.3 * self.r_height(width=0.1)
+            + 0.15 * self.r_heel_toe_stride()
             - 0.05 * self.p_action_rate()
+            - 0.02 * self.p_action_jerk()
             - 0.001 * self.p_joint_vel()
             - 0.02 * self.style_penalty_w * self.p_pose()
             - 0.5 * self.style_penalty_w * self.p_arm_carry()

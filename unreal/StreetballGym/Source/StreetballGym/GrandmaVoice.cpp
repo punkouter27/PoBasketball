@@ -159,4 +159,24 @@ void FGrandmaVoicePlayer::Tick(double GameTime, float DeltaSeconds)
 	}
 	F->SetMorphTarget(TEXT("Eye_Blink_L"), Blink, false);
 	F->SetMorphTarget(TEXT("Eye_Blink_R"), Blink, false);
+
+	// Torque-driven exertion & breathing layer when not speaking (never overrides active lip-sync or mood).
+	if (Active == INDEX_NONE && MoodWeight <= 0.01f)
+	{
+		const float E = Exertion01;
+		const float BreathRate = 2.0f + 3.5f * E;
+		const float Breath = 0.5f + 0.5f * FMath::Sin((float)GameTime * BreathRate * PI);
+		const float Jaw = E > 0.25f ? (E - 0.25f) * 0.28f * Breath : 0.f;
+		const float Squint = E * 0.35f;
+		const float Brow = E * 0.30f;
+		const float Press = E * 0.25f * (1.f - Breath * 0.6f);
+		F->SetMorphTarget(TEXT("Jaw_Open"), Jaw, false);
+		F->SetMorphTarget(TEXT("V_Open"), Jaw * 0.7f, false);
+		F->SetMorphTarget(TEXT("Eye_Squint_L"), Squint, false);
+		F->SetMorphTarget(TEXT("Eye_Squint_R"), Squint, false);
+		F->SetMorphTarget(TEXT("Brow_Drop_L"), Brow, false);
+		F->SetMorphTarget(TEXT("Brow_Drop_R"), Brow, false);
+		F->SetMorphTarget(TEXT("Mouth_Press_L"), Press, false);
+		F->SetMorphTarget(TEXT("Mouth_Press_R"), Press, false);
+	}
 }

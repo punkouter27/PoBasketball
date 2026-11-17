@@ -8,6 +8,7 @@
 #include "CourtFX.h"
 #include "GrandmaVoice.h"
 #include "PresentationEvents.h"
+#include "StreetballCrowd.h"
 #include "StreetballWorld.generated.h"
 
 class UMuJoCoSim;
@@ -130,9 +131,12 @@ public:
 	FName GetLastPolicyName() const { return LastPolicyName; }
 	const FCourtFXPlayer& GetFXPlayer() const { return FXPlayer; }
 	const FGrandmaVoicePlayer& GetVoice() const { return Voice; }
+	const FCourtCrowdPlayer& GetCrowd() const { return Crowd; }
 	int32 GetPresentationEventCount(EPresentationEvent E) const { return PresentationCounts[(int32)E]; }
 	bool IsAmbiencePlaying() const { return AudioPlayer.IsAmbiencePlaying(); }
 	int32 GetMaterialOverrideCount() const { return MaterialOverrideCount; }
+	float GetExertion01() const { return Exertion01; }
+	float GetLastPowerWatts() const { return LastPowerW; }
 
 	/** Builds the whole world against an already-loaded sim. Exposed so tests can drive it without a level. */
 	bool Setup(UWorld* InWorld);
@@ -143,13 +147,21 @@ public:
 	/** Run one control step by hand (tests). */
 	void StepControl();
 
-	/** Standardized Profile B runtime controls (F1-F4, Space, R). */
+	/** Standardized Profile B runtime controls (F1-F4 / M,C,T,P, Space, R). */
 	EStreetballAppMode CycleAppMode();
 	void CycleCameraMode();
 	void ToggleTelemetry();
 	void CyclePolicyOverride();
 	void TogglePause() { bPaused = !bPaused; }
 	void ResetEpisode();
+
+	/** Play & Testbed interactive controls (#1). */
+	void JumpToTier(int32 Tier);
+	void CommandCourtTarget(const FVector2d& SimXY);
+	void LobBallToAthlete();
+	void ApplyTestbedPush(const FVector2d& DirSim, float ForceN = 120.f, float DurationS = 0.2f);
+	void StepTimeScale(int32 DeltaIndex);
+	float GetTimeScale() const;
 
 	EStreetballAppMode GetAppMode() const { return AppMode; }
 	bool IsPaused() const { return bPaused; }
@@ -194,10 +206,17 @@ private:
 	TArray<FCourtAudioEvent> RecentEvents;
 	FCourtFXPlayer FXPlayer;
 	FGrandmaVoicePlayer Voice;
+	FCourtCrowdPlayer Crowd;
 	FPresentationEventDetector EventDetector;
 	TArray<EPresentationEvent> PendingPresentation;
 	int32 PresentationCounts[(int32)EPresentationEvent::Count] = {0};
 	int32 MaterialOverrideCount = 0;
+	float Exertion01 = 0.f;
+	float LastPowerW = 0.f;
+	double NextExertionSweatT = 0.0;
+	FVector2d ActivePushForceSim = FVector2d::ZeroVector;
+	double PushRemainingS = 0.0;
+	int32 TimeScaleIdx = 2; // 0.25, 0.5, 1.0, 1.5, 2.0
 	TArray<FString> RealPolicies;
 	FStreetballDirectorOutput DirOut;
 	FName LastPolicyName;

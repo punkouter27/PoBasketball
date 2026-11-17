@@ -54,7 +54,7 @@ def _run_warp(m: mujoco.MjModel, seq: np.ndarray):
     mujoco.mj_resetDataKeyframe(m, d0, mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "stand"))
     mujoco.mj_forward(m, d0)
     wm = mjw.put_model(m)
-    wd = mjw.put_data(m, d0, nworld=NWORLD)
+    wd = mjw.put_data(m, d0, nworld=NWORLD, naconmax=NWORLD * 48, njmax=160)
     out = np.empty((N_CTRL, NWORLD, m.nq))
     ctrl_host = np.zeros((NWORLD, m.nu), dtype=np.float32)
     for t in range(N_CTRL):

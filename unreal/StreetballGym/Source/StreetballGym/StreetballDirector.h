@@ -116,6 +116,12 @@ public:
 	/** Skip ahead (command line -StreetballStartTier=N): earlier tiers are marked mastered. */
 	void StartAtTier(int32 Tier);
 
+	/** Play mode: steer Roam / DribbleMoving toward a user-picked court coordinate (sim metres). */
+	void SetManualWaypoint(const FVector2d& SimXY);
+	void ClearManualWaypoint() { bManualWaypoint = false; }
+	bool HasManualWaypoint() const { return bManualWaypoint; }
+	FVector2d GetWaypoint() const { return Waypoint; }
+
 	/** Fill State/PolicyName/Task for the current state without advancing any logic. */
 	void Describe(const FTrackedState& S, FStreetballDirectorOutput& Out) const;
 
@@ -191,6 +197,7 @@ private:
 	bool bFootStartValid = false;
 	// tier 2 / 4
 	FVector2d Waypoint = FVector2d::ZeroVector;
+	bool bManualWaypoint = false;
 	double SpeedCmd = 1.0;
 	FVector2d LastPelvisXY = FVector2d::ZeroVector;
 	bool bLastPelvisValid = false;

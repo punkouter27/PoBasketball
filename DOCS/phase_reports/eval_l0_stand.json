@@ -1,25 +1,26 @@
 {
   "level": "l0_stand",
-  "checkpoint": "runs\\l0_v5_armstop\\best.pt",
+  "checkpoint": "runs\\l0_v2_toe_upright\\model.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 100.0,
-  "success_rate": 1.0,
+  "success_rate": 0.004999999888241291,
   "pass_fraction": 0.95,
-  "passed": true,
-  "holds_100_straight": true,
+  "passed": false,
+  "holds_100_straight": false,
   "nan_grads": 0,
-  "interface_sha": "ccfa18d6f9aaf2a5",
-  "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
-  "fall_rate": 0.0,
-  "mean_episode_s": 60.0,
+  "interface_sha": "32f5b79d3216e8a3",
+  "physics_sha": "319cd05af6f00d17+c1c2207912c56781",
+  "fall_rate": 0.3449999988079071,
+  "mean_episode_s": 35.9214973449707,
   "metrics": {
-    "m/sway_cm": 4.377732753753662,
-    "m/quiet_sway_cm": 4.470031261444092,
-    "m/quiet_speed_cm_s": 1.1232645511627197,
-    "m/quiet_jitter_cm": 0.5872137546539307,
-    "m/foot_drift_cm": 4.232853412628174,
-    "m/upright": 0.999342143535614
+    "m/sway_cm": 12.896931648254395,
+    "m/quiet_sway_cm": 10.403762817382812,
+    "m/quiet_speed_cm_s": 13.26036548614502,
+    "m/quiet_jitter_cm": 3.0945587158203125,
+    "m/foot_drift_cm": 18.83829116821289,
+    "m/upright": 0.9949809312820435,
+    "m/torso_upright": 0.9855266213417053
   },
-  "wall_s": 57.28976809999995
+  "wall_s": 275.34951530000035
 }

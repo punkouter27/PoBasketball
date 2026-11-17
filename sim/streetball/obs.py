@@ -40,29 +40,35 @@ import numpy as np
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SHARED = ROOT.parent / "shared"
 
-N_JOINTS = 27
+N_JOINTS = 29
 N_TASK = 12
-N_BASE = 107
+N_BASE = 26 + 3 * N_JOINTS   # 107 for 27 joints -> 113 for 29 joints
 N_OBS = N_BASE + N_TASK
+
+_S_JPOS = 9
+_S_JVEL = _S_JPOS + N_JOINTS
+_S_ACT = _S_JVEL + N_JOINTS
+_S_BALL = _S_ACT + N_JOINTS
+assert _S_BALL + 17 == N_BASE
 
 SLOTS = [
     # name, start, size, scale
     ("gravity_pelvis", 0, 3, 1.0),
     ("pelvis_linvel", 3, 3, 1.0),
     ("pelvis_angvel", 6, 3, 0.25),
-    ("joint_pos_rel", 9, N_JOINTS, 1.0),
-    ("joint_vel", 36, N_JOINTS, 0.1),
-    ("prev_action", 63, N_JOINTS, 1.0),
-    ("ball_pos_rel", 90, 3, 1.0),
-    ("ball_vel_rel", 93, 3, 0.5),
-    ("ball_in_control", 96, 1, 1.0),
-    ("palm_ball_dist", 97, 2, 1.0),
-    ("foot_contact", 99, 2, 1.0),
-    ("pelvis_height", 101, 1, 1.0),
-    ("ball_angvel", 102, 3, 0.05),
-    ("countdown_frac", 105, 1, 1.0),
-    ("reserved", 106, 1, 1.0),
-    ("task", 107, N_TASK, 1.0),
+    ("joint_pos_rel", _S_JPOS, N_JOINTS, 1.0),
+    ("joint_vel", _S_JVEL, N_JOINTS, 0.1),
+    ("prev_action", _S_ACT, N_JOINTS, 1.0),
+    ("ball_pos_rel", _S_BALL, 3, 1.0),
+    ("ball_vel_rel", _S_BALL + 3, 3, 0.5),
+    ("ball_in_control", _S_BALL + 6, 1, 1.0),
+    ("palm_ball_dist", _S_BALL + 7, 2, 1.0),
+    ("foot_contact", _S_BALL + 9, 2, 1.0),
+    ("pelvis_height", _S_BALL + 11, 1, 1.0),
+    ("ball_angvel", _S_BALL + 12, 3, 0.05),
+    ("countdown_frac", _S_BALL + 15, 1, 1.0),
+    ("reserved", _S_BALL + 16, 1, 1.0),
+    ("task", N_BASE, N_TASK, 1.0),
 ]
 assert SLOTS[-1][1] + SLOTS[-1][2] == N_OBS
 
@@ -94,6 +100,8 @@ class ObsIndex:
         self.palm_r = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, "palm_r")
         self.foot_geom = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "foot_l"),
                           mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "foot_r")]
+        self.toe_geom = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "toe_l"),
+                         mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "toe_r")]
         self.floor_geom = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor")
 
     def action_to_ctrl(self, action: np.ndarray) -> np.ndarray:
@@ -140,33 +148,33 @@ def compute_obs(m: mujoco.MjModel, d: mujoco.MjData, ix: ObsIndex, prev_action: 
     out[0:3] = R.T @ np.array([0.0, 0.0, -1.0])
     out[3:6] = R.T @ v_pelvis
     out[6:9] = 0.25 * w_pelvis
-    out[9:36] = d.qpos[ix.qadr] - ix.nominal
-    out[36:63] = 0.1 * d.qvel[ix.vadr]
-    out[63:90] = prev_action
+    out[_S_JPOS:_S_JVEL] = d.qpos[ix.qadr] - ix.nominal
+    out[_S_JVEL:_S_ACT] = 0.1 * d.qvel[ix.vadr]
+    out[_S_ACT:_S_BALL] = prev_action
 
     p_ball = d.qpos[ix.ball_q:ix.ball_q + 3]
     v_ball = d.qvel[ix.ball_v:ix.ball_v + 3]
     w_ball = d.qvel[ix.ball_v + 3:ix.ball_v + 6]        # body frame; for a sphere this is fine as-is
-    out[90:93] = H.T @ (p_ball - p_pelvis)
-    out[93:96] = 0.5 * (H.T @ (v_ball - v_pelvis))
-    out[96] = in_control
-    out[97] = np.linalg.norm(d.site_xpos[ix.palm_l] - p_ball)
-    out[98] = np.linalg.norm(d.site_xpos[ix.palm_r] - p_ball)
+    out[_S_BALL:_S_BALL + 3] = H.T @ (p_ball - p_pelvis)
+    out[_S_BALL + 3:_S_BALL + 6] = 0.5 * (H.T @ (v_ball - v_pelvis))
+    out[_S_BALL + 6] = in_control
+    out[_S_BALL + 7] = np.linalg.norm(d.site_xpos[ix.palm_l] - p_ball)
+    out[_S_BALL + 8] = np.linalg.norm(d.site_xpos[ix.palm_r] - p_ball)
     fl = fr = 0.0
     for c in range(d.ncon):
         g1, g2 = d.contact[c].geom1, d.contact[c].geom2
         if ix.floor_geom in (g1, g2):
             other = g2 if g1 == ix.floor_geom else g1
-            if other == ix.foot_geom[0]:
+            if other == ix.foot_geom[0] or other == ix.toe_geom[0]:
                 fl = 1.0
-            elif other == ix.foot_geom[1]:
+            elif other == ix.foot_geom[1] or other == ix.toe_geom[1]:
                 fr = 1.0
-    out[99], out[100] = fl, fr
-    out[101] = p_pelvis[2]
-    out[102:105] = 0.05 * (H.T @ w_ball)
-    out[105] = countdown_frac
-    out[106] = 0.0
-    out[107:119] = task
+    out[_S_BALL + 9], out[_S_BALL + 10] = fl, fr
+    out[_S_BALL + 11] = p_pelvis[2]
+    out[_S_BALL + 12:_S_BALL + 15] = 0.05 * (H.T @ w_ball)
+    out[_S_BALL + 15] = countdown_frac
+    out[_S_BALL + 16] = 0.0
+    out[N_BASE:N_OBS] = task
     return out
 
 
@@ -217,7 +225,7 @@ def write_spec_and_golden(n_samples: int = 1000, seed: int = 0) -> None:
     (SHARED / "golden").mkdir(exist_ok=True)
     np.savez(SHARED / "golden" / "obs_golden.npz", qpos=qpos, qvel=qvel, prev_action=prev, task=task,
              in_control=flags[:, 0], countdown_frac=flags[:, 1], obs=obs)
-    nz = (obs[:, 99:101] > 0).mean(axis=0)
+    nz = (obs[:, _S_BALL + 9:_S_BALL + 11] > 0).mean(axis=0)
     print(f"wrote obs_spec.json and golden/obs_golden.npz ({n_samples} samples; foot contact rate l/r = {nz[0]:.2f}/{nz[1]:.2f})")
 
 

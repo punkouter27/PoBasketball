@@ -1,5 +1,5 @@
 #include "BroadcastCamera.h"
-#include "Camera/CameraComponent.h"
+#include "CineCameraComponent.h"
 #include "HAL/IConsoleManager.h"
 
 static TAutoConsoleVariable<int32> CVarForceCamera(
@@ -83,10 +83,11 @@ FBroadcastTarget FBroadcastLogic::TargetFor(EBroadcastShot Shot, const FBroadcas
 	{
 		const int32 Side = ((In.Character - In.Rim[0]).Length() <= (In.Character - In.Rim[1]).Length()) ? 0 : 1;
 		const double Sign = (Side == 0) ? 1.0 : -1.0;
-		const FVector3d Cam(Sign * 15.2, FMath::Clamp(In.Character.Y * 0.5, -5.0, 5.0), 0.7);   // low, behind the hoop
+		const double MinCamX = FMath::Max(15.2, Sign * Mid.X + MinBaselineDistance);
+		const FVector3d Cam(Sign * MinCamX, FMath::Clamp(In.Character.Y * 0.5, -5.0, 5.0), 0.7);   // low, behind the hoop with distance guardrail
 		T.Position = SimToUE(Cam);
 		T.LookAt = SimToUE(FVector3d(Mid.X, Mid.Y, 1.2));
-		const double Dist = (Mid - Cam).Length();
+		const double Dist = FMath::Max((Mid - Cam).Length(), MinBaselineDistance);
 		T.FovDeg = FMath::Clamp((float)FMath::RadiansToDegrees(2.0 * FMath::Atan2(0.5 * FMath::Max(Spread, 2.5) + 1.2, Dist)), FovMin, FovMax);
 		break;
 	}
@@ -110,10 +111,20 @@ FBroadcastTarget FBroadcastLogic::TargetFor(EBroadcastShot Shot, const FBroadcas
 ABroadcastCamera::ABroadcastCamera()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
+	Camera = CreateDefaultSubobject<UCineCameraComponent>(TEXT("Camera"));
 	SetRootComponent(Camera);
 	Camera->bConstrainAspectRatio = false;
+	Camera->Filmback.SensorWidth = 36.f;
+	Camera->Filmback.SensorHeight = 20.25f;
+	Camera->CurrentAperture = 4.0f;
+	Camera->FocusSettings.FocusMethod = ECameraFocusMethod::Manual;
+	Camera->FocusSettings.ManualFocusDistance = 900.f;
 	Camera->SetFieldOfView(45.f);
+}
+
+float ABroadcastCamera::GetFocusDistanceCm() const
+{
+	return Camera ? Camera->FocusSettings.ManualFocusDistance : 0.f;
 }
 
 void ABroadcastCamera::SetCameraMode(EStreetballCameraMode InMode)
@@ -139,6 +150,12 @@ void ABroadcastCamera::AddFreeOffset(const FVector& WorldDeltaUE)
 {
 	FreePosUE += WorldDeltaUE;
 	FreeLookAtUE += WorldDeltaUE;
+	if (FreePosUE.Z < 25.f)
+	{
+		const float Lift = 25.f - FreePosUE.Z;
+		FreePosUE.Z = 25.f;
+		FreeLookAtUE.Z += Lift;
+	}
 }
 
 void ABroadcastCamera::UpdateCamera(const FBroadcastInputs& In, float Dt)
@@ -171,6 +188,7 @@ void ABroadcastCamera::UpdateCamera(const FBroadcastInputs& In, float Dt)
 	else
 	{
 		T.Position = FreePosUE.IsNearlyZero() ? GetActorLocation() : FreePosUE;
+		T.Position.Z = FMath::Max(T.Position.Z, 25.0);
 		T.LookAt = FreeLookAtUE.IsNearlyZero() ? SimToUE(In.Character + FVector3d(0.0, 0.0, 0.9)) : FreeLookAtUE;
 		T.FovDeg = 55.f;
 	}
@@ -180,6 +198,7 @@ void ABroadcastCamera::UpdateCamera(const FBroadcastInputs& In, float Dt)
 	if (bCut)
 	{
 		++CutCount;
+		CutBlurSuppression = 0.25f;
 		Pos = T.Position; LookAt = T.LookAt; Fov = T.FovDeg;
 		PosVel = LookVel = FVector::ZeroVector; FovVel = 0.f;
 	}
@@ -197,4 +216,12 @@ void ABroadcastCamera::UpdateCamera(const FBroadcastInputs& In, float Dt)
 	SetActorLocation(Pos);
 	SetActorRotation((LookAt - Pos).Rotation());
 	Camera->SetFieldOfView(Fov);
+
+	// CineCamera manual focus pull on the athlete + brief motion-blur suppression right after a cut.
+	const FVector AthleteUE = SimToUE(In.Character + FVector3d(0.0, 0.0, 0.9));
+	Camera->FocusSettings.FocusMethod = ECameraFocusMethod::Manual;
+	Camera->FocusSettings.ManualFocusDistance = FMath::Clamp((float)FVector::Dist(Pos, AthleteUE), 150.f, 6000.f);
+	CutBlurSuppression = FMath::Max(0.f, CutBlurSuppression - Dt);
+	Camera->PostProcessSettings.bOverride_MotionBlurAmount = CutBlurSuppression > 0.f;
+	Camera->PostProcessSettings.MotionBlurAmount = CutBlurSuppression > 0.f ? 0.f : 0.3f;
 }

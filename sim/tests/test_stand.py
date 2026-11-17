@@ -34,8 +34,8 @@ def _actuated_joint_qpos(m, d):
 
 def test_model_shape_and_mass():
     m, d = _load()
-    assert m.nu == 27
-    assert m.nq == 7 + 7 + 27 and m.nv == 6 + 6 + 27
+    assert m.nu == 29
+    assert m.nq == 7 + 7 + 29 and m.nv == 6 + 6 + 29
     hum = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "pelvis")
     mujoco.mj_forward(m, d)
     assert abs(m.body_subtreemass[hum] - 80.0) < 0.5

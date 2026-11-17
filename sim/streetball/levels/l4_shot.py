@@ -75,6 +75,7 @@ class L4JumpShot(L2Dribble):
         self.prev_ball_z[ids] = h
         self.hold_steps[ids] = 0.0
         self._last_action[ids] = 0.0
+        self._prev2_action[ids] = 0.0
 
     def task_block(self, ids):
         env = self.env
@@ -130,16 +131,20 @@ class L4JumpShot(L2Dribble):
         miss_d = (land - self.rim[None, :2]).norm(dim=-1)
         r_land = torch.exp(-(miss_d / 0.5) ** 2) * newly_released.float()
 
+        # pure-RL wrist-snap follow-through on release + upright torso posture
+        wf = env.joint_pos()[:, env.wrist_flex_idx].amax(dim=1)
+        r_wrist_snap = torch.exp(-((wf - 0.85) / 0.35) ** 2) * self.released.float()
         r_post = (
             1.0 * both.float() * (~self.released).float()                   # gather / hold
             + 2.0 * (self.triggered & self.gathered & in_air & ~self.released).float()  # jump with ball
             + 3.0 * r_aim
             + 10.0 * r_land
             + 50.0 * newly_scored.float()
+            + 0.5 * r_wrist_snap
             - 1.0 * (self.triggered & ~self.gathered & (ball_z < 0.3)).float()      # lost it at the gather
-            + 0.3 * self.r_upright()
+            + 0.5 * self.r_torso_upright()
         )
-        r = torch.where(pre, r_dribble, r_post - 0.05 * self.p_action_rate() - 1e-5 * self.p_torque())
+        r = torch.where(pre, r_dribble, r_post - 0.05 * self.p_action_rate() - 0.02 * self.p_action_jerk() - 1e-5 * self.p_torque())
         return r
 
     def terminated(self) -> torch.Tensor:

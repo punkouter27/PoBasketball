@@ -34,6 +34,7 @@ class L2Dribble(Level):
         N, dev = self.N, self.dev
         z = lambda *s, **k: torch.zeros(*s, device=dev, **k)
         self._last_action = z(N, self.env.N_ACT)
+        self._prev2_action = z(N, self.env.N_ACT)
         self.hand = torch.ones(N, device=dev)          # +1 right, -1 left
         self.start_xy = z(N, 2)
         self.streak = z(N, dtype=torch.long)
@@ -94,6 +95,7 @@ class L2Dribble(Level):
         self.prev_floor[ids] = False
         self.last_apex[ids] = 1.0
         self._last_action[ids] = 0.0
+        self._prev2_action[ids] = 0.0
 
     def assist_prob(self) -> float:
         """Start-state curriculum (2026-11-08, queue r4): share of TRAINING resets that launch the ball up into the
@@ -132,7 +134,8 @@ class L2Dribble(Level):
 
     def _active_palm_dist(self) -> torch.Tensor:
         o = self.env.obs
-        return torch.where(self.hand > 0, o[:, 98], o[:, 97])
+        sb = obs_spec._S_BALL
+        return torch.where(self.hand > 0, o[:, sb + 8], o[:, sb + 7])
 
     def reward(self) -> torch.Tensor:
         env = self.env
@@ -197,11 +200,12 @@ class L2Dribble(Level):
             + 2.0 * r_apex_dense
             + 3.0 * clean.float()
             - 1.0 * p_tap                                             # micro-bounces (< 0.5 m apex) cost
-            + 0.5 * self.r_upright()
+            + 0.7 * self.r_torso_upright()
             + 0.3 * self.r_height(width=0.1)
             - 2.0 * p_high
             - 0.5 * p_drift
             - 0.05 * self.p_action_rate()
+            - 0.02 * self.p_action_jerk()
             - 0.001 * self.p_joint_vel()
             - 0.02 * self.p_pose()
             - 1e-5 * self.p_torque()

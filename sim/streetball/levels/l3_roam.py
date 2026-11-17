@@ -126,6 +126,7 @@ class L3Scramble(Level):
     def setup(self) -> None:
         N, dev = self.N, self.dev
         self._last_action = torch.zeros(N, self.env.N_ACT, device=dev)
+        self._prev2_action = torch.zeros(N, self.env.N_ACT, device=dev)
         self.regained = torch.zeros(N, dtype=torch.bool, device=dev)
         self.prev_dist = torch.zeros(N, device=dev)
 
@@ -153,6 +154,7 @@ class L3Scramble(Level):
         self.regained[ids] = False
         self.prev_dist[ids] = dist
         self._last_action[ids] = 0.0
+        self._prev2_action[ids] = 0.0
 
     def task_block(self, ids):
         tb = torch.zeros(self.N, obs_spec.N_TASK, device=self.dev)
@@ -169,7 +171,8 @@ class L3Scramble(Level):
         touch = env.palm_ball_contact.amax(dim=1)
         # Reach shaping (2026-11-08): regaining needs a palm touch, which the first queue never found (0 % regained).
         # Pulls the nearer palm to the ball once the athlete is within 1.2 m of it (obs 97/98 = palm-ball distances).
-        palm = torch.minimum(env.obs[:, 97], env.obs[:, 98])
+        sb = obs_spec._S_BALL
+        palm = torch.minimum(env.obs[:, sb + 7], env.obs[:, sb + 8])
         r_reach = torch.exp(-(palm / 0.4) ** 2) * (d < 1.2).float()
         self._m_reach = r_reach
         r = (2.0 * progress
@@ -177,8 +180,9 @@ class L3Scramble(Level):
              + 0.3 * torch.exp(-(d / 0.5) ** 2)
              + 0.5 * touch
              + 20.0 * newly.float()
-             + 0.5 * self.r_upright()
+             + 0.7 * self.r_torso_upright()
              - 0.05 * self.p_action_rate()
+             - 0.02 * self.p_action_jerk()
              - 0.001 * self.p_joint_vel()
              - 1e-5 * self.p_torque())
         self.track_action()

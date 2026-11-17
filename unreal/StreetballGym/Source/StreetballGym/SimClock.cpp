@@ -18,7 +18,8 @@ void USimClock::Initialize(UMuJoCoSim* InSim, int32 InSubstepsPerControl)
 int32 USimClock::Advance(double DeltaSeconds)
 {
 	if (!Sim || !Sim->IsLoaded()) return 0;
-	Accumulator += FMath::Clamp(DeltaSeconds, 0.0, MaxFrameDelta);
+	const double Scale = FMath::Clamp(static_cast<double>(TimeScale), 0.1, 4.0);
+	Accumulator += FMath::Clamp(DeltaSeconds, 0.0, MaxFrameDelta) * Scale;
 	int32 Steps = 0;
 	while (Accumulator >= Timestep)
 	{

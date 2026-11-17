@@ -457,9 +457,11 @@ void AStreetballWorld::UpdateCaptureSchedule()
 	static TArray<FCaptureJob> Jobs;
 	static TArray<float> Drops;
 	static float QuitAfter = -1.f;
+	static int32 FeatureStep = -1;
 	if (!bParsed)
 	{
 		bParsed = true;
+		if (FParse::Param(FCommandLine::Get(), TEXT("StreetballDemoFeatures"))) FeatureStep = 0;
 		FString List;
 		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballCapture="), List, false))
 		{
@@ -507,6 +509,43 @@ void AStreetballWorld::UpdateCaptureSchedule()
 	}
 
 	const FTrackedState& S = Tracker->State();
+	if (FeatureStep >= 0)
+	{
+		if (FeatureStep == 0 && T >= 3.0f)
+		{
+			FeatureStep = 1;
+			AppMode = EStreetballAppMode::Play;
+			JumpToTier(2);
+			CommandCourtTarget(FVector2d(4.5, 1.5));
+		}
+		else if (FeatureStep == 1 && T >= 9.0f)
+		{
+			FeatureStep = 2;
+			LobBallToAthlete();
+		}
+		else if (FeatureStep == 2 && T >= 12.5f)
+		{
+			FeatureStep = 3;
+			AppMode = EStreetballAppMode::Testbed;
+			JumpToTier(1);
+			TimeScaleIdx = 1; // 0.50x slow-mo
+			if (Clock) Clock->TimeScale = 0.5f;
+			ApplyTestbedPush(FVector2d(1.0, 0.35), 110.f, 0.25f);
+		}
+		else if (FeatureStep == 3 && T >= 16.0f)
+		{
+			FeatureStep = 4;
+			ApplyTestbedPush(FVector2d(-0.8, -0.6), 110.f, 0.25f);
+		}
+		else if (FeatureStep == 4 && T >= 21.0f)
+		{
+			FeatureStep = 5;
+			TimeScaleIdx = 2; // 1.0x
+			if (Clock) Clock->TimeScale = 1.0f;
+			AppMode = EStreetballAppMode::Watch;
+			JumpToTier(5);
+		}
+	}
 	const auto ToUE = [](const FVector3d& P) { return FVector(P.X * 100.0, -P.Y * 100.0, P.Z * 100.0); };
 	for (FCaptureJob& J : Jobs)
 	{
@@ -519,6 +558,8 @@ void AStreetballWorld::UpdateCaptureSchedule()
 		const FVector3d Fwd(S.HeadingFwd.X, S.HeadingFwd.Y, 0.0), Left(S.HeadingLeft.X, S.HeadingLeft.Y, 0.0);
 		if (J.View == TEXT("close")) { const FVector3d Head = S.PelvisPos + FVector3d(0, 0, 0.66); From = Head + 1.15 * Fwd + 0.4 * Left + FVector3d(0, 0, 0.04); To = Head - FVector3d(0, 0, 0.02); }
 		else if (J.View == TEXT("body")) { From = S.PelvisPos + 3.6 * Fwd + 1.6 * Left + FVector3d(0, 0, 0.35); To = S.PelvisPos + FVector3d(0, 0, -0.1); }
+		else if (J.View == TEXT("foot")) { From = S.PelvisPos + 0.65 * Fwd + 1.05 * Left - FVector3d(0, 0, 0.62); To = S.PelvisPos + 0.12 * Fwd - FVector3d(0, 0, 0.80); }
+		else if (J.View == TEXT("crowd")) { From = FVector3d(0.0, 1.5, 2.1); To = FVector3d(0.0, 10.6, 1.35); }
 		else if (J.View == TEXT("hoop")) { From = FVector3d(9.2, -2.4, 3.55); To = FVector3d(12.42, 0.0, 2.75); }
 		else if (J.View == TEXT("high")) { From = FVector3d(-26.0, -23.0, 21.0); To = FVector3d(0.0, 0.0, 0.0); }
 		else if (J.View == TEXT("street")) { From = FVector3d(-9.0, -12.2, 1.7); To = FVector3d(6.0, -24.0, 4.5); }
@@ -582,9 +623,10 @@ void AStreetballWorld::SetupPresentation()
 	VoiceBank = VoiceBankPath.IsEmpty() ? nullptr : LoadObject<UGrandmaVoiceBank>(nullptr, *VoiceBankPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
 	// The CC face morphs live on the grandma body mesh; other skins simply ignore unknown morph names.
 	Voice.Initialize(this, Character ? Character->GetFaceMesh() : nullptr, VoiceBank, DirectorSeed);
+	Crowd.Initialize(GetWorld(), DirectorSeed, 16);
 	AudioPlayer.StartAmbience(this);
-	UE_LOG(LogStreetball, Log, TEXT("Presentation: fx bank %s, voice %d lines, ambience %s, %d material overrides, grooms %d, cloth %s"),
-		FXBank ? TEXT("loaded") : TEXT("missing"), VoiceBank ? VoiceBank->Lines.Num() : 0,
+	UE_LOG(LogStreetball, Log, TEXT("Presentation: fx bank %s, voice %d lines, crowd %d, ambience %s, %d material overrides, grooms %d, cloth %s"),
+		FXBank ? TEXT("loaded") : TEXT("missing"), VoiceBank ? VoiceBank->Lines.Num() : 0, Crowd.NumSpectators(),
 		AudioPlayer.IsAmbiencePlaying() ? TEXT("on") : TEXT("off"), MaterialOverrideCount,
 		Character ? Character->NumGrooms() : 0, (Character && Character->HasCloth()) ? TEXT("yes") : TEXT("no"));
 }
@@ -611,6 +653,7 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 	for (const EPresentationEvent Ev : PendingPresentation)
 	{
 		++PresentationCounts[(int32)Ev];
+		Crowd.OnEvent(Ev, Now);
 		switch (Ev)
 		{
 		case EPresentationEvent::Make:
@@ -640,6 +683,29 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 		if (Voice.OnEvent(Ev, Now)) EventDetector.MarkActivity(S.Time);
 	}
 	PendingPresentation.Reset();
+
+	// #3 Torque-driven exertion morphs, breathing & sweat
+	if (Sim && Sim->IsLoaded())
+	{
+		LastPowerW = Sim->ComputeActuatorPowerWatts();
+		const float TorqueNorm = Sim->ComputeMeanTorqueNorm();
+		const float RawExertion = FMath::Clamp(0.6f * (LastPowerW / 600.f) + 0.4f * TorqueNorm, 0.f, 1.f);
+		Exertion01 = FMath::Lerp(Exertion01, RawExertion, FMath::Clamp(Dt * 4.f, 0.f, 1.f));
+		Voice.SetExertion(Exertion01);
+		if (Exertion01 > 0.62f && Now >= NextExertionSweatT)
+		{
+			FCourtFXCue Sweat;
+			Sweat.Fx = ECourtFX::Sweat;
+			Sweat.PositionUE = ToUE(S.PelvisPos) + FVector(0, 0, 82.0);
+			Sweat.Scale = 0.5f + 0.6f * Exertion01;
+			FXPlayer.Play(Sweat);
+			NextExertionSweatT = Now + 1.4;
+		}
+	}
+
+	// #15 Sideline crowd tracking & mood animation
+	const FVector FocusUE = (Director->GetProgress().ActiveTier >= 3) ? ToUE(S.BallPos) : ToUE(S.PelvisPos);
+	Crowd.Tick(Now, FocusUE);
 
 	Voice.Tick(Now, Dt);
 	if (HUD) HUD->SetSubtitle(Now < Voice.GetSubtitleUntil() ? Voice.GetSubtitle() : FString());
@@ -679,6 +745,9 @@ void AStreetballWorld::ApplyReset(const FStreetballResetSpec& Spec)
 	}
 	Sim->SetQPos(Q);
 	Sim->SetQVel(VBuf);
+	Sim->ClearExternalForces();
+	ActivePushForceSim = FVector2d::ZeroVector;
+	PushRemainingS = 0.0;
 	Sim->SetCtrl(HoldCtrl);
 	Sim->Forward();
 	if (Character && Character->Mesh) Character->Mesh->ForceClothNextUpdateTeleportAndReset();
@@ -695,6 +764,17 @@ void AStreetballWorld::ApplyReset(const FStreetballResetSpec& Spec)
 void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 {
 	const double Dt = Clock ? Clock->GetTimestep() * Clock->GetSubstepsPerControl() : 0.02;
+	if (PushRemainingS > 0.0)
+	{
+		InSim->SetBodyExternalForceSim(PelvisBody, FVector3d(ActivePushForceSim.X, ActivePushForceSim.Y, 0.0));
+		PushRemainingS -= Dt;
+		if (PushRemainingS <= 0.0)
+		{
+			PushRemainingS = 0.0;
+			ActivePushForceSim = FVector2d::ZeroVector;
+			InSim->SetBodyExternalForceSim(PelvisBody, FVector3d::ZeroVector);
+		}
+	}
 	const FTrackedState& S = Tracker->Update(Dt);
 	Director->Update(S, Dt, DirOut);
 	EventDetector.Update(S, DirOut, Director->GetProgress(), Director->GetState(), PendingPresentation);   // pre-reserved, read only
@@ -767,12 +847,52 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 	{
 		if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
 		{
-			if (PC->WasInputKeyJustPressed(EKeys::F1)) CycleAppMode();
-			if (PC->WasInputKeyJustPressed(EKeys::F2)) CycleCameraMode();
-			if (PC->WasInputKeyJustPressed(EKeys::F3)) ToggleTelemetry();
-			if (PC->WasInputKeyJustPressed(EKeys::F4)) CyclePolicyOverride();
+			if (PC->WasInputKeyJustPressed(EKeys::F1) || PC->WasInputKeyJustPressed(EKeys::M)) CycleAppMode();
+			if (PC->WasInputKeyJustPressed(EKeys::F2) || PC->WasInputKeyJustPressed(EKeys::C)) CycleCameraMode();
+			if (PC->WasInputKeyJustPressed(EKeys::F3) || PC->WasInputKeyJustPressed(EKeys::T)) ToggleTelemetry();
+			if (PC->WasInputKeyJustPressed(EKeys::F4) || PC->WasInputKeyJustPressed(EKeys::P)) CyclePolicyOverride();
 			if (PC->WasInputKeyJustPressed(EKeys::SpaceBar)) TogglePause();
 			if (PC->WasInputKeyJustPressed(EKeys::R)) ResetEpisode();
+
+			if (AppMode == EStreetballAppMode::Play || AppMode == EStreetballAppMode::Testbed)
+			{
+				if (PC->WasInputKeyJustPressed(EKeys::One)) JumpToTier(1);
+				if (PC->WasInputKeyJustPressed(EKeys::Two)) JumpToTier(2);
+				if (PC->WasInputKeyJustPressed(EKeys::Three)) JumpToTier(3);
+				if (PC->WasInputKeyJustPressed(EKeys::Four)) JumpToTier(4);
+				if (PC->WasInputKeyJustPressed(EKeys::Five)) JumpToTier(5);
+			}
+
+			PC->bShowMouseCursor = (AppMode == EStreetballAppMode::Play);
+			if (AppMode == EStreetballAppMode::Play)
+			{
+				if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+				{
+					FVector RayOrigin, RayDir;
+					if (PC->DeprojectMousePositionToWorld(RayOrigin, RayDir) && FMath::Abs(RayDir.Z) > 1e-4)
+					{
+						const double T = -RayOrigin.Z / RayDir.Z;
+						if (T > 0.0)
+						{
+							const FVector HitUE = RayOrigin + RayDir * T;
+							CommandCourtTarget(FVector2d(HitUE.X / 100.0, -HitUE.Y / 100.0));
+						}
+					}
+				}
+				if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton) || PC->WasInputKeyJustPressed(EKeys::B))
+				{
+					LobBallToAthlete();
+				}
+			}
+			else if (AppMode == EStreetballAppMode::Testbed)
+			{
+				if (PC->WasInputKeyJustPressed(EKeys::I)) ApplyTestbedPush(FVector2d(1.0, 0.0));
+				if (PC->WasInputKeyJustPressed(EKeys::K)) ApplyTestbedPush(FVector2d(-1.0, 0.0));
+				if (PC->WasInputKeyJustPressed(EKeys::J)) ApplyTestbedPush(FVector2d(0.0, 1.0));
+				if (PC->WasInputKeyJustPressed(EKeys::L)) ApplyTestbedPush(FVector2d(0.0, -1.0));
+				if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) StepTimeScale(-1);
+				if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) StepTimeScale(1);
+			}
 
 			if (Camera && Camera->GetCameraMode() == EStreetballCameraMode::Free)
 			{
@@ -858,6 +978,72 @@ void AStreetballWorld::ResetEpisode()
 	ApplyReset(Spec);
 }
 
+void AStreetballWorld::JumpToTier(int32 Tier)
+{
+	if (!bReady || !Director) return;
+	Tier = FMath::Clamp(Tier, 1, 5);
+	Director->StartAtTier(Tier);
+	FStreetballResetSpec Spec;
+	Spec.bRequested = true;
+	Spec.Reason = TEXT("tier jump");
+	Director->PrepareReset(Tier, Spec);
+	ApplyReset(Spec);
+}
+
+void AStreetballWorld::CommandCourtTarget(const FVector2d& SimXY)
+{
+	if (!bReady || !Director) return;
+	Director->SetManualWaypoint(SimXY);
+}
+
+void AStreetballWorld::LobBallToAthlete()
+{
+	if (!bReady || !Sim || !Tracker || BallQAdr < 0 || BallVAdr < 0) return;
+	const FTrackedState& S = Tracker->State();
+	// Place ball 1.1 m ahead of athlete and toss gently toward chest height (~1.1 m)
+	const FVector2d Fwd = S.HeadingFwd.Length() > 1e-4 ? S.HeadingFwd : FVector2d(1.0, 0.0);
+	const FVector3d StartPos(S.PelvisPos.X + Fwd.X * 1.15, S.PelvisPos.Y + Fwd.Y * 1.15, 1.45);
+	const double FlightT = 0.45;
+	const FVector3d TargetPos(S.PelvisPos.X + Fwd.X * 0.25, S.PelvisPos.Y + Fwd.Y * 0.25, 1.05);
+	const double Vx = (TargetPos.X - StartPos.X) / FlightT;
+	const double Vy = (TargetPos.Y - StartPos.Y) / FlightT;
+	const double Vz = (TargetPos.Z - StartPos.Z + 0.5 * 9.81 * FlightT * FlightT) / FlightT;
+
+	const TConstArrayView<double> Q0 = Sim->QPos();
+	const TConstArrayView<double> V0 = Sim->QVel();
+	FMemory::Memcpy(QBuf.GetData(), Q0.GetData(), QBuf.Num() * sizeof(double));
+	FMemory::Memcpy(VBuf.GetData(), V0.GetData(), VBuf.Num() * sizeof(double));
+	QBuf[BallQAdr] = StartPos.X; QBuf[BallQAdr + 1] = StartPos.Y; QBuf[BallQAdr + 2] = StartPos.Z;
+	QBuf[BallQAdr + 3] = 1.0; QBuf[BallQAdr + 4] = QBuf[BallQAdr + 5] = QBuf[BallQAdr + 6] = 0.0;
+	VBuf[BallVAdr] = Vx; VBuf[BallVAdr + 1] = Vy; VBuf[BallVAdr + 2] = Vz;
+	VBuf[BallVAdr + 3] = VBuf[BallVAdr + 4] = VBuf[BallVAdr + 5] = 0.0;
+	Sim->SetQPos(QBuf);
+	Sim->SetQVel(VBuf);
+	Sim->Forward();
+	if (Clock) Clock->Resnapshot();
+}
+
+void AStreetballWorld::ApplyTestbedPush(const FVector2d& DirSim, float ForceN, float DurationS)
+{
+	if (!bReady || PelvisBody < 0) return;
+	const double Len = DirSim.Length();
+	if (Len <= 1e-6) return;
+	ActivePushForceSim = (DirSim / Len) * ForceN;
+	PushRemainingS = FMath::Max(0.02, (double)DurationS);
+}
+
+void AStreetballWorld::StepTimeScale(int32 DeltaIndex)
+{
+	static constexpr float Scales[5] = { 0.25f, 0.5f, 1.0f, 1.5f, 2.0f };
+	TimeScaleIdx = FMath::Clamp(TimeScaleIdx + DeltaIndex, 0, 4);
+	if (Clock) Clock->TimeScale = Scales[TimeScaleIdx];
+}
+
+float AStreetballWorld::GetTimeScale() const
+{
+	return Clock ? Clock->TimeScale : 1.f;
+}
+
 void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 {
 	const FTrackedState& S = Tracker->State();
@@ -891,7 +1077,20 @@ void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 		}
 		const bool bUsingReal = RealPolicies.Contains(LastPolicyName.ToString());
 		const FString PolicyLabel = LastPolicyName.IsNone() ? TEXT("fallback") : LastPolicyName.ToString();
-		HUD->UpdateTelemetry(ModeLabel, CamLabel, PolicyLabel, DirectorSeed, EpisodeReward, NanInfCount, SmoothedFps, bPaused, !bUsingReal);
+		HUD->UpdateTelemetry(ModeLabel, CamLabel, PolicyLabel, DirectorSeed, EpisodeReward, NanInfCount, SmoothedFps, bPaused, !bUsingReal,
+			Exertion01, LastPowerW, GetTimeScale());
+		if (AppMode == EStreetballAppMode::Play)
+		{
+			HUD->SetModeHint(TEXT("M/F1 Mode  |  LMB Waypoint  |  RMB/B Lob Ball  |  1-5 Tier  |  C/F2 Cam  |  Space Pause  |  R Reset"));
+		}
+		else if (AppMode == EStreetballAppMode::Testbed)
+		{
+			HUD->SetModeHint(TEXT("M/F1 Mode  |  IJKL Push 120N  |  [/] Speed  |  1-5 Tier  |  P/F4 Policy  |  T/F3 Telem  |  R Reset"));
+		}
+		else
+		{
+			HUD->SetModeHint(TEXT("M/F1 Mode  |  C/F2 Camera  |  T/F3 Telemetry  |  P/F4 Policy  |  Space Pause  |  R Reset"));
+		}
 	}
 }
 

@@ -15,8 +15,11 @@ import onnxruntime as ort
 import torch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from streetball import obs as obs_spec  # noqa: E402
+
 SHARED = ROOT.parent / "shared"
-N_OBS, N_ACT = 119, 27
+N_OBS, N_ACT = obs_spec.N_OBS, obs_spec.N_JOINTS
 
 
 def main() -> None:

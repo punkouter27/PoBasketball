@@ -23,6 +23,7 @@ class L0Stand(Level):
 
     def setup(self) -> None:
         self._last_action = torch.zeros(self.N, self.env.N_ACT, device=self.dev)
+        self._prev2_action = torch.zeros(self.N, self.env.N_ACT, device=self.dev)
         self.start_xy = torch.zeros(self.N, 2, device=self.dev)
         self.sway_acc = torch.zeros(self.N, device=self.dev)
         self.quiet_steps = torch.zeros(self.N, device=self.dev)
@@ -48,6 +49,7 @@ class L0Stand(Level):
         self.jitter_acc[ids] = 0.0
         self.ema_xy[ids] = xy
         self._last_action[ids] = 0.0
+        self._prev2_action[ids] = 0.0
 
     def _foot_drift(self) -> torch.Tensor:
         env = self.env
@@ -70,11 +72,13 @@ class L0Stand(Level):
         self.speed_acc += torch.where(quiet, speed, torch.zeros_like(speed))
         self.jitter_acc += torch.where(quiet, jitter, torch.zeros_like(jitter))
         r = (
-            1.0 * self.r_upright()
+            1.5 * self.r_torso_upright()
             + 0.5 * self.r_height()
             + 0.5 * torch.exp(-(sway / 0.05) ** 2)
             - 2.0 * drift
             - 0.05 * self.p_action_rate()
+            - 0.02 * self.p_action_jerk()
+            - 0.05 * self.p_toe_stand()
             - 0.002 * self.p_joint_vel()
             - 0.1 * self.p_pose()
             - 1e-5 * self.p_torque()
@@ -95,6 +99,7 @@ class L0Stand(Level):
             "m/quiet_jitter_cm": 100.0 * self.jitter_acc / self.quiet_steps.clamp_min(1.0),
             "m/foot_drift_cm": self._foot_drift().amax(dim=1) * 100.0,
             "m/upright": self.r_upright(),
+            "m/torso_upright": self.r_torso_upright(),
         }
 
     def episode_success(self) -> torch.Tensor:

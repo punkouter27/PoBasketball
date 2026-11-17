@@ -51,6 +51,9 @@ public:
 	const FGrandmaVoiceLine* OnEvent(EPresentationEvent E, double GameTime);
 	/** Every frame: sample the active line and write morph targets. */
 	void Tick(double GameTime, float DeltaSeconds);
+	/** Continuous physical exertion [0..1] from sim actuator power/torque; drives idle breathing & squint/grimace. */
+	void SetExertion(float InExertion01) { Exertion01 = FMath::Clamp(InExertion01, 0.f, 1.f); }
+	float GetExertion() const { return Exertion01; }
 
 	bool HasBank() const { return Bank.IsValid() && Bank->Lines.Num() > 0; }
 	const FString& GetSubtitle() const { return Subtitle; }
@@ -77,5 +80,6 @@ private:
 	FString Subtitle;
 	double SubtitleUntil = 0.0;
 	int32 LinesPlayed = 0;
+	float Exertion01 = 0.f;
 	TArray<FName> MoodMorphs;          // morphs touched by the mood layer (cleared when it decays)
 };

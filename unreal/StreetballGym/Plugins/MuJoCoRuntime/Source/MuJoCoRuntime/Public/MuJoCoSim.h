@@ -122,6 +122,13 @@ public:
 	void SetCtrlDouble(TConstArrayView<double> Ctrl);
 	void SetQPos(TConstArrayView<double> InQPos);
 	void SetQVel(TConstArrayView<double> InQVel);
+	/** Apply a world-frame external force (N, sim frame) to a body (Testbed push impulses). */
+	void SetBodyExternalForceSim(int32 BodyId, const FVector3d& ForceSim);
+	void ClearExternalForces();
+	/** Total instantaneous mechanical power |tau * qvel| across actuators (W), zero allocation. */
+	float ComputeActuatorPowerWatts() const;
+	/** RMS normalized actuator torque effort in [0, 1], zero allocation. */
+	float ComputeMeanTorqueNorm() const;
 
 	// ---- contacts ----------------------------------------------------------
 	UFUNCTION(BlueprintCallable, Category = "MuJoCo")

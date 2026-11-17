@@ -9,6 +9,9 @@
 #include "PresentationEvents.h"
 #include "CourtFX.h"
 #include "GrandmaVoice.h"
+#include "StreetballCrowd.h"
+#include "StreetballDirector.h"
+#include "BroadcastCamera.h"
 #include "MuJoCoSim.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -220,6 +223,75 @@ bool FStreetballPresentationWiringTest::RunTest(const FString&)
 	TestTrue(TEXT("qpos identical with presentation on/off after 3 s"), MaxDiff == 0.0);
 	AddInfo(FString::Printf(TEXT("max |qpos on - off| = %.3e over %d dofs; FX bursts %d, net kicks %d"), MaxDiff, QA.Num(),
 		On->GetFXPlayer().PlayedCount, On->GetFXPlayer().NetKicks));
+	TestEqual(TEXT("presentation on: 16 spectators"), On->GetCrowd().NumSpectators(), 16);
+	TestEqual(TEXT("presentation off: 0 spectators"), Off->GetCrowd().NumSpectators(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStreetballCrowdAndExertionTest, "Streetball.Presentation.CrowdAndExertion", FXFlags)
+bool FStreetballCrowdAndExertionTest::RunTest(const FString&)
+{
+	FFxTestWorld TW;
+	FCourtCrowdPlayer Crowd;
+	Crowd.Initialize(TW.World, 7, 16);
+	TestEqual(TEXT("16 spectators pre-allocated"), Crowd.NumSpectators(), 16);
+	TestEqual(TEXT("initial crowd mood idle"), (int32)Crowd.GetMood(), (int32)ECrowdMood::Idle);
+	Crowd.OnEvent(EPresentationEvent::Swish, 1.0);
+	TestEqual(TEXT("swish triggers cheer"), (int32)Crowd.GetMood(), (int32)ECrowdMood::Cheer);
+	Crowd.Tick(1.5, FVector::ZeroVector);
+	Crowd.OnEvent(EPresentationEvent::RimOut, 2.0);
+	TestEqual(TEXT("rim out triggers groan"), (int32)Crowd.GetMood(), (int32)ECrowdMood::Groan);
+	Crowd.Tick(5.0, FVector::ZeroVector);
+	TestEqual(TEXT("mood settles back to idle"), (int32)Crowd.GetMood(), (int32)ECrowdMood::Idle);
+
+	AStreetballWorld* W = TW.World->SpawnActor<AStreetballWorld>(AStreetballWorld::StaticClass(), FTransform::Identity);
+	if (W && !W->GetSim()) W->Setup(TW.World);
+	if (!TestNotNull(TEXT("world spawned"), W) || !TestNotNull(TEXT("sim"), W->GetSim())) return false;
+	for (int32 i = 0; i < 20; ++i) { W->StepControl(); W->Tick(0.02f); }
+	TestTrue(TEXT("mechanical power finite and non-negative"), FMath::IsFinite(W->GetLastPowerWatts()) && W->GetLastPowerWatts() >= 0.f);
+	TestTrue(TEXT("exertion clamped [0,1]"), W->GetExertion01() >= 0.f && W->GetExertion01() <= 1.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStreetballPlayTestbedCameraGuardTest, "Streetball.Presentation.PlayTestbedAndCameraGuard", FXFlags)
+bool FStreetballPlayTestbedCameraGuardTest::RunTest(const FString&)
+{
+	// #12 Baseline distance guardrail + Free floor clamp
+	FBroadcastLogic Logic;
+	FBroadcastInputs In;
+	In.Rim[0] = FVector3d(12.425, 0, 3.05); In.Rim[1] = FVector3d(-12.425, 0, 3.05);
+	In.Character = FVector3d(12.1, 0.2, 0.95); In.Ball = FVector3d(12.2, 0.2, 1.4);
+	In.State = EStreetballState::JumpShot;
+	const FBroadcastTarget T = Logic.TargetFor(EBroadcastShot::Baseline, In);
+	const double DistCm = FVector::Dist(T.Position, FVector(1210.0, -20.0, 95.0));
+	TestTrue(TEXT("baseline guardrail prevents 1 m close-up (dist >= 440 cm)"), DistCm >= 440.0);
+
+	FFxTestWorld TW;
+	ABroadcastCamera* Cam = TW.World->SpawnActor<ABroadcastCamera>(ABroadcastCamera::StaticClass(), FTransform(FVector(0, 0, 100)));
+	Cam->SetCameraMode(EStreetballCameraMode::Free);
+	Cam->AddFreeOffset(FVector(0.f, 0.f, -500.f));
+	Cam->UpdateCamera(In, 0.02f);
+	TestTrue(TEXT("free camera floor clamp keeps z >= 25 cm"), Cam->GetActorLocation().Z >= 24.9f);
+	TestTrue(TEXT("cine camera manual focus distance updated"), Cam->GetFocusDistanceCm() >= 150.f);
+
+	// #1 Play & Testbed world controls
+	AStreetballWorld* W = TW.World->SpawnActor<AStreetballWorld>(AStreetballWorld::StaticClass(), FTransform::Identity);
+	if (W && !W->GetSim()) W->Setup(TW.World);
+	if (!TestNotNull(TEXT("world"), W) || !TestNotNull(TEXT("sim"), W->GetSim())) return false;
+	W->StepTimeScale(-1);
+	TestTrue(TEXT("testbed time scale slows down (< 1.0)"), W->GetTimeScale() < 1.f);
+	W->StepTimeScale(2);
+	TestTrue(TEXT("testbed time scale speeds up (> 1.0)"), W->GetTimeScale() > 1.f);
+	W->StepTimeScale(-1);
+	TestTrue(TEXT("time scale returns to 1.0"), FMath::IsNearlyEqual(W->GetTimeScale(), 1.f, 1e-3f));
+
+	W->CommandCourtTarget(FVector2d(4.0, -2.0));
+	TestTrue(TEXT("play mode sets manual waypoint"), W->GetDirector()->HasManualWaypoint());
+	TestTrue(TEXT("manual waypoint stored"), FMath::IsNearlyEqual(W->GetDirector()->GetWaypoint().X, 4.0, 1e-4));
+
+	W->ApplyTestbedPush(FVector2d(1.0, 0.0), 120.f, 0.2f);
+	W->StepControl();
+	TestTrue(TEXT("testbed push remains finite"), FMath::IsFinite((float)W->GetSim()->QPos()[0]));
 	return true;
 }
 

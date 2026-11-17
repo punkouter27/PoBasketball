@@ -55,6 +55,13 @@ class Level:
         """1 when the pelvis +Z points up (gravity in pelvis frame == (0,0,-1))."""
         return (-self.env.obs[:, 2]).clamp(0.0, 1.0)
 
+    def r_torso_upright(self) -> torch.Tensor:
+        """Pure-RL posture reward: pelvis +Z AND torso +Z upright (cures ~40 deg lumbar hunch)."""
+        pelvis_up = self.r_upright()
+        R_torso = self.env.quat_to_mat(self.env.xquat[:, self.env.torso_b])
+        torso_up = R_torso[:, 2, 2].clamp(0.0, 1.0)
+        return 0.4 * pelvis_up + 0.6 * torso_up
+
     def r_height(self, target: float | None = None, width: float = 0.05) -> torch.Tensor:
         target = self.env.nominal_root_z if target is None else target
         return torch.exp(-((self.env.p_pelvis[:, 2] - target) / width) ** 2)
@@ -62,6 +69,26 @@ class Level:
     def p_action_rate(self) -> torch.Tensor:
         a = self.env.prev_action
         return ((a - self._last_action) ** 2).mean(dim=1)
+
+    def p_action_jerk(self) -> torch.Tensor:
+        """Second-order action smoothness penalty (UU_AGENT section 2)."""
+        prev2 = getattr(self, "_prev2_action", None)
+        if prev2 is None:
+            return torch.zeros(self.N, device=self.dev)
+        a = self.env.prev_action
+        return ((a - 2.0 * self._last_action + prev2) ** 2).mean(dim=1)
+
+    def p_toe_stand(self) -> torch.Tensor:
+        """Keep toe hinges flat near 0 rad during stationary balance."""
+        toe_q = self.env.joint_pos()[:, self.env.toe_j_idx]
+        return (toe_q ** 2).mean(dim=1)
+
+    def r_heel_toe_stride(self) -> torch.Tensor:
+        """Pure-RL gait shaping: gently dorsiflex toes on airborne swing foot to clear floor."""
+        toe_q = self.env.joint_pos()[:, self.env.toe_j_idx]       # (N, 2), + = toes up
+        swing = (1.0 - self.env.foot_contact).clamp(0.0, 1.0)     # (N, 2), 1 when off floor
+        want = torch.exp(-((toe_q - 0.25) / 0.25) ** 2)
+        return (swing * want).mean(dim=1)
 
     def p_joint_vel(self) -> torch.Tensor:
         return (self.env.joint_vel() ** 2).mean(dim=1)
@@ -73,5 +100,6 @@ class Level:
         return ((self.env.joint_pos() - self.env.nominal) ** 2).mean(dim=1)
 
     def track_action(self) -> None:
-        """Call at the end of reward() so p_action_rate sees the previous action next step."""
+        """Call at the end of reward() so p_action_rate / p_action_jerk see previous actions."""
+        self._prev2_action = self._last_action.clone()
         self._last_action = self.env.prev_action.clone()

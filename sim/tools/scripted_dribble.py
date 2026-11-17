@@ -179,7 +179,8 @@ def run(seconds=20.0, hand=1, seed=0, render=None, quiet=False, base=None, trace
         cam.azimuth, cam.elevation, cam.distance = 150, -12, 3.0
     for t in range(int(seconds / 0.02)):
         o = obs_spec.compute_obs(m, d, ix, prev_a, task, 1.0, 1.0)
-        o[98 if hand > 0 else 97] = np.linalg.norm(d.site_xpos[teacher.site] - d.qpos[ix.ball_q:ix.ball_q + 3])
+        sb = obs_spec._S_BALL
+        o[sb + 8 if hand > 0 else sb + 7] = np.linalg.norm(d.site_xpos[teacher.site] - d.qpos[ix.ball_q:ix.ball_q + 3])
         with torch.no_grad():
             a = actor(torch.as_tensor(o, dtype=torch.float32)[None])[0].numpy().astype(np.float64)
         a = teacher.action(d, a)

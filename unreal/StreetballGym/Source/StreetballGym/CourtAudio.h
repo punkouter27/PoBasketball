@@ -84,7 +84,7 @@ struct STREETBALLGYM_API FContactAudioProcessor
 	float SpeedForFullVolume = 8.f, MinVolume = 0.15f, PitchRange = 0.4f;
 
 private:
-	int32 Floor = -1, Ball = -1, Foot[2] = {-1, -1}, Palm[2] = {-1, -1}, FootBody[2] = {-1, -1};
+	int32 Floor = -1, Ball = -1, Foot[2] = {-1, -1}, Toe[2] = {-1, -1}, Palm[2] = {-1, -1}, FootBody[2] = {-1, -1};
 	int32 BallQ = -1, BallV = -1;
 	TArray<bool> RimMask, BoardMask;
 	TSet<uint64> ActivePairs;          // pairs in contact last step

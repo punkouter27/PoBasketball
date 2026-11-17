@@ -218,6 +218,52 @@ void UMuJoCoSim::SetQVel(TConstArrayView<double> InQVel)
 	for (int32 i = 0; i < N; ++i) Data->qvel[i] = InQVel[i];
 }
 
+void UMuJoCoSim::SetBodyExternalForceSim(int32 Body, const FVector3d& ForceSim)
+{
+	if (!IsLoaded() || Body < 0 || Body >= Model->nbody) return;
+	double* F = Data->xfrc_applied + 6 * Body;
+	F[0] = ForceSim.X; F[1] = ForceSim.Y; F[2] = ForceSim.Z;
+	F[3] = F[4] = F[5] = 0.0;
+}
+
+void UMuJoCoSim::ClearExternalForces()
+{
+	if (!IsLoaded()) return;
+	FMemory::Memzero(Data->xfrc_applied, sizeof(double) * 6 * Model->nbody);
+}
+
+float UMuJoCoSim::ComputeActuatorPowerWatts() const
+{
+	if (!IsLoaded() || Model->nu <= 0) return 0.f;
+	double Sum = 0.0;
+	for (int32 i = 0; i < Model->nu; ++i)
+	{
+		if (Model->actuator_trntype[i] != mjTRN_JOINT) continue;
+		const int32 J = Model->actuator_trnid[2 * i];
+		if (J < 0 || J >= Model->njnt) continue;
+		const int32 VAdr = Model->jnt_dofadr[J];
+		if (VAdr < 0 || VAdr >= Model->nv) continue;
+		Sum += FMath::Abs(Data->actuator_force[i] * Data->qvel[VAdr]);
+	}
+	return static_cast<float>(Sum);
+}
+
+float UMuJoCoSim::ComputeMeanTorqueNorm() const
+{
+	if (!IsLoaded() || Model->nu <= 0) return 0.f;
+	double Sq = 0.0;
+	int32 Count = 0;
+	for (int32 i = 0; i < Model->nu; ++i)
+	{
+		const double MaxF = FMath::Max(FMath::Abs(Model->actuator_forcerange[2 * i]), FMath::Abs(Model->actuator_forcerange[2 * i + 1]));
+		if (MaxF <= 1e-6) continue;
+		const double R = FMath::Clamp(FMath::Abs(Data->actuator_force[i]) / MaxF, 0.0, 1.0);
+		Sq += R * R;
+		++Count;
+	}
+	return Count > 0 ? static_cast<float>(FMath::Sqrt(Sq / Count)) : 0.f;
+}
+
 // ---- contacts ---------------------------------------------------------------
 void UMuJoCoSim::GetContacts(TArray<FMjContact>& Out) const
 {

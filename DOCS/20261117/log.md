@@ -87,3 +87,18 @@ One-shot rebuild: `Scripts/build_presentation_assets.ps1`. Flags: `-StreetballNo
   `-StreetballPolicy_scramble=policies/dummy_policy.onnx`. Proposed fix: the test forces the dummy scramble policy.
 - Known issue: the cloth hem can open a gap along its top edge when it swings (section edge is not welded).
 - Feature page with annotated captures, GIFs and voice samples: `SCREENSHOTS/20261117_plugins/index.html`.
+
+## 14:15 — Feature pass audit trail (user-approved: #1, #3, #12, #15 in UE5; #6, #19 pure RL in sim)
+
+Scope approved by user (`1. do whatever is pure rl training 2. skip (#14) 3. yes as long as its pure rl training`):
+- **Skipped:** #2 (visual-only ControlRig bone overrides), #14 (live LLM commentary).
+- **Phase 1 (Unreal Engine — zero sim/contract changes):**
+  - `#1` `Play` & `Testbed` modes (`StreetballWorld`, `StreetballDirector`, `SimClock`, `StreetballHUDWidget`, `MuJoCoSim`): court-click manual waypoint & ball lob in `Play`; pelvis push impulses (`I/J/K/L`) & sim time-scale (`[`/`]`) in `Testbed`; live tier jump (`1`–`5`); secondary non-F-key shortcuts (`M/C/T/P`) alongside `F1–F4` so Development builds don't toggle debug view modes accidentally.
+  - `#3` Torque-driven exertion (`MuJoCoSim`, `GrandmaVoice`, `StreetballWorld`): read-only actuator mechanical power + torque norm driving subtle idle breathing, exertion facial morphs, and elevated-exertion Niagara sweat bursts.
+  - `#12` `CineCamera` framing & DoF (`BroadcastCamera`, `StreetballGym.Build.cs`): `UCineCameraComponent` with manual subject focus distance, `>= 4.5 m` minimum camera distance guardrail (fixes Tier 5 1 m framing), 1-frame cut motion-blur damp, and Free-cam floor clamp (`z >= 25 cm`).
+  - `#15` Sideline spectator crowd (`StreetballCrowd`, `StreetballWorld`): 16 pre-allocated sideline spectators (`SKM_Manny_Simple` / `SKM_Quinn_Simple`, Chaos off, hidden under `-StreetballNoPresentation`) reacting to `EPresentationEvent` (`Make`, `Swish`, `ScrambleSave`, `Miss`, `RimOut`, `Fall`).
+- **Phase 2 (Pure RL Sim & Training — planned contract revision `humanoid_v2`):**
+  - Affected frozen files: `sim/tools/build_humanoid.py`, `sim/assets/humanoid.xml`, `shared/humanoid_spec.json`, `sim/streetball/obs.py`, `shared/obs_spec.json`, `shared/golden/obs_golden.*`, `unreal/StreetballGym/Source/StreetballGym/ObsBuilder.h`.
+  - Affected state-machine rows: none (`shared/transition_table.json` unchanged).
+  - Affected policies: **ALL** (`balance`, `locomotion`, `dribble`, `scramble`, `shot`) due to `27 -> 29` DoFs (`toe_l`, `toe_r` hinges, `N_OBS: 119 -> 125`) and pure-RL reward upgrades (`#6`: upright torso/head posture, heel-toe push-off, action-jerk smoothness, wrist follow-through—strictly pure PPO via `train.py`, no mocap/AMP).
+  - Required verification after Phase 2 edits: bump hashes in `DOCS/phase_reports/PhaseA_summary.md`, re-run A5/A6/A8, `Streetball.ObsGolden`, `Streetball.Gate.*`, and retrain/export policies.

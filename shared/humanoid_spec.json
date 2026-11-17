@@ -8,7 +8,7 @@
   "timestep": 0.002,
   "control_dt": 0.02,
   "nominal_root_height_m": 0.9404420058646101,
-  "n_joints": 27,
+  "n_joints": 29,
   "joints": [
     {
       "name": "shoulder_pitch_l",
@@ -335,6 +335,24 @@
       "torque": 150
     },
     {
+      "name": "toe_l",
+      "group": "toe",
+      "axis": [
+        0.11254139988054003,
+        -0.9936470365843842,
+        0.0
+      ],
+      "range_deg": [
+        -25.0,
+        55.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 60,
+      "kv": 6,
+      "torque": 30
+    },
+    {
       "name": "hip_flex_r",
       "group": "hip",
       "axis": [
@@ -441,6 +459,24 @@
       "kp": 200,
       "kv": 20,
       "torque": 150
+    },
+    {
+      "name": "toe_r",
+      "group": "toe",
+      "axis": [
+        -0.1125375670347124,
+        -0.9936474706886279,
+        0.0
+      ],
+      "range_deg": [
+        -25.0,
+        55.0
+      ],
+      "nominal_deg": 0.0,
+      "anatomical_offset_deg": 0.0,
+      "kp": 60,
+      "kv": 6,
+      "torque": 30
     },
     {
       "name": "lumbar_flex",
@@ -601,14 +637,24 @@
     },
     "foot_l": {
       "bones": [
-        "foot_l",
-        "ball_l"
+        "foot_l"
       ],
       "rule": "rotation"
     },
     "foot_r": {
       "bones": [
-        "foot_r",
+        "foot_r"
+      ],
+      "rule": "rotation"
+    },
+    "toe_l": {
+      "bones": [
+        "ball_l"
+      ],
+      "rule": "rotation"
+    },
+    "toe_r": {
+      "bones": [
         "ball_r"
       ],
       "rule": "rotation"
@@ -623,6 +669,7 @@
     "hand": 0.48,
     "thigh": 8.0,
     "calf": 3.72,
-    "foot": 1.16
+    "foot": 0.96,
+    "toe": 0.2
   }
 }

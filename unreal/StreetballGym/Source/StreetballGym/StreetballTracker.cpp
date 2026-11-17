@@ -13,6 +13,7 @@ bool UStreetballTracker::Initialize(UMuJoCoSim* InSim)
 	Floor = Sim->GeomId(TEXT("floor"));
 	BallGeom = Sim->GeomId(TEXT("ball"));
 	FootGeom[0] = Sim->GeomId(TEXT("foot_l")); FootGeom[1] = Sim->GeomId(TEXT("foot_r"));
+	ToeGeom[0] = Sim->GeomId(TEXT("toe_l")); ToeGeom[1] = Sim->GeomId(TEXT("toe_r"));
 	PalmGeom[0] = Sim->GeomId(TEXT("palm_l")); PalmGeom[1] = Sim->GeomId(TEXT("palm_r"));
 	FootBody[0] = Sim->BodyId(TEXT("foot_l")); FootBody[1] = Sim->BodyId(TEXT("foot_r"));
 
@@ -28,7 +29,7 @@ bool UStreetballTracker::Initialize(UMuJoCoSim* InSim)
 	for (int32 g = 0; g < M->ngeom; ++g)
 	{
 		const bool Hum = InSubtree[M->geom_bodyid[g]];
-		BadFloorMask[g] = Hum && g != FootGeom[0] && g != FootGeom[1] && g != PalmGeom[0] && g != PalmGeom[1];
+		BadFloorMask[g] = Hum && g != FootGeom[0] && g != FootGeom[1] && g != ToeGeom[0] && g != ToeGeom[1] && g != PalmGeom[0] && g != PalmGeom[1];
 		const FString N = Sim->GeomName(g);
 		RimMask[g] = N.StartsWith(TEXT("rim_")) && !N.StartsWith(TEXT("rim_bracket"));
 		BoardMask[g] = N.StartsWith(TEXT("board_"));
@@ -100,8 +101,8 @@ const FTrackedState& UStreetballTracker::Update(double ControlDt)
 		if (g0 == Floor || g1 == Floor)
 		{
 			const int32 Other = (g0 == Floor) ? g1 : g0;
-			if (Other == FootGeom[0]) S.FootFloor[0] = true;
-			else if (Other == FootGeom[1]) S.FootFloor[1] = true;
+			if (Other == FootGeom[0] || (ToeGeom[0] >= 0 && Other == ToeGeom[0])) S.FootFloor[0] = true;
+			else if (Other == FootGeom[1] || (ToeGeom[1] >= 0 && Other == ToeGeom[1])) S.FootFloor[1] = true;
 			else if (Other == BallGeom) S.BallFloor = true;
 			if (BadFloorMask.IsValidIndex(Other) && BadFloorMask[Other]) S.BadFloor = true;
 		}

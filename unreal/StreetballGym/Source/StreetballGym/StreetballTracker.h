@@ -87,7 +87,7 @@ private:
 	double LastPalmContactT = -1e9;
 
 	int32 RootQ = -1, RootV = -1, BallQ = -1, BallV = -1;
-	int32 Floor = -1, BallGeom = -1, FootGeom[2] = {-1, -1}, PalmGeom[2] = {-1, -1}, FootBody[2] = {-1, -1};
+	int32 Floor = -1, BallGeom = -1, FootGeom[2] = {-1, -1}, ToeGeom[2] = {-1, -1}, PalmGeom[2] = {-1, -1}, FootBody[2] = {-1, -1};
 	TArray<bool> BadFloorMask;     // per geom: humanoid geom that is not a foot or palm
 	TArray<bool> RimMask, BoardMask;
 };

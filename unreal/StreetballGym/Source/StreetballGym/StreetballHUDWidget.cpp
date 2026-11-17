@@ -170,12 +170,14 @@ void UStreetballHUDWidget::SetTelemetryVisible(bool bVisible)
 }
 
 void UStreetballHUDWidget::UpdateTelemetry(const FString& ModeLabel, const FString& CameraLabel, const FString& PolicyLabel,
-                                           int32 Seed, float EpisodeReward, int32 NanInfCount, float Fps, bool bPaused, bool bFallbackPolicy)
+                                           int32 Seed, float EpisodeReward, int32 NanInfCount, float Fps, bool bPaused, bool bFallbackPolicy,
+                                           float Exertion01, float PowerW, float TimeScale)
 {
 	if (ModeBannerText)
 	{
+		const FString ScaleStr = FMath::IsNearlyEqual(TimeScale, 1.f, 0.02f) ? FString() : FString::Printf(TEXT("  |  %.2fx"), TimeScale);
 		ModeBannerText->SetText(FText::FromString(FString::Printf(
-			TEXT("%s  |  Cam: %s  |  Seed: %d%s"), *ModeLabel, *CameraLabel, Seed, bPaused ? TEXT("  |  PAUSED") : TEXT(""))));
+			TEXT("%s  |  Cam: %s  |  Seed: %d%s%s"), *ModeLabel, *CameraLabel, Seed, *ScaleStr, bPaused ? TEXT("  |  PAUSED") : TEXT(""))));
 	}
 	if (PolicyFpsText)
 	{
@@ -185,9 +187,16 @@ void UStreetballHUDWidget::UpdateTelemetry(const FString& ModeLabel, const FStri
 	if (TelemetryText)
 	{
 		TelemetryText->SetColorAndOpacity(FSlateColor(NanInfCount > 0 ? StreetballUiTheme::PolicyBot : StreetballUiTheme::TextMuted));
-		TelemetryText->SetText(FText::FromString(FString::Printf(TEXT("Reward: %.2f  |  NaN/Inf: %d"), EpisodeReward, NanInfCount)));
+		TelemetryText->SetText(FText::FromString(FString::Printf(
+			TEXT("Reward: %.2f  |  Power: %.0f W (Exertion %.0f%%)  |  NaN/Inf: %d"),
+			EpisodeReward, PowerW, Exertion01 * 100.f, NanInfCount)));
 		TelemetryText->SetVisibility(bTelemetryVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	}
+}
+
+void UStreetballHUDWidget::SetModeHint(const FString& HintText)
+{
+	if (BottomBarText) BottomBarText->SetText(FText::FromString(HintText));
 }
 
 int32 UStreetballHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry& Geo, const FSlateRect& Cull,

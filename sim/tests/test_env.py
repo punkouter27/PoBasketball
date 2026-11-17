@@ -35,14 +35,15 @@ def test_obs_parity_with_golden(env):
     env.forward()
     env._scan_contacts()
     o = env.compute_obs()
-    o[:, 107:119] = env.task
+    o[:, obs_spec.N_BASE:obs_spec.N_OBS] = env.task
     diff = (o.cpu().numpy() - g["obs"][:n])
     # Contact flags can legitimately differ (float32 vs float64 contact detection at exactly-touching feet);
     # compare them separately and everything else tightly.
-    flags = np.abs(diff[:, 99:101]).max()
-    diff[:, 99:101] = 0.0
+    fc0 = obs_spec._S_BALL + 9
+    flags = np.abs(diff[:, fc0:fc0 + 2]).max()
+    diff[:, fc0:fc0 + 2] = 0.0
     worst = np.abs(diff).max()
-    print(f"max abs obs diff (non-flag) {worst:.2e}, flag mismatches {int((np.abs(diff[:, 99:101]) > 0).sum())}")
+    print(f"max abs obs diff (non-flag) {worst:.2e}, flag mismatches {int((np.abs(diff[:, fc0:fc0 + 2]) > 0).sum())}")
     assert worst < 2e-4, f"obs mismatch {worst:.3e} at slot {np.abs(diff).max(axis=0).argmax()}"
     assert flags <= 1.0
 

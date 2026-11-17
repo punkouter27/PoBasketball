@@ -61,6 +61,8 @@ public:
 
 	/** Upper bound on simulated time per frame (seconds). */
 	double MaxFrameDelta = 0.1;
+	/** Playback speed multiplier (Testbed slow-mo / fast-forward); 1.0 = exact 1x real-time. */
+	float TimeScale = 1.f;
 
 private:
 	void TakeSnapshot(FSimPoseSnapshot& Out) const;

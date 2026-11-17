@@ -211,10 +211,18 @@ void UStreetballDirector::EnterTier(int32 Tier, const FTrackedState& S)
 
 void UStreetballDirector::NewWaypoint(const FTrackedState&)
 {
+	bManualWaypoint = false;
 	Waypoint = FVector2d(Rng.FRandRange(-CourtHalf.X, CourtHalf.X), Rng.FRandRange(-CourtHalf.Y, CourtHalf.Y));
 	const FStreetballStateRow* R = Rows.Find(TierState);
 	if (R && R->bHasSpeed) SpeedCmd = (R->SpeedRange.X == R->SpeedRange.Y) ? R->SpeedRange.X : Rng.FRandRange(R->SpeedRange.X, R->SpeedRange.Y);
 	else SpeedCmd = 0.0;
+}
+
+void UStreetballDirector::SetManualWaypoint(const FVector2d& SimXY)
+{
+	Waypoint = FVector2d(FMath::Clamp(SimXY.X, -CourtHalf.X, CourtHalf.X), FMath::Clamp(SimXY.Y, -CourtHalf.Y, CourtHalf.Y));
+	bManualWaypoint = true;
+	if (SpeedCmd <= 0.0) SpeedCmd = 1.6;
 }
 
 void UStreetballDirector::SetHand(bool bRandom, const FTrackedState&)

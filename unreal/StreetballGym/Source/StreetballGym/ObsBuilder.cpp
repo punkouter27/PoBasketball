@@ -73,6 +73,7 @@ bool FObsBuilder::Initialize(UMuJoCoSim* Sim, const FString& SpecPath)
 	BallQ = M->jnt_qposadr[BallJ]; BallV = M->jnt_dofadr[BallJ];
 	PalmL = Sim->SiteId(TEXT("palm_l")); PalmR = Sim->SiteId(TEXT("palm_r"));
 	FootL = Sim->GeomId(TEXT("foot_l")); FootR = Sim->GeomId(TEXT("foot_r"));
+	ToeL = Sim->GeomId(TEXT("toe_l")); ToeR = Sim->GeomId(TEXT("toe_r"));
 	Floor = Sim->GeomId(TEXT("floor"));
 	bInit = RootQ >= 0 && BallQ >= 0 && PalmL >= 0 && PalmR >= 0 && FootL >= 0 && FootR >= 0 && Floor >= 0;
 	return bInit;
@@ -96,25 +97,29 @@ void FObsBuilder::Compute(const UMuJoCoSim* Sim, TConstArrayView<float> PrevActi
 	MulT(R, G, Tmp);       for (int i = 0; i < 3; ++i) Out[0 + i] = (float)Tmp[i];
 	MulT(R, VPelvis, Tmp); for (int i = 0; i < 3; ++i) Out[3 + i] = (float)Tmp[i];
 	for (int i = 0; i < 3; ++i) Out[6 + i] = (float)(0.25 * WPelvis[i]);
+	constexpr int32 SJPos = 9;
+	constexpr int32 SJVel = SJPos + NumJoints;
+	constexpr int32 SAct = SJVel + NumJoints;
+	constexpr int32 SBall = SAct + NumJoints;
 	for (int i = 0; i < NumJoints; ++i)
 	{
-		Out[9 + i] = (float)(D->qpos[QAdr[i]] - Nominal[i]);
-		Out[36 + i] = (float)(0.1 * D->qvel[VAdr[i]]);
-		Out[63 + i] = PrevAction.IsValidIndex(i) ? PrevAction[i] : 0.f;
+		Out[SJPos + i] = (float)(D->qpos[QAdr[i]] - Nominal[i]);
+		Out[SJVel + i] = (float)(0.1 * D->qvel[VAdr[i]]);
+		Out[SAct + i] = PrevAction.IsValidIndex(i) ? PrevAction[i] : 0.f;
 	}
 	const double* PBall = D->qpos + BallQ;
 	const double* VBall = D->qvel + BallV;
 	const double* WBall = D->qvel + BallV + 3;
 	double Rel[3];
 	for (int i = 0; i < 3; ++i) Rel[i] = PBall[i] - PPelvis[i];
-	MulT(H, Rel, Tmp); for (int i = 0; i < 3; ++i) Out[90 + i] = (float)Tmp[i];
+	MulT(H, Rel, Tmp); for (int i = 0; i < 3; ++i) Out[SBall + i] = (float)Tmp[i];
 	for (int i = 0; i < 3; ++i) Rel[i] = VBall[i] - VPelvis[i];
-	MulT(H, Rel, Tmp); for (int i = 0; i < 3; ++i) Out[93 + i] = (float)(0.5 * Tmp[i]);
-	Out[96] = InControl;
+	MulT(H, Rel, Tmp); for (int i = 0; i < 3; ++i) Out[SBall + 3 + i] = (float)(0.5 * Tmp[i]);
+	Out[SBall + 6] = InControl;
 	const double* SL = D->site_xpos + 3 * PalmL;
 	const double* SR = D->site_xpos + 3 * PalmR;
-	Out[97] = (float)FMath::Sqrt(FMath::Square(SL[0] - PBall[0]) + FMath::Square(SL[1] - PBall[1]) + FMath::Square(SL[2] - PBall[2]));
-	Out[98] = (float)FMath::Sqrt(FMath::Square(SR[0] - PBall[0]) + FMath::Square(SR[1] - PBall[1]) + FMath::Square(SR[2] - PBall[2]));
+	Out[SBall + 7] = (float)FMath::Sqrt(FMath::Square(SL[0] - PBall[0]) + FMath::Square(SL[1] - PBall[1]) + FMath::Square(SL[2] - PBall[2]));
+	Out[SBall + 8] = (float)FMath::Sqrt(FMath::Square(SR[0] - PBall[0]) + FMath::Square(SR[1] - PBall[1]) + FMath::Square(SR[2] - PBall[2]));
 	float FL = 0.f, FR = 0.f;
 	for (int c = 0; c < D->ncon; ++c)
 	{
@@ -122,15 +127,16 @@ void FObsBuilder::Compute(const UMuJoCoSim* Sim, TConstArrayView<float> PrevActi
 		if (g1 == Floor || g2 == Floor)
 		{
 			const int Other = (g1 == Floor) ? g2 : g1;
-			if (Other == FootL) FL = 1.f; else if (Other == FootR) FR = 1.f;
+			if (Other == FootL || (ToeL >= 0 && Other == ToeL)) FL = 1.f;
+			else if (Other == FootR || (ToeR >= 0 && Other == ToeR)) FR = 1.f;
 		}
 	}
-	Out[99] = FL; Out[100] = FR;
-	Out[101] = (float)PPelvis[2];
-	MulT(H, WBall, Tmp); for (int i = 0; i < 3; ++i) Out[102 + i] = (float)(0.05 * Tmp[i]);
-	Out[105] = CountdownFrac;
-	Out[106] = 0.f;
-	for (int i = 0; i < NumTask; ++i) Out[107 + i] = Task.IsValidIndex(i) ? Task[i] : 0.f;
+	Out[SBall + 9] = FL; Out[SBall + 10] = FR;
+	Out[SBall + 11] = (float)PPelvis[2];
+	MulT(H, WBall, Tmp); for (int i = 0; i < 3; ++i) Out[SBall + 12 + i] = (float)(0.05 * Tmp[i]);
+	Out[SBall + 15] = CountdownFrac;
+	Out[SBall + 16] = 0.f;
+	for (int i = 0; i < NumTask; ++i) Out[NumBase + i] = Task.IsValidIndex(i) ? Task[i] : 0.f;
 }
 
 void FObsBuilder::ActionToCtrl(TConstArrayView<float> Action, TArray<float>& OutCtrl) const

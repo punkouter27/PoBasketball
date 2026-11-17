@@ -11,11 +11,12 @@ class UMuJoCoSim;
  */
 struct STREETBALLGYM_API FObsBuilder
 {
-	static constexpr int32 NumJoints = 27;
-	static constexpr int32 NumAction = 27;
+	static constexpr int32 NumJoints = 29;
+	static constexpr int32 NumAction = 29;
 	static constexpr int32 NumTask = 12;
-	static constexpr int32 NumBase = 107;
-	static constexpr int32 NumObs = NumBase + NumTask;
+	static constexpr int32 NumBase = 26 + 3 * NumJoints; // 113
+	static constexpr int32 NumObs = NumBase + NumTask;   // 125
+	static_assert(NumBase == 113 && NumObs == 125, "ObsBuilder dimensions must match obs_spec.json");
 
 	bool Initialize(UMuJoCoSim* Sim, const FString& ObsSpecJsonPath);
 	bool IsInitialized() const { return bInit; }
@@ -34,7 +35,7 @@ struct STREETBALLGYM_API FObsBuilder
 	TArray<int32> QAdr, VAdr;
 	TArray<double> Nominal, Lo, Hi, Half;
 	int32 RootQ = -1, RootV = -1, BallQ = -1, BallV = -1;
-	int32 PalmL = -1, PalmR = -1, FootL = -1, FootR = -1, Floor = -1;
+	int32 PalmL = -1, PalmR = -1, FootL = -1, FootR = -1, ToeL = -1, ToeR = -1, Floor = -1;
 
 private:
 	bool bInit = false;

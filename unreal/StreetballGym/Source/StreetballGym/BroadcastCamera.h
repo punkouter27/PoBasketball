@@ -5,7 +5,7 @@
 #include "StreetballDirector.h"
 #include "BroadcastCamera.generated.h"
 
-class UCameraComponent;
+class UCineCameraComponent;
 
 UENUM(BlueprintType)
 enum class EBroadcastShot : uint8
@@ -59,6 +59,7 @@ struct STREETBALLGYM_API FBroadcastLogic
 	double CutHysteresis = 2.0;
 	float FovMin = 22.f, FovMax = 60.f;
 	float PressBoxFovMax = 80.f;    // scrambles can spread athlete and ball across the court
+	double MinBaselineDistance = 4.5; // keeps close-range shots from filling the screen at ~1 m
 	int32 ForcedShot = -1;          // -1 auto; else EBroadcastShot
 
 	EBroadcastShot Current = EBroadcastShot::Sideline;
@@ -101,15 +102,17 @@ public:
 	float LookSmoothTime = 0.25f;
 	float FovSmoothTime = 0.6f;
 
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UCineCameraComponent> Camera;
 	EBroadcastShot GetShot() const { return Logic.Current; }
 	int32 GetCutCount() const { return CutCount; }
+	float GetFocusDistanceCm() const;
 
 private:
 	FVector PosVel = FVector::ZeroVector, LookVel = FVector::ZeroVector;
 	float FovVel = 0.f;
 	FVector LookAt = FVector::ZeroVector;
 	int32 CutCount = 0;
+	float CutBlurSuppression = 0.f;
 	EStreetballCameraMode CameraMode = EStreetballCameraMode::Broadcast;
 	float OrbitAngleRad = 0.f;
 	FVector FreePosUE = FVector::ZeroVector;

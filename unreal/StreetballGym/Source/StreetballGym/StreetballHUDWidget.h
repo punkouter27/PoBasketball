@@ -22,7 +22,9 @@ class STREETBALLGYM_API UStreetballHUDWidget : public UUserWidget
 public:
 	void UpdateFromProgress(const FStreetballProgress& P, EStreetballState State);
 	void UpdateTelemetry(const FString& ModeLabel, const FString& CameraLabel, const FString& PolicyLabel,
-	                     int32 Seed, float EpisodeReward, int32 NanInfCount, float Fps, bool bPaused, bool bFallbackPolicy);
+	                     int32 Seed, float EpisodeReward, int32 NanInfCount, float Fps, bool bPaused, bool bFallbackPolicy,
+	                     float Exertion01 = 0.f, float PowerW = 0.f, float TimeScale = 1.f);
+	void SetModeHint(const FString& HintText);
 	void SetTelemetryVisible(bool bVisible);
 	/** Grandma voice subtitle above the bottom bar; empty hides it. */
 	void SetSubtitle(const FString& Text);

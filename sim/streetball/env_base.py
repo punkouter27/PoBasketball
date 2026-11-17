@@ -129,11 +129,15 @@ class StreetballEnv:
         self.root_q, self.root_v = int(ix.root_q), int(ix.root_v)
         self.ball_q, self.ball_v = int(ix.ball_q), int(ix.ball_v)
         self.pelvis_b, self.ball_b = int(ix.pelvis), int(ix.ball)
+        self.torso_b = mujoco.mj_name2id(self.mjm, mujoco.mjtObj.mjOBJ_BODY, "torso")
         self.palm_l_s, self.palm_r_s = int(ix.palm_l), int(ix.palm_r)
         self.floor_g = int(ix.floor_geom)
         self.foot_g = [int(g) for g in ix.foot_geom]
+        self.toe_g = [int(g) for g in ix.toe_geom]
         self.ball_g = mujoco.mj_name2id(self.mjm, mujoco.mjtObj.mjOBJ_GEOM, "ball")
         self.palm_g = [mujoco.mj_name2id(self.mjm, mujoco.mjtObj.mjOBJ_GEOM, f"palm_{s}") for s in "lr"]
+        self.toe_j_idx = [ix.joint_names.index("toe_l"), ix.joint_names.index("toe_r")]
+        self.wrist_flex_idx = [ix.joint_names.index("wrist_flex_l"), ix.joint_names.index("wrist_flex_r")]
         hum_bodies = set()
         for b in range(self.mjm.nbody):
             r = b
@@ -142,7 +146,8 @@ class StreetballEnv:
             if r == self.pelvis_b:
                 hum_bodies.add(b)
         self.hum_geoms = [g for g in range(self.mjm.ngeom) if self.mjm.geom_bodyid[g] in hum_bodies]
-        bad = [g for g in self.hum_geoms if g not in self.foot_g and g not in self.palm_g]
+        valid_floor_geoms = set(self.foot_g) | set(self.toe_g) | set(self.palm_g)
+        bad = [g for g in self.hum_geoms if g not in valid_floor_geoms]
         self.bad_floor_mask = torch.zeros(self.mjm.ngeom, dtype=torch.bool, device=dev)
         self.bad_floor_mask[bad] = True
         self.foot_site_idx = torch.as_tensor(
@@ -244,8 +249,8 @@ class StreetballEnv:
             g0, g1 = g[:, 0], g[:, 1]
             floor = (g0 == self.floor_g) | (g1 == self.floor_g)
             other = torch.where(g0 == self.floor_g, g1, g0)
-            for k, fg in enumerate(self.foot_g):
-                m = floor & (other == fg)
+            for k, (fg, tg) in enumerate(zip(self.foot_g, self.toe_g)):
+                m = floor & ((other == fg) | (other == tg))
                 self.foot_contact[:, k].index_fill_(0, w[m], 1.0)
             bad.index_fill_(0, w[floor & self.bad_floor_mask[other]], True)
             self.ball_floor_contact.index_fill_(0, w[floor & (other == self.ball_g)], 1.0)
@@ -272,24 +277,25 @@ class StreetballEnv:
         o[:, 0:3] = torch.einsum("nji,j->ni", R, g)
         o[:, 3:6] = torch.einsum("nji,nj->ni", R, v_pelvis)
         o[:, 6:9] = 0.25 * w_pelvis
-        o[:, 9:36] = qpos[:, self.qadr] - self.nominal
-        o[:, 36:63] = 0.1 * qvel[:, self.vadr]
-        o[:, 63:90] = self.prev_action
+        o[:, obs_spec._S_JPOS:obs_spec._S_JVEL] = qpos[:, self.qadr] - self.nominal
+        o[:, obs_spec._S_JVEL:obs_spec._S_ACT] = 0.1 * qvel[:, self.vadr]
+        o[:, obs_spec._S_ACT:obs_spec._S_BALL] = self.prev_action
         bq, bv = self.ball_q, self.ball_v
         p_ball = qpos[:, bq:bq + 3]
         v_ball = qvel[:, bv:bv + 3]
         w_ball = qvel[:, bv + 3:bv + 6]
-        o[:, 90:93] = torch.einsum("nji,nj->ni", H, p_ball - p_pelvis)
-        o[:, 93:96] = 0.5 * torch.einsum("nji,nj->ni", H, v_ball - v_pelvis)
-        o[:, 96] = self.in_control
-        o[:, 97] = (self.site_xpos[:, self.palm_l_s] - p_ball).norm(dim=-1)
-        o[:, 98] = (self.site_xpos[:, self.palm_r_s] - p_ball).norm(dim=-1)
-        o[:, 99:101] = self.foot_contact
-        o[:, 101] = p_pelvis[:, 2]
-        o[:, 102:105] = 0.05 * torch.einsum("nji,nj->ni", H, w_ball)
-        o[:, 105] = self.countdown_frac
-        o[:, 106] = 0.0
-        o[:, 107:119] = self.task
+        sb = obs_spec._S_BALL
+        o[:, sb:sb + 3] = torch.einsum("nji,nj->ni", H, p_ball - p_pelvis)
+        o[:, sb + 3:sb + 6] = 0.5 * torch.einsum("nji,nj->ni", H, v_ball - v_pelvis)
+        o[:, sb + 6] = self.in_control
+        o[:, sb + 7] = (self.site_xpos[:, self.palm_l_s] - p_ball).norm(dim=-1)
+        o[:, sb + 8] = (self.site_xpos[:, self.palm_r_s] - p_ball).norm(dim=-1)
+        o[:, sb + 9:sb + 11] = self.foot_contact
+        o[:, sb + 11] = p_pelvis[:, 2]
+        o[:, sb + 12:sb + 15] = 0.05 * torch.einsum("nji,nj->ni", H, w_ball)
+        o[:, sb + 15] = self.countdown_frac
+        o[:, sb + 16] = 0.0
+        o[:, obs_spec.N_BASE:obs_spec.N_OBS] = self.task
         # cache a few derived quantities for levels
         self.R, self.H = R, H
         self.p_pelvis, self.v_pelvis, self.p_ball, self.v_ball = p_pelvis, v_pelvis, p_ball, v_ball
@@ -383,10 +389,10 @@ class StreetballEnv:
         self.compute_obs()
         self.init_foot_xy[ids] = self.site_xpos[ids][:, self.foot_site_idx[[0, 4]], :2]
         self.task[ids] = self.level.task_block(ids)
-        self.obs[ids, 107:119] = self.task[ids]
+        self.obs[ids, obs_spec.N_BASE:obs_spec.N_OBS] = self.task[ids]
 
     def step(self, action: torch.Tensor):
-        """action: (N, 27) in [-1, 1]. Returns obs, reward, done, info."""
+        """action: (N, N_ACT) in [-1, 1]. Returns obs, reward, done, info."""
         action = action.clamp(-1.0, 1.0)
         ctrl = (self.nominal + action * self.half).clamp(self.lo, self.hi)
         applied = torch.where(self.delay_action[:, None], self.prev_ctrl, ctrl)
@@ -402,7 +408,7 @@ class StreetballEnv:
         self.compute_obs()
         self._update_ball_state()
         self.task[:] = self.level.task_block(None)
-        self.obs[:, 107:119] = self.task
+        self.obs[:, obs_spec.N_BASE:obs_spec.N_OBS] = self.task
 
         # fallen: pelvis low, or non-foot/palm body on the floor for > 0.2 s
         self.bad_contact_t = torch.where(self._bad_floor, self.bad_contact_t + self.control_dt, torch.zeros_like(self.bad_contact_t))

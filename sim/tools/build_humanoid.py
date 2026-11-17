@@ -35,10 +35,10 @@ ASSETS = ROOT / "assets"
 
 # ----------------------------------------------------------------------------- blueprint A.2 / A.4
 MASS = dict(pelvis=11.2, torso=28.6, head=6.5, upperarm=2.24, lowerarm=1.28, hand=0.48,
-            thigh=8.0, calf=3.72, foot=1.16)
+            thigh=8.0, calf=3.72, foot=0.96, toe=0.20)
 RADIUS = dict(torso=0.12, upperarm=0.045, lowerarm=0.035, thigh=0.07, calf=0.05, head=0.11)
 GAINS = {  # group: (kp, kv, torque)
-    "hip": (400, 40, 300), "knee": (400, 40, 300), "ankle": (200, 20, 150),
+    "hip": (400, 40, 300), "knee": (400, 40, 300), "ankle": (200, 20, 150), "toe": (60, 6, 30),
     "lumbar": (300, 30, 200), "shoulder": (150, 15, 100), "elbow": (100, 10, 80), "wrist": (30, 3, 20),
 }
 D2R = math.pi / 180.0
@@ -179,8 +179,11 @@ def main() -> None:
         yaw = math.atan2(foot_dir[1], foot_dir[0])
         foot_q = np.array([math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)])
         heel_back, toe_fwd = 0.05, 0.22            # metres from ankle along foot_dir
-        half_len = (heel_back + toe_fwd) / 2
-        foot_c = an * np.array([1, 1, 0]) + foot_dir * (toe_fwd - heel_back) / 2 + np.array([0, 0, 0.025])
+        split_fwd = float(np.dot((toe[:2] - an[:2]), foot_dir[:2]))
+        half_len_foot = (heel_back + split_fwd) / 2
+        half_len_toe = (toe_fwd - split_fwd) / 2
+        foot_c = an * np.array([1, 1, 0]) + foot_dir * (split_fwd - heel_back) / 2 + np.array([0, 0, 0.025])
+        toe_c = an * np.array([1, 1, 0]) + foot_dir * (split_fwd + toe_fwd) / 2 + np.array([0, 0, 0.025])
 
         j_hf = hinge(f"hip_flex_{s}", "hip", [0, -1, 0], -30, 120, 15)
         j_ha = hinge(f"hip_abd_{s}", "hip", [sgn, 0, 0], -15, 45, 5)   # adduction capped where the other leg blocks it
@@ -188,12 +191,16 @@ def main() -> None:
         j_kn = hinge(f"knee_{s}", "knee", [0, 1, 0], 0, 150, 25, offset_deg=knee_now)
         j_ap = hinge(f"ankle_pitch_{s}", "ankle", [0, -1, 0], -45, 25, 10)   # + = dorsiflexion
         j_ar = hinge(f"ankle_roll_{s}", "ankle", [1, 0, 0], -25, 25, 0)
+        j_toe = hinge(f"toe_{s}", "toe", [foot_dir[1], -foot_dir[0], 0.0], -25, 55, 0)  # + = toe dorsiflexion
 
-        corners = []
+        R_f = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0, 0, 1]])
+        heel_corners, toe_corners = [], []
         for i, (dx, dy) in enumerate([(-heel_back, -0.045), (-heel_back, 0.045), (toe_fwd, -0.045), (toe_fwd, 0.045)]):
-            R = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0, 0, 1]])
-            cp = an * np.array([1, 1, 0]) + R @ np.array([dx, dy, 0.0]) - an
-            corners.append(f'<site name="foot_{s}_c{i}" pos="{f3(cp)}" size="0.005" rgba="1 1 0 0.5"/>')
+            w_p = an * np.array([1, 1, 0]) + R_f @ np.array([dx, dy, 0.0])
+            if i < 2:
+                heel_corners.append(f'<site name="foot_{s}_c{i}" pos="{f3(w_p - an)}" size="0.005" rgba="1 1 0 0.5"/>')
+            else:
+                toe_corners.append(f'<site name="foot_{s}_c{i}" pos="{f3(w_p - toe)}" size="0.005" rgba="1 1 0 0.5"/>')
 
         xml = f"""
       <body name="thigh_{s}" pos="{f3(hp - pelvis)}">
@@ -207,8 +214,13 @@ def main() -> None:
           <body name="foot_{s}" pos="{f3(an - kn)}">
             {j_ap}
             {j_ar}
-            <geom name="foot_{s}" type="box" pos="{f3(foot_c - an)}" quat="{f3(foot_q)}" size="{half_len:.4f} 0.045 0.025" mass="{MASS["foot"]}"/>
-            {" ".join(corners)}
+            <geom name="foot_{s}" type="box" pos="{f3(foot_c - an)}" quat="{f3(foot_q)}" size="{half_len_foot:.4f} 0.045 0.025" mass="{MASS["foot"]}"/>
+            {" ".join(heel_corners)}
+            <body name="toe_{s}" pos="{f3(toe - an)}">
+              {j_toe}
+              <geom name="toe_{s}" type="box" pos="{f3(toe_c - toe)}" quat="{f3(foot_q)}" size="{half_len_toe:.4f} 0.045 0.025" mass="{MASS["toe"]}"/>
+              {" ".join(toe_corners)}
+            </body>
           </body>
         </body>
       </body>"""
@@ -341,7 +353,8 @@ def main() -> None:
         "hand_l": {"bones": ["hand_l"], "rule": "rotation; fingers fixed"}, "hand_r": {"bones": ["hand_r"], "rule": "rotation; fingers fixed"},
         "thigh_l": {"bones": ["thigh_l"], "rule": "rotation"}, "thigh_r": {"bones": ["thigh_r"], "rule": "rotation"},
         "calf_l": {"bones": ["calf_l"], "rule": "rotation"}, "calf_r": {"bones": ["calf_r"], "rule": "rotation"},
-        "foot_l": {"bones": ["foot_l", "ball_l"], "rule": "rotation"}, "foot_r": {"bones": ["foot_r", "ball_r"], "rule": "rotation"},
+        "foot_l": {"bones": ["foot_l"], "rule": "rotation"}, "foot_r": {"bones": ["foot_r"], "rule": "rotation"},
+        "toe_l": {"bones": ["ball_l"], "rule": "rotation"}, "toe_r": {"bones": ["ball_r"], "rule": "rotation"},
     }
     spec = {
         "generated_from": "shared/mannequin_bones.json",
