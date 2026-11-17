@@ -45,8 +45,10 @@ def _self_contacts(m, d, hum):
 
 def test_primitive_colliders_only():
     m, _ = _model()
-    allowed = {mujoco.mjtGeom.mjGEOM_CAPSULE, mujoco.mjtGeom.mjGEOM_SPHERE, mujoco.mjtGeom.mjGEOM_BOX, mujoco.mjtGeom.mjGEOM_PLANE}
-    bad = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) for g in range(m.ngeom) if m.geom_type[g] not in allowed]
+    # plain ints on both sides: numpy-int-in-enum-set membership differs between platforms (failed on Linux CI)
+    allowed = {int(t) for t in (mujoco.mjtGeom.mjGEOM_CAPSULE, mujoco.mjtGeom.mjGEOM_SPHERE,
+                                mujoco.mjtGeom.mjGEOM_BOX, mujoco.mjtGeom.mjGEOM_PLANE)}
+    bad = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) for g in range(m.ngeom) if int(m.geom_type[g]) not in allowed]
     assert not bad, f"non-primitive geoms: {bad}"
 
 
