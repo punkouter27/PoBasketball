@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnostics · PoBasketball</title>
+<style>
+  :root { --bg: #14161a; --panel: #1c2026; --text: #e8e6e1; --muted: #9a978f; --accent: #f08a24; --ok: #3fb950; --bad: #f85149; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #2b3038; }
+  header a.title { color: var(--text); text-decoration: none; font-weight: 600; font-size: 16px; }
+  main { max-width: 720px; margin: 24px auto; padding: 0 16px 48px; display: grid; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid #2b3038; border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #262a31; }
+  .badge.ok { background: rgba(63, 185, 80, 0.18); color: var(--ok); }
+  .badge.bad { background: rgba(248, 81, 73, 0.18); color: var(--bad); }
+  .muted { color: var(--muted); font-size: 13px; margin: 0; }
+  .stamp { position: fixed; right: 12px; bottom: 6px; color: var(--muted); font-size: 11px; pointer-events: none; }
+</style>
+</head>
+<body>
+<header>
+  <a class="title" href="/">PoBasketball</a>
+  <a class="title" href="/" style="font-size:13px;color:var(--accent)">← Back to viewer</a>
+</header>
+<main>
+  <h1>System status</h1>
+  <div class="card">
+    <div class="row"><strong>Replay bundle (/data/replays.json)</strong><span id="rep-badge" class="badge">Checking…</span></div>
+    <p id="rep-desc" class="muted">Golden MuJoCo rollouts baked for the web viewer.</p>
+  </div>
+  <div class="card">
+    <div class="row"><strong>Scene geometry (/data/model.json)</strong><span id="mod-badge" class="badge">Checking…</span></div>
+    <p id="mod-desc" class="muted">Forward-kinematics body and geom definitions.</p>
+  </div>
+  <div class="card">
+    <div class="row"><strong>3D renderer (WebGL2)</strong><span id="gl-badge" class="badge">Checking…</span></div>
+    <p id="gl-desc" class="muted">Browser WebGL2 context required by Three.js.</p>
+  </div>
+  <div class="card">
+    <div class="row"><strong>Build version</strong><span class="badge ok">v<span id="ver">dev</span></span></div>
+  </div>
+</main>
+<div class="stamp">dev</div>
+<script type="module">
+  const stamp = document.querySelector('.stamp')?.textContent || 'dev';
+  document.getElementById('ver').textContent = stamp;
+  async function probe(url, badgeId, descId, summarize) {
+    const t0 = performance.now();
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      const ms = Math.round(performance.now() - t0);
+      const b = document.getElementById(badgeId);
+      b.textContent = 'Healthy · ' + ms + ' ms';
+      b.className = 'badge ok';
+      document.getElementById(descId).textContent = summarize(data);
+    } catch (e) {
+      const b = document.getElementById(badgeId);
+      b.textContent = 'Unreachable';
+      b.className = 'badge bad';
+    }
+  }
+  probe('/data/replays.json', 'rep-badge', 'rep-desc', d => Array.isArray(d) ? `${d.length} golden replays available.` : 'Loaded.');
+  probe('/data/model.json', 'mod-badge', 'mod-desc', d => `${Object.keys(d || {}).length} MuJoCo scene(s) baked.`);
+  const gl = document.createElement('canvas').getContext('webgl2');
+  const glb = document.getElementById('gl-badge');
+  glb.textContent = gl ? 'Healthy' : 'Unavailable';
+  glb.className = 'badge ' + (gl ? 'ok' : 'bad');
+</script>
+</body>
+</html>

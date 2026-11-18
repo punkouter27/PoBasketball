@@ -1,5 +1,7 @@
 # PoBasketball — agent instructions
 
+@AGENTS.md
+
 Follow `AGENTS.md` (the UU_AGENT standard) for every change in this repository. Read `/DOCS` first:
 `DOCS/01_requirements_contract.md`, `DOCS/02_character_blueprint.md`, `DOCS/03_implementation_plan.md`,
 `DOCS/phase_reports/`, and the latest `DOCS/<YYYYMMDD>/` log.

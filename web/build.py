@@ -100,11 +100,13 @@ def main() -> None:
     (DIST / "data" / "model.json").write_text(json.dumps(scenes, separators=(",", ":")), encoding="utf-8")
     (DIST / "data" / "replays.json").write_text(json.dumps(replays, indent=1), encoding="utf-8")
 
-    for f in ("index.html", "app.js", "staticwebapp.config.json"):
+    for f in ("index.html", "diag.html", "app.js", "staticwebapp.config.json"):
         shutil.copy2(WEB / f, DIST / f)
-    page = DIST / "index.html"
-    page.write_text(page.read_text(encoding="utf-8").replace(">dev</div>", f">{build_version()}</div>"),
-                    encoding="utf-8")
+    ver = build_version()
+    for html_name in ("index.html", "diag.html"):
+        page = DIST / html_name
+        page.write_text(page.read_text(encoding="utf-8").replace(">dev</div>", f">{ver}</div>"),
+                        encoding="utf-8")
     print(f"built {DIST}")
 
 
