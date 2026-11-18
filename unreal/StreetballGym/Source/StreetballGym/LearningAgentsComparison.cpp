@@ -99,15 +99,15 @@ bool ALAComparisonAgent::Initialize(UMuJoCoSim* Definition, const FVector& Origi
 	SetActorLocation(Origin);
 	Definition->ResetData();
 	const int32 PelvisId = Definition->BodyId(TEXT("pelvis"));
-	const int32 EndBody = Definition->BodyId(TEXT("foot_r"));
 	TMap<int32, int32> BodyIndices;
 	UPhysicalMaterial* Material = NewObject<UPhysicalMaterial>(this);
 	Material->Friction = 0.9f;
 	Material->Restitution = 0;
 
-	for (int32 b = PelvisId; b <= EndBody; ++b)
+	// Every body of the humanoid tree (bodies are depth-first, parents first); no hard-coded last body.
+	for (int32 b = PelvisId; b < M->nbody; ++b)
 	{
-		if (!M->body_geomnum[b]) continue;
+		if (M->body_rootid[b] != M->body_rootid[PelvisId] || !M->body_geomnum[b]) continue;
 		const int32 g = M->body_geomadr[b];
 		FLAComparisonBody Body;
 		Body.ModelBody = b;
@@ -190,12 +190,14 @@ bool ALAComparisonAgent::Initialize(UMuJoCoSim* Definition, const FVector& Origi
 		}
 		Bodies.Add(Body);
 	}
-	if (Bodies.Num() != 15 || Joints.Num() != NumActions) return false;
+	if (Joints.Num() != NumActions) return false;
 	Pelvis = BodyIndices.FindChecked(PelvisId);
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
 		Feet[Side] = BodyIndices.FindChecked(Definition->BodyId(Side == 0 ? TEXT("foot_l") : TEXT("foot_r")));
 		Hands[Side] = BodyIndices.FindChecked(Definition->BodyId(Side == 0 ? TEXT("hand_l") : TEXT("hand_r")));
+		const int32* Toe = BodyIndices.Find(Definition->BodyId(Side == 0 ? TEXT("toe_l") : TEXT("toe_r")));
+		Toes[Side] = Toe ? *Toe : INDEX_NONE;
 	}
 	for (FLAComparisonBody& Body : Bodies)
 	{
@@ -278,7 +280,9 @@ bool ALAComparisonAgent::Initialize(UMuJoCoSim* Definition, const FVector& Origi
 		const int32 Count = BodyName == TEXT("torso") ? 3 : 1;
 		for (int32 k = 0; k < Count; ++k)
 		{
-			const FName Bone = Count == 3 ? FName(*FString::Printf(TEXT("spine_%02d"), k + 1)) : FName(*BodyName);
+			// humanoid_spec.json body_bone_map: toe_l/toe_r drive the mannequin's ball_l/ball_r bones.
+			const FString Single = BodyName.StartsWith(TEXT("toe_")) ? TEXT("ball_") + BodyName.RightChop(4) : BodyName;
+			const FName Bone = Count == 3 ? FName(*FString::Printf(TEXT("spine_%02d"), k + 1)) : FName(*Single);
 			const int32 Index = Ref.FindBoneIndex(Bone);
 			if (Index == INDEX_NONE) return false;
 			const FQuat WorldBind = Mesh->GetComponentQuat() * Bind[Index].GetRotation();
@@ -391,12 +395,15 @@ void ALAComparisonAgent::Measure()
 	bool bNonFootContact = false;
 	for (int32 b = 0; b < Bodies.Num(); ++b)
 	{
-		if (b == Feet[0] || b == Feet[1] || b == Hands[0] || b == Hands[1]) continue;
+		if (b == Feet[0] || b == Feet[1] || b == Toes[0] || b == Toes[1] || b == Hands[0] || b == Hands[1]) continue;
 		bNonFootContact |= GetWorld()->GetTimeSeconds() - LastGroundContacts[b] <= 0.04f;
 	}
 	GroundContactTime = bNonFootContact ? GroundContactTime + ControlDt : 0;
-	if (GetWorld()->GetTimeSeconds() - LastGroundContacts[Feet[0]] <= 0.04f
-		|| GetWorld()->GetTimeSeconds() - LastGroundContacts[Feet[1]] <= 0.04f) ++FootContactSteps;
+	bool bFootContact = false;
+	for (int32 Side = 0; Side < 2; ++Side)
+		bFootContact |= GetWorld()->GetTimeSeconds() - LastGroundContacts[Feet[Side]] <= 0.04f
+			|| (Toes[Side] != INDEX_NONE && GetWorld()->GetTimeSeconds() - LastGroundContacts[Toes[Side]] <= 0.04f);
+	if (bFootContact) ++FootContactSteps;
 	EpisodeTime += ControlDt;
 	++EpisodeSteps;
 	EpisodeReturn += Reward();
@@ -404,7 +411,7 @@ void ALAComparisonAgent::Measure()
 
 void ALAComparisonAgent::Act(TConstArrayView<float> Values)
 {
-	if (Values.Num() != NumActions) { Comparison->Fail(TEXT("Action shape is not 27")); return; }
+	if (Values.Num() != NumActions) { Comparison->Fail(FString::Printf(TEXT("Action shape is not %d"), NumActions)); return; }
 	ActionRate = 0; PosePenalty = 0; TorquePenalty = 0;
 	for (const FLAComparisonBody& Body : Bodies)
 	{
@@ -478,23 +485,26 @@ void ALAComparisonAgent::Observe(TArray<float>& Out) const
 	for (int32 j = 0; j < NumActions; ++j)
 	{
 		const int32 a = Joints[j].LocalIndex;
-		Out[9 + a] = Angles[j] - Joints[j].Nominal;
-		Out[36 + a] = 0.1f * Velocities[j];
-		Out[63 + a] = Action[a];
+		Out[FObsBuilder::SlotJointPos + a] = Angles[j] - Joints[j].Nominal;
+		Out[FObsBuilder::SlotJointVel + a] = 0.1f * Velocities[j];
+		Out[FObsBuilder::SlotPrevAction + a] = Action[a];
 	}
 	// Ball/task slots stay in place, but no basketball task is trained in this comparison.
 	const FVector Ball = Start + FVector(300, 0, 12.05f);
 	const FQuat Heading = FRotator(0, Rotation.Rotator().Yaw, 0).Quaternion();
 	const FVector BallRelative = PolarToSim(Heading.UnrotateVector((Ball - Root.GetLocation()) / 100));
 	const FVector BallVelocity = PolarToSim(Heading.UnrotateVector(-Bodies[Pelvis].Shape->GetPhysicsLinearVelocity() / 100));
-	for (int32 i = 0; i < 3; ++i) { Out[90 + i] = float(BallRelative[i]); Out[93 + i] = 0.5f * float(BallVelocity[i]); }
+	for (int32 i = 0; i < 3; ++i) { Out[FObsBuilder::SlotBall + i] = float(BallRelative[i]); Out[FObsBuilder::SlotBall + 3 + i] = 0.5f * float(BallVelocity[i]); }
+	const float Now = GetWorld()->GetTimeSeconds();
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
-		Out[97 + Side] = float(FVector::Distance(Ball, Bodies[Hands[Side]].Shape->GetComponentLocation()) / 100);
-		Out[99 + Side] = GetWorld()->GetTimeSeconds() - LastGroundContacts[Feet[Side]] <= 0.04f ? 1.f : 0.f;
+		Out[FObsBuilder::SlotPalmBallDist + Side] = float(FVector::Distance(Ball, Bodies[Hands[Side]].Shape->GetComponentLocation()) / 100);
+		// foot_contact rule: foot or toe geom touching the floor
+		const bool bFoot = Now - LastGroundContacts[Feet[Side]] <= 0.04f || (Toes[Side] != INDEX_NONE && Now - LastGroundContacts[Toes[Side]] <= 0.04f);
+		Out[FObsBuilder::SlotFootContact + Side] = bFoot ? 1.f : 0.f;
 	}
-	Out[101] = float(Root.GetLocation().Z / 100);
-	Out[107] = TargetSpeed;
+	Out[FObsBuilder::SlotPelvisHeight] = float(Root.GetLocation().Z / 100);
+	Out[FObsBuilder::SlotTask] = TargetSpeed;
 }
 
 void ALAComparisonAgent::UpdateVisuals()
@@ -641,7 +651,7 @@ void ALAComparisonWorld::BeginPlay()
 		Agent->TargetSpeed = Tier == 2 ? 1.6f : 0;
 		if (!Agent->Initialize(Definition, FVector((i % 8) * 5000, (i / 8) * 5000, 0), i == 0))
 		{
-			Fail(TEXT("Could not construct 15-body, 27-action Chaos humanoid")); return;
+			Fail(FString::Printf(TEXT("Could not construct the %d-action Chaos humanoid"), NumActions)); return;
 		}
 		Agents.Add(Agent);
 		if (Manager->AddAgent(Agent) == INDEX_NONE) { Fail(TEXT("Could not register agent")); return; }
@@ -651,8 +661,8 @@ void ALAComparisonWorld::BeginPlay()
 	Camera->GetCameraComponent()->SetFieldOfView(55);
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0)) PC->SetViewTarget(Camera);
 	bReady = true;
-	UE_LOG(LogStreetball, Display, TEXT("LearningAgents comparison READY: Chaos, %d agents, tier %d, obs=119 action=27, training=%d, output=%s"),
-		AgentCount, Tier, bTrain, *OutputDir);
+	UE_LOG(LogStreetball, Display, TEXT("LearningAgents comparison READY: Chaos, %d agents, tier %d, obs=%d action=%d, training=%d, output=%s"),
+		AgentCount, Tier, NumObservations, NumActions, bTrain, *OutputDir);
 }
 
 bool ALAComparisonWorld::SetupLearning()

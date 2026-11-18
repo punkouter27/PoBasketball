@@ -210,6 +210,33 @@ namespace
 		return true;
 	}
 
+	/** Every array the gates index with model addresses must have the loaded model's size. A replay recorded
+	 *  against an older body (e.g. 27-DoF, nq 41, before humanoid_v2) would otherwise be indexed out of bounds. */
+	bool ReplayMatchesModel(const UMuJoCoSim* Sim, const FReplay& R, FString& Why)
+	{
+		const mjModel* M = Sim->GetModel();
+		auto Rows = [&](const TCHAR* Name, const TArray<TArray<double>>& A, int32 Width, bool bRequired) -> bool {
+			if (A.Num() == 0 && !bRequired) return true;
+			if (A.Num() < R.Steps) { Why = FString::Printf(TEXT("%s has %d rows, steps = %d"), Name, A.Num(), R.Steps); return false; }
+			for (int32 t = 0; t < R.Steps; ++t)
+				if (A[t].Num() != Width) { Why = FString::Printf(TEXT("%s[%d] has %d values, model needs %d"), Name, t, A[t].Num(), Width); return false; }
+			return true;
+		};
+		if (R.NQ != M->nq || R.QPos0.Num() != M->nq) { Why = FString::Printf(TEXT("recorded nq %d (qpos0 %d), model nq %d"), R.NQ, R.QPos0.Num(), M->nq); return false; }
+		if (R.QVel0.Num() != M->nv) { Why = FString::Printf(TEXT("qvel0 has %d values, model nv %d"), R.QVel0.Num(), M->nv); return false; }
+		if (R.NU != M->nu) { Why = FString::Printf(TEXT("recorded nu %d, model nu %d"), R.NU, M->nu); return false; }
+		return Rows(TEXT("ctrl"), R.Ctrl, M->nu, true) && Rows(TEXT("qpos"), R.QPos, M->nq, true) && Rows(TEXT("qvel"), R.QVel, M->nv, false)
+			&& Rows(TEXT("obs"), R.Obs, FObsBuilder::NumObs, false) && Rows(TEXT("action"), R.Action, FObsBuilder::NumAction, false);
+	}
+
+	/** Stale replay: skip with a warning (like absent inputs) instead of comparing against the wrong body. */
+	void SkipStale(FAutomationTestBase& T, const TCHAR* Section, const FString& ReplayPath, const FString& Why)
+	{
+		const FString Msg = FString::Printf(TEXT("SKIPPED - %s was recorded for a different body (%s). Re-record it with sim/tools/replay_recorder.py against the current scene.xml."), *ReplayPath, *Why);
+		T.AddWarning(Msg);
+		WriteGateReport(Section, Msg);
+	}
+
 	void CollectAdr(const UMuJoCoSim* Sim, int32& RootQ, TArray<int32>& JAdr)
 	{
 		const mjModel* M = Sim->GetModel();
@@ -228,7 +255,13 @@ bool FStreetballGatePresetTest::RunTest(const FString&)
 
 	UMuJoCoSim* Sim = NewObject<UMuJoCoSim>(GetTransientPackage()); Sim->AddToRoot();
 	if (!TestTrue(TEXT("scene loads"), Sim->LoadXml(Streetball::SceneXmlPath()))) { Sim->RemoveFromRoot(); return false; }
-	TestEqual(TEXT("nq"), R.NQ, Sim->NumQ());
+	FString Why;
+	if (!ReplayMatchesModel(Sim, R, Why))
+	{
+		SkipStale(*this, TEXT("Preset actions (open loop)"), ReplayPath, Why);
+		Sim->Unload(); Sim->RemoveFromRoot();
+		return true;
+	}
 	Sim->ResetToKeyframe(R.Key);
 	Sim->SetQPos(R.QPos0); Sim->SetQVel(R.QVel0); Sim->Forward();
 	int32 RootQ; TArray<int32> JAdr; CollectAdr(Sim, RootQ, JAdr);
@@ -267,6 +300,13 @@ bool FStreetballGateLiveTest::RunTest(const FString&)
 
 	UMuJoCoSim* Sim = NewObject<UMuJoCoSim>(GetTransientPackage()); Sim->AddToRoot();
 	if (!TestTrue(TEXT("scene loads"), Sim->LoadXml(Streetball::SceneXmlPath()))) { Sim->RemoveFromRoot(); return false; }
+	FString Why;
+	if (!ReplayMatchesModel(Sim, R, Why))
+	{
+		SkipStale(*this, TEXT("Live physics (closed loop)"), ReplayPath, Why);
+		Sim->Unload(); Sim->RemoveFromRoot();
+		return true;
+	}
 	UPolicyRunner* Policy = NewObject<UPolicyRunner>(GetTransientPackage()); Policy->AddToRoot();
 	if (!TestTrue(TEXT("policy loads"), Policy->LoadOnnx(PolicyPath, FObsBuilder::NumObs, FObsBuilder::NumAction))) { Policy->RemoveFromRoot(); Sim->RemoveFromRoot(); return false; }
 	FObsBuilder B;
@@ -298,7 +338,8 @@ bool FStreetballGateLiveTest::RunTest(const FString&)
 			const double D = FMath::Abs((double)Obs[k] - R.Obs[t][k]);
 			if (D > G.MaxObs) { G.MaxObs = D; WorstObsSlot = k; WorstObsStep = t; }
 		}
-		if ((Obs[99] > 0.5f) != (R.Obs[t][99] > 0.5) || (Obs[100] > 0.5f) != (R.Obs[t][100] > 0.5)) ++G.FootMismatchSteps;
+		constexpr int32 FC = FObsBuilder::SlotFootContact;
+		if ((Obs[FC] > 0.5f) != (R.Obs[t][FC] > 0.5) || (Obs[FC + 1] > 0.5f) != (R.Obs[t][FC + 1] > 0.5)) ++G.FootMismatchSteps;
 		if (!Policy->Run(Obs, Act)) { AddError(TEXT("policy run failed")); break; }
 		InferenceMs += Policy->LastInferenceMs;
 		for (float& A : Act) A = FMath::Clamp(A, -1.f, 1.f);

@@ -11,6 +11,7 @@
 #include "BroadcastCamera.h"
 #include "CourtAudio.h"
 #include "MuJoCoSim.h"
+#include "ObsBuilder.h"
 #include "PolicyRunner.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/Engine.h"
@@ -385,8 +386,10 @@ bool FStreetballLoopTest::RunTest(const FString&)
 	TestEqual(TEXT("switched to locomotion"), W->GetLastPolicyName().ToString(), FString(TEXT("locomotion")));
 	const TArray<float>& ObsAfter = W->GetLastObs();
 	double HandoverErr = 0.0;
-	for (int32 k = 0; k < 27; ++k) HandoverErr = FMath::Max(HandoverErr, FMath::Abs((double)ObsAfter[63 + k] - ActionBefore[k]));
-	TestTrue(TEXT("prev_action slots [63:90] equal the last action of the previous policy"), HandoverErr == 0.0 && ActionBefore.Num() == 27);
+	constexpr int32 NA = FObsBuilder::NumAction, PA = FObsBuilder::SlotPrevAction;
+	const bool bShapes = ActionBefore.Num() == NA && ObsAfter.Num() >= PA + NA;
+	if (bShapes) for (int32 k = 0; k < NA; ++k) HandoverErr = FMath::Max(HandoverErr, FMath::Abs((double)ObsAfter[PA + k] - ActionBefore[k]));
+	TestTrue(FString::Printf(TEXT("prev_action slots [%d:%d] equal the last action of the previous policy"), PA, PA + NA), bShapes && HandoverErr == 0.0);
 	AddInfo(FString::Printf(TEXT("hand-over prev_action max diff %.3e"), HandoverErr));
 	W->GetDirector()->ForceState(EStreetballState::Stand, W->GetTracker()->State());
 

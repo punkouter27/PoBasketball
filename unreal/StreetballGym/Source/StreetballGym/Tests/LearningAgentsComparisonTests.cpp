@@ -5,6 +5,7 @@
 #include "StreetballGym.h"
 #include "StreetballWorld.h"
 #include "MuJoCoSim.h"
+#include "ObsBuilder.h"
 #include "Components/ShapeComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
@@ -30,12 +31,18 @@ bool FLAComparisonModelTest::RunTest(const FString&)
 		TestTrue(TEXT("Chaos model imports at a translated training origin"), bInitialized);
 		if (bInitialized)
 		{
-			TestEqual(TEXT("all physical humanoid bodies imported"), Agent->Bodies.Num(), 15);
-			TestEqual(TEXT("all actuator degrees of freedom imported"), Agent->Joints.Num(), 27);
-			TestEqual(TEXT("all bodies except the free root are constrained"), Agent->Constraints.Num(), 14);
+			// Expected counts come from the frozen model, not from a particular body revision.
+			const mjModel* Model = Definition->GetModel();
+			const int32 PelvisId = Definition->BodyId(TEXT("pelvis"));
+			int32 PhysicalBodies = 0;
+			for (int32 b = PelvisId; b < Model->nbody; ++b)
+				if (Model->body_rootid[b] == Model->body_rootid[PelvisId] && Model->body_geomnum[b]) ++PhysicalBodies;
+			TestEqual(TEXT("all physical humanoid bodies imported"), Agent->Bodies.Num(), PhysicalBodies);
+			TestEqual(TEXT("all actuator degrees of freedom imported"), Agent->Joints.Num(), FObsBuilder::NumAction);
+			TestEqual(TEXT("all bodies except the free root are constrained"), Agent->Constraints.Num(), PhysicalBodies - 1);
 			TSet<int32> Actions;
 			for (const FLAComparisonJoint& Joint : Agent->Joints) Actions.Add(Joint.LocalIndex);
-			TestEqual(TEXT("actuator order is a one-to-one mapping"), Actions.Num(), 27);
+			TestEqual(TEXT("actuator order is a one-to-one mapping"), Actions.Num(), FObsBuilder::NumAction);
 			float Mass = 0;
 			for (const FLAComparisonBody& Body : Agent->Bodies)
 			{
@@ -70,19 +77,20 @@ bool FLAComparisonModelTest::RunTest(const FString&)
 			TestTrue(TEXT("humanoid mass is anatomical, not unit-mass defaults"), Mass > 70 && Mass < 90);
 			TArray<float> Observation;
 			Agent->Observe(Observation);
-			TestEqual(TEXT("comparison preserves observation layout size"), Observation.Num(), 119);
-			TestTrue(TEXT("root height remains metres, not centimetres"), Observation[101] > 0.8f && Observation[101] < 1.1f);
+			TestEqual(TEXT("comparison preserves observation layout size"), Observation.Num(), FObsBuilder::NumObs);
+			TestTrue(TEXT("root height remains metres, not centimetres"),
+				Observation[FObsBuilder::SlotPelvisHeight] > 0.8f && Observation[FObsBuilder::SlotPelvisHeight] < 1.1f);
 			TestTrue(TEXT("root position uses the translated environment origin"),
 				Agent->BodyTransform(Agent->Pelvis).GetLocation().X > 4900);
 			Agent->Angles[0] += 0.25f;
 			Agent->Observe(Observation);
 			TestTrue(TEXT("joint sensors are written in frozen actuator order"),
-				FMath::IsNearlyEqual(Observation[9 + Agent->Joints[0].LocalIndex], 0.25f, 1e-5f));
+				FMath::IsNearlyEqual(Observation[FObsBuilder::SlotJointPos + Agent->Joints[0].LocalIndex], 0.25f, 1e-5f));
 			Agent->EpisodeTime = 3;
 			Agent->EpisodeSteps = 150;
 			Agent->ResetEpisode();
 			TestEqual(TEXT("episode state resets without respawning"), Agent->EpisodeSteps, 0);
-			TestEqual(TEXT("body pool retained across reset"), Agent->Bodies.Num(), 15);
+			TestEqual(TEXT("body pool retained across reset"), Agent->Bodies.Num(), PhysicalBodies);
 			TestTrue(TEXT("reset clears velocities"), Agent->Bodies[Agent->Pelvis].Shape->GetPhysicsLinearVelocity().IsNearlyZero());
 		}
 		AStreetballCharacter* Original = World->SpawnActor<AStreetballCharacter>();

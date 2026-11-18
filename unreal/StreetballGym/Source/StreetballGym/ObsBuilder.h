@@ -5,7 +5,7 @@
 class UMuJoCoSim;
 
 /**
- * C++ twin of sim/streetball/obs.py (119-float observation, 27-float action rule).
+ * C++ twin of sim/streetball/obs.py (NumObs-float observation, NumAction-float action rule).
  * Index tables come from Content/Sim/obs_spec.json so both sides share one definition.
  * Verified slot-for-slot against shared/golden/obs_golden.npz by the Streetball.ObsGolden test.
  */
@@ -17,6 +17,19 @@ struct STREETBALLGYM_API FObsBuilder
 	static constexpr int32 NumBase = 26 + 3 * NumJoints; // 113
 	static constexpr int32 NumObs = NumBase + NumTask;   // 125
 	static_assert(NumBase == 113 && NumObs == 125, "ObsBuilder dimensions must match obs_spec.json");
+
+	// Slot offsets (obs_spec.json "slots"), derived from NumJoints so callers never hard-code them.
+	// Initialize() checks them against the spec file.
+	static constexpr int32 SlotJointPos = 9;
+	static constexpr int32 SlotJointVel = SlotJointPos + NumJoints;
+	static constexpr int32 SlotPrevAction = SlotJointVel + NumJoints;
+	static constexpr int32 SlotBall = SlotPrevAction + NumJoints;      // ball_pos_rel[3], ball_vel_rel[3]
+	static constexpr int32 SlotInControl = SlotBall + 6;
+	static constexpr int32 SlotPalmBallDist = SlotBall + 7;          // [2] left, right
+	static constexpr int32 SlotFootContact = SlotBall + 9;           // [2] left, right
+	static constexpr int32 SlotPelvisHeight = SlotBall + 11;
+	static constexpr int32 SlotTask = NumBase;
+	static_assert(SlotBall + 17 == NumBase, "base block ends with countdown_frac + reserved");
 
 	bool Initialize(UMuJoCoSim* Sim, const FString& ObsSpecJsonPath);
 	bool IsInitialized() const { return bInit; }

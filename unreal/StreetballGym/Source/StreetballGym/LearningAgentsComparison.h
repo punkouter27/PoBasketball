@@ -82,6 +82,7 @@ public:
 	int32 Pelvis = INDEX_NONE;
 	int32 Feet[2] = {INDEX_NONE, INDEX_NONE};
 	int32 Hands[2] = {INDEX_NONE, INDEX_NONE};
+	int32 Toes[2] = {INDEX_NONE, INDEX_NONE};   // humanoid_v2 toe bodies (INDEX_NONE on a body without toes)
 	float EpisodeTime = 0;
 	float EpisodeReturn = 0;
 	float Distance = 0;

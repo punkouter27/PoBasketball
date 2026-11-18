@@ -56,6 +56,31 @@ bool FObsBuilder::Initialize(UMuJoCoSim* Sim, const FString& SpecPath)
 		UE_LOG(LogStreetball, Error, TEXT("ObsBuilder: spec has %d joints, expected %d"), JointOrder.Num(), NumJoints);
 		return false;
 	}
+	// The slot constants in ObsBuilder.h must agree with the spec's slot table.
+	if (Root->HasTypedField<EJson::Number>(TEXT("n_obs")) && (int32)Root->GetNumberField(TEXT("n_obs")) != NumObs)
+	{
+		UE_LOG(LogStreetball, Error, TEXT("ObsBuilder: spec n_obs %d, expected %d"), (int32)Root->GetNumberField(TEXT("n_obs")), NumObs);
+		return false;
+	}
+	const TArray<TSharedPtr<FJsonValue>>* Slots = nullptr;
+	if (Root->TryGetArrayField(TEXT("slots"), Slots))
+	{
+		const TMap<FString, int32> Expected = {
+			{TEXT("joint_pos_rel"), SlotJointPos}, {TEXT("joint_vel"), SlotJointVel}, {TEXT("prev_action"), SlotPrevAction},
+			{TEXT("ball_pos_rel"), SlotBall}, {TEXT("ball_in_control"), SlotInControl}, {TEXT("palm_ball_dist"), SlotPalmBallDist},
+			{TEXT("foot_contact"), SlotFootContact}, {TEXT("pelvis_height"), SlotPelvisHeight}, {TEXT("task"), SlotTask}};
+		for (const TSharedPtr<FJsonValue>& V : *Slots)
+		{
+			const TSharedPtr<FJsonObject> O = V->AsObject();
+			const int32* Want = O.IsValid() ? Expected.Find(O->GetStringField(TEXT("name"))) : nullptr;
+			if (Want && (int32)O->GetNumberField(TEXT("start")) != *Want)
+			{
+				UE_LOG(LogStreetball, Error, TEXT("ObsBuilder: slot %s starts at %d in the spec, %d in ObsBuilder.h"),
+					*O->GetStringField(TEXT("name")), (int32)O->GetNumberField(TEXT("start")), *Want);
+				return false;
+			}
+		}
+	}
 	const mjModel* M = Sim->GetModel();
 	for (int32 i = 0; i < NumJoints; ++i)
 	{
@@ -97,10 +122,10 @@ void FObsBuilder::Compute(const UMuJoCoSim* Sim, TConstArrayView<float> PrevActi
 	MulT(R, G, Tmp);       for (int i = 0; i < 3; ++i) Out[0 + i] = (float)Tmp[i];
 	MulT(R, VPelvis, Tmp); for (int i = 0; i < 3; ++i) Out[3 + i] = (float)Tmp[i];
 	for (int i = 0; i < 3; ++i) Out[6 + i] = (float)(0.25 * WPelvis[i]);
-	constexpr int32 SJPos = 9;
-	constexpr int32 SJVel = SJPos + NumJoints;
-	constexpr int32 SAct = SJVel + NumJoints;
-	constexpr int32 SBall = SAct + NumJoints;
+	constexpr int32 SJPos = SlotJointPos;
+	constexpr int32 SJVel = SlotJointVel;
+	constexpr int32 SAct = SlotPrevAction;
+	constexpr int32 SBall = SlotBall;
 	for (int i = 0; i < NumJoints; ++i)
 	{
 		Out[SJPos + i] = (float)(D->qpos[QAdr[i]] - Nominal[i]);
