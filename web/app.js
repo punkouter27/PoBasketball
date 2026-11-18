@@ -117,12 +117,15 @@ addEventListener("resize", resize); resize();
 await load(replays[0].name);
 let last = performance.now();
 renderer.setAnimationLoop((now) => {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  // rAF's timestamp is the frame's start, which can be earlier than the performance.now() taken above:
+  // clamp so the first dt is never negative (a negative clock gave frame -1 and frames[-1] undefined).
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now;
   if (playing && frames.length) {
     clock += dt * +$("speed").value;
     const total = frames.length * rep.frameTime;
     if (clock >= total) clock %= total;
-    const next = Math.min(frames.length - 1, Math.floor(clock / rep.frameTime));
+    if (clock < 0) clock = 0;
+    const next = Math.max(0, Math.min(frames.length - 1, Math.floor(clock / rep.frameTime)));
     if (next !== frame) { frame = next; apply(); }
   }
   if (follow && focusBody != null && bodies.get(focusBody)) {
