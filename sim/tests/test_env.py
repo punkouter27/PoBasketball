@@ -1,3 +1,5 @@
+import sys, pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 """C1/C2 acceptance: the Warp env builds observations identical to obs.py (golden
 cross-check), steps without NaN under random actions, and randomisation varies
 per world. Run: uv run python -m pytest tests/test_env.py -q -s

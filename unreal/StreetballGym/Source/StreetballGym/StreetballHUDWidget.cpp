@@ -40,6 +40,8 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 			S->SetPadding(FMargin(0.f, StreetballUiTheme::Space1 * 0.5f));
 			return T;
 		};
+		UTextBlock* AppTitleText = MakeText(TEXT("AppTitle"), StreetballUiTheme::FontL, FLinearColor::White);
+		AppTitleText->SetText(FText::FromString(TEXT("PoBasketball")));
 		TierText = MakeText(TEXT("Tier"), StreetballUiTheme::FontL, StreetballUiTheme::AccentGold);
 		StateText = MakeText(TEXT("State"), StreetballUiTheme::FontXS, StreetballUiTheme::TextMuted);
 		StreakText = MakeText(TEXT("Streak"), StreetballUiTheme::FontS, StreetballUiTheme::TextPrimary);
@@ -61,6 +63,7 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 
 		// Anchor 3: Top-Right FPS + active policy badge
 		PolicyFpsText = MakeStyledText(TEXT("PolicyFps"), StreetballUiTheme::FontS, StreetballUiTheme::PolicyRef);
+		PolicyFpsText->SetText(FText::FromString(TEXT("60 FPS  |  ⚙ Settings (Esc)")));
 		UCanvasPanelSlot* RightSlot = Canvas->AddChildToCanvas(PolicyFpsText);
 		RightSlot->SetAnchors(FAnchors(1.f, 0.f));
 		RightSlot->SetAlignment(FVector2D(1.f, 0.f));

@@ -1,5 +1,5 @@
 {
-  "checkpoint": "C:\\Users\\punko\\Downloads\\_CODEMATT\\PoBasketball\\sim\\runs\\l3b_scramble_n16bq2\\model.pt",
+  "checkpoint": "PoBasketball\\sim\\runs\\l3b_scramble_n16bq2\\model.pt",
   "obs_spec_sha256_16": "ccfa18d6f9aaf2a5",
   "n_obs": 119,
   "n_action": 27,

@@ -1,6 +1,6 @@
 {
   "level": "l2a_dribble_r",
-  "checkpoint": "C:\\Users\\punko\\Downloads\\_CODEMATT\\PoBasketball\\sim\\runs\\l2a_push_n16bq2\\model.pt",
+  "checkpoint": "PoBasketball\\sim\\runs\\l2a_push_n16bq2\\model.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 80.0,

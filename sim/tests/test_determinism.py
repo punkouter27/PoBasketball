@@ -1,3 +1,5 @@
+import sys, pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 """A8: MuJoCo Warp (float32, GPU) vs libmujoco (float64, CPU) drift over a 5 s replay.
 
 Same scene.xml, same keyframe, same 250-step (50 Hz) action sequence with 10 physics
