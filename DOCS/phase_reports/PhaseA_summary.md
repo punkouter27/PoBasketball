@@ -18,8 +18,8 @@ Date: 2026-11-06
 | File | Hash |
 |---|---|
 | `sim/assets/scene.xml` | `3d009caa8bfa581e` (2026-11-17: `humanoid_v2` keyframe for 29 joints; was `84bec5b08691e5fd`) |
-| `sim/assets/humanoid.xml` | `319cd05af6f00d17` (2026-11-17: articulated `toe_l/r` hinges, 29 joints; was `01a3f59b037ef5e7`) |
-| `sim/assets/court.xml` | `c1c2207912c56781` (2026-11-17: hoop poles moved inside the fence, `POLE_FROM_BASELINE` 2.20 -> 1.00; rims/boards unchanged; was `1eba556a91fae556`) |
+| `sim/assets/humanoid.xml` | `bd7cf5274215544f` (2026-11-19: same content, LF line endings after a `git checkout`; the hash is over raw bytes; was `319cd05af6f00d17` (2026-11-17: articulated `toe_l/r` hinges, 29 joints; was `01a3f59b037ef5e7`)) |
+| `sim/assets/court.xml` | `7e9b5753773f66b7` (2026-11-19: soft ball-palm contact pairs `ball_palm_l/r`, see DOCS/20261119/log.md; was `c1c2207912c56781` (2026-11-17: hoop poles moved inside the fence, `POLE_FROM_BASELINE` 2.20 -> 1.00; rims/boards unchanged; was `1eba556a91fae556`)) |
 
 Any change to the generators must bump these in this file and re-run A5, A6, A8.
 
