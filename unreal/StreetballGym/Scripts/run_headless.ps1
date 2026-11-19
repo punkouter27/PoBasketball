@@ -17,6 +17,8 @@ $project = Join-Path (Split-Path -Parent $PSScriptRoot) "StreetballGym.uproject"
 $quoted = foreach ($a in $EditorArgs) { if ($a -match '\s' -and $a -notmatch '^".*"$') { '"' + $a + '"' } else { $a } }
 $args = @("`"$project`"") + $quoted + @("-unattended", "-nosplash", "-nop4", "-stdout", "-FullStdOutLogOutput")
 if ($LogFile -eq "") { $LogFile = Join-Path $env:TEMP ("ue_headless_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss")) }
+# Saved/Logs does not exist in a fresh clone; Start-Process cannot redirect into a missing folder
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $LogFile) | Out-Null
 $p = Start-Process -FilePath $Editor -ArgumentList $args -PassThru -NoNewWindow -RedirectStandardOutput $LogFile -RedirectStandardError ($LogFile + ".err")
 try {
     Wait-Process -Id $p.Id -Timeout $TimeoutSec -ErrorAction Stop

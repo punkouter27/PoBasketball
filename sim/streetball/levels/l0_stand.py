@@ -20,6 +20,16 @@ class L0Stand(Level):
     episode_s = 60.0
     pass_fraction = 0.95
     foot_move_limit = 0.35       # m; termination. Success still requires staying within 0.20 m (PRD stance rule)
+    # Posture curriculum (DOCS/20261118): (start_step, ramp_steps) blends the v1 posture term (pelvis upright) into the
+    # v2 one (pelvis + torso upright). None = full v2 reward, as before. Set by train.py --posture-ramp-steps.
+    posture_ramp: tuple[float, float] | None = None
+
+    def posture_alpha(self) -> float:
+        if self.posture_ramp is None:
+            return 1.0
+        start, length = self.posture_ramp
+        t = float(getattr(self, "train_steps", float("inf")))
+        return min(1.0, max(0.0, (t - start) / max(length, 1.0)))
 
     def setup(self) -> None:
         self._last_action = torch.zeros(self.N, self.env.N_ACT, device=self.dev)
@@ -71,8 +81,9 @@ class L0Stand(Level):
         jitter = (xy - self.ema_xy).norm(dim=-1)
         self.speed_acc += torch.where(quiet, speed, torch.zeros_like(speed))
         self.jitter_acc += torch.where(quiet, jitter, torch.zeros_like(jitter))
+        alpha = self.posture_alpha()
         r = (
-            1.5 * self.r_torso_upright()
+            (1.0 - alpha) * 1.0 * self.r_upright() + alpha * 1.5 * self.r_torso_upright()
             + 0.5 * self.r_height()
             + 0.5 * torch.exp(-(sway / 0.05) ** 2)
             - 2.0 * drift

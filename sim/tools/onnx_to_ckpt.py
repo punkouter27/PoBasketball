@@ -34,7 +34,10 @@ def constant_inputs(model: onnx.ModelProto) -> dict[str, np.ndarray]:
     return consts
 
 
-def rebuild(onnx_path: pathlib.Path, hidden=(512, 256, 128)) -> tuple[Actor, float]:
+def rebuild(onnx_path: pathlib.Path, hidden=(512, 256, 128), n_obs: int | None = None,
+            n_act: int | None = None) -> tuple[Actor, float]:
+    n_obs = obs_spec.N_OBS if n_obs is None else n_obs
+    n_act = obs_spec.N_JOINTS if n_act is None else n_act
     model = onnx.load(str(onnx_path))
     c = constant_inputs(model)
     mean = std = None
@@ -56,10 +59,10 @@ def rebuild(onnx_path: pathlib.Path, hidden=(512, 256, 128)) -> tuple[Actor, flo
     if mean is None or std is None or len(linears) != len(hidden) + 1:
         raise SystemExit(f"unexpected graph: mean={mean is not None} std={std is not None} linears={len(linears)}")
 
-    actor = Actor(obs_spec.N_OBS, obs_spec.N_JOINTS, hidden)
+    actor = Actor(n_obs, n_act, hidden)
     with torch.no_grad():
-        actor.norm.mean.copy_(torch.from_numpy(np.broadcast_to(mean, (obs_spec.N_OBS,)).copy()).float())
-        actor.norm.var.copy_(torch.from_numpy(np.broadcast_to(std ** 2 - 1e-8, (obs_spec.N_OBS,)).copy()).float())
+        actor.norm.mean.copy_(torch.from_numpy(np.broadcast_to(mean, (n_obs,)).copy()).float())
+        actor.norm.var.copy_(torch.from_numpy(np.broadcast_to(std ** 2 - 1e-8, (n_obs,)).copy()).float())
         actor.norm.count.fill_(1e6)  # treat the normaliser as converged so fine-tuning does not jerk it
         layers = [m for m in actor.net if isinstance(m, torch.nn.Linear)]
         for lin, (w, b) in zip(layers, linears):
@@ -68,7 +71,7 @@ def rebuild(onnx_path: pathlib.Path, hidden=(512, 256, 128)) -> tuple[Actor, flo
     actor.eval()
 
     sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
-    x = np.random.default_rng(0).normal(0, 2, (1000, obs_spec.N_OBS)).astype(np.float32)
+    x = np.random.default_rng(0).normal(0, 2, (1000, n_obs)).astype(np.float32)
     with torch.no_grad():
         ref = actor(torch.from_numpy(x)).numpy()
     got = np.concatenate([sess.run(["action"], {"obs": x[i:i + 1]})[0] for i in range(len(x))], 0)

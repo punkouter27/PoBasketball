@@ -87,6 +87,7 @@ class PPOConfig:
     max_grad_norm: float = 1.0
     lr: float = 3e-4
     kl_target: float = 0.01
+    lr_max: float = 1e-3          # adaptive-LR ceiling; lower it for fine-tunes of a good actor
     adaptive_lr: bool = True
     hidden: tuple[int, ...] = (512, 256, 128)
     init_std: float = 0.5
@@ -100,6 +101,12 @@ class PPO:
         self.ac = ActorCritic(n_obs, n_act, cfg.hidden, cfg.init_std).to(device)
         self.opt = torch.optim.Adam(self.ac.parameters(), lr=cfg.lr)
         self.lr = cfg.lr
+        # critic warm-up: when True, update() trains the value function only (actor, log_std and the adaptive
+        # LR untouched). Used after an actor-only init, whose fresh critic would otherwise feed PPO noise.
+        self.critic_only = False
+        # freeze the observation normaliser: an imported actor's weights only mean what they meant under its own
+        # stats; letting rollout data move them changes the policy with no gradient step (see DOCS/20261118).
+        self.freeze_norm = False
         T = cfg.steps_per_env
         z = lambda *s: torch.zeros(*s, device=device)
         self.obs_buf = z(T, num_envs, n_obs)
@@ -116,7 +123,8 @@ class PPO:
     # ---- rollout --------------------------------------------------------------
     @torch.no_grad()
     def act(self, obs: torch.Tensor) -> torch.Tensor:
-        self.ac.actor.norm.update(obs)
+        if not self.freeze_norm:
+            self.ac.actor.norm.update(obs)
         d = self.ac.dist(obs)
         a = d.sample()
         t = self.t
@@ -165,6 +173,10 @@ class PPO:
         val_old = self.val_buf.reshape(B)
         mean_old = self.mean_buf.reshape(B, -1)
         std_old = self.std_buf.reshape(B, -1)
+        if not self.critic_only and self.lr > cfg.lr_max:      # warm-up may run the critic faster than lr_max
+            self.lr = cfg.lr_max
+            for g in self.opt.param_groups:
+                g["lr"] = self.lr
         stats = {"loss/surrogate": 0.0, "loss/value": 0.0, "loss/entropy": 0.0, "ppo/kl": 0.0, "ppo/clip_frac": 0.0}
         n_upd = 0
         nan_batches = 0
@@ -182,16 +194,18 @@ class PPO:
                 vloss = torch.max((v - ret[idx]) ** 2, (v_clipped - ret[idx]) ** 2).mean()
                 ent = d.entropy().sum(-1).mean()
                 loss = surr + cfg.value_coef * vloss - cfg.entropy_coef * ent
+                if self.critic_only:
+                    loss = cfg.value_coef * vloss
 
                 with torch.no_grad():
                     # KL(old || new) for diagonal Gaussians
                     std_new = d.stddev
                     kl = (torch.log(std_new / std_old[idx]) + (std_old[idx] ** 2 + (mean_old[idx] - d.mean) ** 2) / (2 * std_new ** 2) - 0.5).sum(-1).mean()
-                    if cfg.adaptive_lr:
+                    if cfg.adaptive_lr and not self.critic_only:
                         if kl > 2.0 * cfg.kl_target:
                             self.lr = max(1e-5, self.lr / 1.5)
                         elif kl < 0.5 * cfg.kl_target and kl > 0.0:
-                            self.lr = min(1e-3, self.lr * 1.5)
+                            self.lr = min(cfg.lr_max, self.lr * 1.5)
                         for g in self.opt.param_groups:
                             g["lr"] = self.lr
                     clip_frac = ((ratio - 1.0).abs() > cfg.clip).float().mean()

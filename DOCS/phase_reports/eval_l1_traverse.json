@@ -1,23 +1,23 @@
 {
   "level": "l1_traverse",
-  "checkpoint": "runs\\l1_v3_armcarry\\model.pt",
+  "checkpoint": "runs\\production\\locomotion.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 150.0,
-  "success_rate": 0.9699999690055847,
+  "success_rate": 0.9599999785423279,
   "pass_fraction": 0.9,
   "passed": true,
   "holds_100_straight": true,
   "nan_grads": 0,
-  "interface_sha": "ccfa18d6f9aaf2a5",
-  "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
-  "fall_rate": 0.02499999850988388,
-  "mean_episode_s": 59.31669616699219,
+  "interface_sha": "32f5b79d3216e8a3",
+  "physics_sha": "319cd05af6f00d17+c1c2207912c56781",
+  "fall_rate": 0.019999999552965164,
+  "mean_episode_s": 61.38869857788086,
   "metrics": {
-    "m/waypoints": 4.4627532958984375,
-    "m/wp_dist": 7.371339321136475,
-    "m/speed": 1.8686981201171875,
-    "m/arm_carry": 0.06844513863325119
+    "m/waypoints": 4.522716045379639,
+    "m/wp_dist": 7.547176361083984,
+    "m/speed": 1.8770164251327515,
+    "m/arm_carry": 0.11435231566429138
   },
-  "wall_s": 156.36873529999866
+  "wall_s": 146.12017959999866
 }

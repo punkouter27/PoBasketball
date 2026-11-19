@@ -59,6 +59,11 @@ def parse():
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--steps-per-env", type=int, default=24)
     ap.add_argument("--init-std", type=float, default=0.5)
+    ap.add_argument("--critic-warmup-iters", type=int, default=0, help="train only the critic for this many iterations (use after --init-actor-only)")
+    ap.add_argument("--kl-target", type=float, default=0.01)
+    ap.add_argument("--posture-ramp-steps", type=float, default=0.0, help="l0_stand: blend v1->v2 posture reward over this many steps after the critic warm-up (0 = full v2 reward)")
+    ap.add_argument("--freeze-norm", action="store_true", help="keep the observation normaliser fixed (fine-tuning an imported actor)")
+    ap.add_argument("--lr-max", type=float, default=1e-3, help="adaptive-LR ceiling")
     ap.add_argument("--push-max", type=float, default=150.0, help="max random push force in N")
     ap.add_argument("--time-budget-min", type=float, default=0.0, help="stop after this many wall-clock minutes (0 = no limit)")
     ap.add_argument("--ckpt-every-steps", type=float, default=25e6, help="also save ckpt_<Msteps>.pt at these milestones")
@@ -76,7 +81,8 @@ def main():
     env_cfg = EnvConfig(num_envs=args.num_envs, seed=args.seed,
                         randomization=RandomizationConfig(enabled=not args.no_randomization,
                                                           push_force=(0.0, args.push_max)))
-    ppo_cfg = PPOConfig(lr=args.lr, steps_per_env=args.steps_per_env, init_std=args.init_std)
+    ppo_cfg = PPOConfig(lr=args.lr, steps_per_env=args.steps_per_env, init_std=args.init_std,
+                        kl_target=args.kl_target, lr_max=args.lr_max)
     level = make(args.level)
     env = StreetballEnv(level, env_cfg)
     agent = PPO(env.N_OBS, env.N_ACT, env.N, ppo_cfg, env.device)
@@ -84,6 +90,9 @@ def main():
         sd = torch.load(args.init, map_location=env.device)
         agent.load_state_dict(sd, actor_only=args.init_actor_only)
         print(f"initialised from {args.init} (actor_only={args.init_actor_only})")
+    agent.freeze_norm = args.freeze_norm
+    if args.posture_ramp_steps > 0:
+        level.posture_ramp = (args.critic_warmup_iters * args.num_envs * args.steps_per_env, args.posture_ramp_steps)
 
     (out / "config.json").write_text(json.dumps({
         "args": vars(args), "env": asdict(env_cfg), "ppo": asdict(ppo_cfg), "level": level.name,
@@ -131,6 +140,7 @@ def main():
                     metric_acc[k] = metric_acc.get(k, 0.0) + float(v.float().mean())
         agent.compute_returns(obs)
         t_roll = time.time() - t0
+        agent.critic_only = it <= args.critic_warmup_iters
         stats = agent.update()
         nan_grads += int(stats.pop("ppo/nan_grad_batches", 0))
         stats["ppo/nan_grads_total"] = nan_grads
@@ -141,7 +151,8 @@ def main():
         rec = {"iter": it, "steps": total_steps, "fps": fps,
                "ep_return": sum(ep_returns[-1000:]) / max(1, len(ep_returns[-1000:])),
                "ep_len_s": env.control_dt * sum(ep_lens[-1000:]) / max(1, len(ep_lens[-1000:])),
-               "push_scale": env.push_scale, **stats}
+               "push_scale": env.push_scale,
+               "posture_alpha": level.posture_alpha() if hasattr(level, "posture_alpha") else 1.0, **stats}
         for k, v in metric_acc.items():
             rec[k] = v / ppo_cfg.steps_per_env
         for k, v in rec.items():
