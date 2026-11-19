@@ -24,6 +24,7 @@ class L0Stand(Level):
     # v2 one (pelvis + torso upright). None = full v2 reward, as before. Set by train.py --posture-ramp-steps.
     posture_ramp: tuple[float, float] | None = None
     v2_penalties = True          # action-jerk + toe-flat terms added with humanoid_v2 (train.py --no-v2-penalties)
+    quiet_posture = False        # True: torso-upright term only in quiet periods, pelvis-upright during push recoveries
 
     def posture_alpha(self) -> float:
         if self.posture_ramp is None:
@@ -84,8 +85,11 @@ class L0Stand(Level):
         self.jitter_acc += torch.where(quiet, jitter, torch.zeros_like(jitter))
         alpha = self.posture_alpha()
         v2 = 1.0 if self.v2_penalties else 0.0
+        v2_post = 1.5 * self.r_torso_upright()
+        if self.quiet_posture:      # let the hip strategy absorb shoves; straighten up once quiet
+            v2_post = torch.where(quiet, v2_post, 1.0 * self.r_upright())
         r = (
-            (1.0 - alpha) * 1.0 * self.r_upright() + alpha * 1.5 * self.r_torso_upright()
+            (1.0 - alpha) * 1.0 * self.r_upright() + alpha * v2_post
             + 0.5 * self.r_height()
             + 0.5 * torch.exp(-(sway / 0.05) ** 2)
             - 2.0 * drift

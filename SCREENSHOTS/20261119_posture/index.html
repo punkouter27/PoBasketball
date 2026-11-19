@@ -1,0 +1,211 @@
+<title>Standing Brain Swap</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a broadcast rundown. One wide column, each segment opens with a lower-third bar, media at full column width. */
+:root {
+  --bg: #f3f1ee;
+  --panel: #ffffff;
+  --fg: #1d1b19;
+  --muted: #625c55;
+  --line: #ddd7cf;
+  --court: #a84a3f;
+  --callout: #ffc430;
+  --callout-ink: #10141a;
+  --good: #2f7d4f;
+  --bad: #b23b2e;
+  --bar-old: #8c8378;
+  --bar-pos: #a84a3f;
+  --bar-new: #d79a00;
+  --display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #161412; --panel: #201d1a; --fg: #ece7e1; --muted: #a59d93; --line: #39342f;
+  --court: #d0705f; --good: #5cbf85; --bad: #e46b5c; --bar-old: #8f877d; --bar-pos: #d0705f; --bar-new: #ffc430;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #161412; --panel: #201d1a; --fg: #ece7e1; --muted: #a59d93; --line: #39342f;
+  --court: #d0705f; --good: #5cbf85; --bad: #e46b5c; --bar-old: #8f877d; --bar-pos: #d0705f; --bar-new: #ffc430;
+  color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font: 400 16px/1.6 var(--body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 56px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.05; margin: 0; }
+h1 { font-size: clamp(2.6rem, 7vw, 4.4rem); font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.7rem, 4vw, 2.3rem); font-weight: 700; }
+h3 { font-size: 1.3rem; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+.eyebrow { font: 600 0.78rem/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--court); }
+.stack { display: grid; gap: 16px; min-width: 0; }
+
+header.hero { display: grid; gap: 18px; }
+.hero .lede { font-size: 1.15rem; color: var(--muted); }
+.verdict { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { font: 600 0.82rem/1 var(--mono); padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); }
+.chip.pass { color: var(--good); border-color: var(--good); }
+.chip.warn { color: var(--bad); border-color: var(--bad); }
+
+.lower-third { display: flex; align-items: stretch; gap: 0; }
+.lower-third .num { background: var(--callout); color: var(--callout-ink); font: 800 1.6rem/1 var(--display);
+  display: grid; place-items: center; min-width: 52px; padding: 0 10px; }
+.lower-third .txt { background: var(--fg); color: var(--bg); padding: 10px 16px; display: grid; gap: 2px; min-width: 0; flex: 1; }
+.lower-third .txt h2 { color: var(--bg); }
+.lower-third .txt p { color: var(--bg); opacity: 0.8; font-size: 0.95rem; }
+
+figure { margin: 0; display: grid; gap: 8px; }
+figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); background: var(--panel); }
+figcaption { color: var(--muted); font-size: 0.9rem; max-width: 80ch; }
+
+.new-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.new-list li { display: grid; grid-template-columns: 9.5rem 1fr; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
+.new-list li:last-child { border-bottom: 1px solid var(--line); }
+.new-list .tag { font: 600 0.75rem/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--court); padding-top: 3px; }
+.new-list b { display: block; font-weight: 600; }
+.new-list span { color: var(--muted); }
+@media (max-width: 560px) { .new-list li { grid-template-columns: 1fr; gap: 4px; } }
+
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--panel); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+th { font: 600 0.75rem/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+td.num { text-align: right; font-family: var(--mono); }
+tr.hl td { background: color-mix(in srgb, var(--callout) 16%, transparent); font-weight: 600; }
+.ok { color: var(--good); font-weight: 600; } .no { color: var(--bad); font-weight: 600; }
+
+/* failure chart: one shared 0-20 % scale */
+.chart { display: grid; gap: 22px; padding: 20px; border: 1px solid var(--line); background: var(--panel); }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.85rem; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; }
+.group { display: grid; gap: 6px; }
+.group h3 { font-size: 1.05rem; }
+.bar-row { display: grid; grid-template-columns: 6.5rem 1fr 3.4rem; gap: 10px; align-items: center; font-size: 0.85rem; }
+.bar-row .who { color: var(--muted); }
+.track { height: 14px; background: color-mix(in srgb, var(--line) 55%, transparent); position: relative; }
+.fill { position: absolute; inset: 0 auto 0 0; }
+.bar-row .val { font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.axis { display: grid; grid-template-columns: 6.5rem 1fr 3.4rem; gap: 10px; font: 0.72rem var(--mono); color: var(--muted); }
+.axis .ticks { display: flex; justify-content: space-between; }
+
+pre { margin: 0; padding: 16px; overflow-x: auto; background: var(--panel); border: 1px solid var(--line); font: 0.82rem/1.55 var(--mono); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; }
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 16px; }
+:focus-visible { outline: 3px solid var(--callout); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <span class="eyebrow">PoBasketball · Streetball humanoid · 2026-11-19</span>
+    <h1>Grandma stands up straighter and still takes a shove</h1>
+    <p class="lede">The standing brain (L0 balance) was retrained on the 29-joint body. The new production brain keeps her balance at 97 % under 100 N pushes and holds a straighter torso when nothing is pushing her. This page shows the three brains we tried, side by side in the game.</p>
+    <div class="verdict">
+      <span class="chip pass">L0 gate: PASS (97.0 %, holds 100 straight)</span>
+      <span class="chip pass">Unreal closed loop: PASS</span>
+      <span class="chip">torso upright 0.875 → 0.903</span>
+      <span class="chip warn">shot / scramble / dribble still placeholders</span>
+    </div>
+  </header>
+
+  <section class="stack">
+    <div class="lower-third"><span class="num">1</span><div class="txt"><h2>What is new</h2><p>Everything that changed since the last showcase.</p></div></div>
+    <ul class="new-list">
+      <li><span class="tag">Production</span><div><b>Quiet-posture standing brain</b><span>Now drives <code>balance</code> and <code>l0_stand</code>. It was fine-tuned from the old 99 % brain with a torso-upright reward that applies only while she is standing quietly. During a push recovery she may still bend at the waist.</span></div></li>
+      <li><span class="tag">Comparison</span><div><b>Old and posture brains ship next to it</b><span><code>balance_v1w.onnx</code> (old) and <code>balance_posture.onnx</code> (this morning's straight but wobbly brain) can be loaded in the game with <code>-StreetballPolicy_balance=…</code>. Their replays are in the web viewer.</span></div></li>
+      <li><span class="tag">Evaluator</span><div><b>Failure-reason breakdown</b><span>Every L0 evaluation now records why each failed episode failed: a fall, feet sliding more than 20 cm, swaying, or jitter. Section 4 shows the breakdown.</span></div></li>
+      <li><span class="tag">Training</span><div><b>Fine-tune controls</b><span>An anchor penalty that keeps a fine-tune close to the brain it started from, an adjustable learning-rate floor, the number of PPO passes per round, and the quiet-only posture reward. All are off by default.</span></div></li>
+    </ul>
+  </section>
+
+  <section class="stack">
+    <div class="lower-third"><span class="num">2</span><div class="txt"><h2>Two 110 N shoves, three brains</h2><p>Same seed, same pushes, 0.5× slow motion, broadcast camera.</p></div></div>
+    <figure>
+      <img src="gif_push_side_by_side.gif" alt="Animated side-by-side: the old brain, the posture brain and the new quiet-posture brain each absorb two 110 newton shoves on the centre circle." loading="lazy">
+      <figcaption>The demo script shoves her at 12.5 s and 16 s. All three stay up in this take; the difference shows over 200 randomised episodes (table below). The posture brain cannot bend at the waist, so in about one push in five it either falls or steps out.</figcaption>
+    </figure>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Brain</th><th>Source</th><th class="num">Success</th><th class="num">Falls</th><th>Holds 100</th><th class="num">Torso upright</th><th>Gate</th></tr></thead>
+        <tbody>
+          <tr><td>Old (<code>balance_v1w</code>)</td><td>v1 brain widened to 29 joints</td><td class="num">99.0 %</td><td class="num">0.5 %</td><td>yes</td><td class="num">0.875</td><td class="ok">pass</td></tr>
+          <tr><td>Posture (<code>balance_posture</code>)</td><td>overnight run, ckpt 375M</td><td class="num">81.5 %</td><td class="num">10.0 %</td><td>no</td><td class="num">0.978</td><td class="no">fail (waived this morning)</td></tr>
+          <tr class="hl"><td>Quiet-posture (<code>balance</code>, NEW)</td><td>1 h fine-tune, ckpt 25M</td><td class="num">97.0 %</td><td class="num">1.0 %</td><td>yes</td><td class="num">0.903</td><td class="ok">pass</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="mono" style="font-size:0.8rem;color:var(--muted)">200 randomised episodes, pushes up to 100 N, deterministic policy. Gate: ≥ 95 %, holds for 100 straight episodes, 0 NaN gradients. Torso upright is 1.0 for a perfectly vertical chest.</p>
+  </section>
+
+  <section class="stack">
+    <div class="lower-third"><span class="num">3</span><div class="txt"><h2>Standing quietly</h2><p>2.5 s into the match, before any push.</p></div></div>
+    <figure>
+      <img src="ann_stand_triptych.jpg" alt="Three stills of the grandma character standing: the old brain folds the chest forward, the posture brain stands tall, the new brain is a little straighter than the old one." loading="lazy">
+      <figcaption>(1) The old brain stands with the chest folded over the hips. (2) The posture brain stacks the chest over the hips; this is the look we are after. (3) The new brain is only a little straighter than the old one (0.903 against 0.875). It kept the balance and gained part of the posture.</figcaption>
+    </figure>
+  </section>
+
+  <section class="stack">
+    <div class="lower-third"><span class="num">4</span><div class="txt"><h2>Why the posture brain failed</h2><p>New in the evaluator: the reason behind every failed episode.</p></div></div>
+    <div class="chart" role="img" aria-label="Bar chart of failure reasons as a share of 200 episodes for the three brains, on a 0 to 20 percent scale.">
+      <div class="legend"><span><i style="background:var(--bar-old)"></i>Old</span><span><i style="background:var(--bar-pos)"></i>Posture</span><span><i style="background:var(--bar-new)"></i>Quiet-posture (new)</span></div>
+      <div class="group"><h3>Fell</h3>
+        <div class="bar-row"><span class="who">Old</span><div class="track"><div class="fill" style="width:2.5%;background:var(--bar-old)"></div></div><span class="val">0.5 %</span></div>
+        <div class="bar-row"><span class="who">Posture</span><div class="track"><div class="fill" style="width:50%;background:var(--bar-pos)"></div></div><span class="val">10.0 %</span></div>
+        <div class="bar-row"><span class="who">New</span><div class="track"><div class="fill" style="width:5%;background:var(--bar-new)"></div></div><span class="val">1.0 %</span></div>
+      </div>
+      <div class="group"><h3>Feet ended more than 20 cm from where they started</h3>
+        <div class="bar-row"><span class="who">Old</span><div class="track"><div class="fill" style="width:2.5%;background:var(--bar-old)"></div></div><span class="val">0.5 %</span></div>
+        <div class="bar-row"><span class="who">Posture</span><div class="track"><div class="fill" style="width:40%;background:var(--bar-pos)"></div></div><span class="val">8.0 %</span></div>
+        <div class="bar-row"><span class="who">New</span><div class="track"><div class="fill" style="width:12.5%;background:var(--bar-new)"></div></div><span class="val">2.5 %</span></div>
+      </div>
+      <div class="group"><h3>Kept swaying after the push (speed ≥ 5 cm/s)</h3>
+        <div class="bar-row"><span class="who">Old</span><div class="track"><div class="fill" style="width:5%;background:var(--bar-old)"></div></div><span class="val">1.0 %</span></div>
+        <div class="bar-row"><span class="who">Posture</span><div class="track"><div class="fill" style="width:17.5%;background:var(--bar-pos)"></div></div><span class="val">3.5 %</span></div>
+        <div class="bar-row"><span class="who">New</span><div class="track"><div class="fill" style="width:5%;background:var(--bar-new)"></div></div><span class="val">1.0 %</span></div>
+      </div>
+      <div class="axis"><span></span><div class="ticks"><span>0 %</span><span>5 %</span><span>10 %</span><span>15 %</span><span>20 %</span></div><span></span></div>
+    </div>
+    <p>An episode can break more than one rule, so the bars do not add up. The posture brain failed both by falling and by stepping out. Our reading: the old brain absorbs a shove by bending at the waist, and the always-on torso reward took that move away. The new brain gets the torso reward only once she is standing quietly (1.5 s or more after a push starts), so the bend is still allowed during recovery.</p>
+  </section>
+
+  <section class="stack">
+    <div class="lower-third"><span class="num">5</span><div class="txt"><h2>Gameplay with the new brain</h2><p>Watch mode, tier 5, broadcast camera, real time.</p></div></div>
+    <div class="two">
+      <figure>
+        <img src="gif_gameplay.gif" alt="Animated gameplay: the character chases a loose ball and sets up a jump shot on the street court." loading="lazy">
+        <figcaption>The director walks her up the tier ladder. Standing and walking use trained brains; the loose-ball scramble and the jump shot still run placeholder brains until they are retrained on the 29-joint body.</figcaption>
+      </figure>
+      <figure>
+        <img src="ann_gameplay.jpg" alt="Annotated gameplay still: the HUD shows the active policy, the tier and the character next to the ball." loading="lazy">
+        <figcaption>(1) The HUD names the brain in control right now. (2) Shot and scramble are placeholders, so these moves look stiff. (3) Tier 5, "Pull-Up Jump Shot", is the top of the ladder.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="stack">
+    <div class="lower-third"><span class="num">6</span><div class="txt"><h2>Checks run</h2><p>What was verified before the brain went live.</p></div></div>
+    <ul class="new-list">
+      <li><span class="tag">Sim gate</span><div><b>97.0 % success, holds 100 straight, 0 NaN</b><span><code>tools/run_gate.py --level l0_stand</code>, 200 episodes at 100 N. ONNX export matches PyTorch to 9.8e-7.</span></div></li>
+      <li><span class="tag">Unreal</span><div><b>Closed-loop gate passes</b><span>5 s of the new brain driving the body in Unreal (NNE, ONNX Runtime on CPU) matches the MuJoCo recording.</span></div></li>
+      <li><span class="tag">Replay</span><div><b>Golden replays re-recorded</b><span><code>replay_balance</code>, <code>replay_l0_stand</code>, <code>replay_l0</code>. She is still standing at the end, pelvis at 0.942 m.</span></div></li>
+      <li><span class="tag">Python</span><div><b>13 of 14 tests pass</b><span><code>test_warp_vs_cpu_drift</code> was already failing before this work and is unrelated to this change.</span></div></li>
+    </ul>
+  </section>
+
+  <section class="stack">
+    <div class="lower-third"><span class="num">7</span><div class="txt"><h2>Run it</h2><p>The capture runs behind this page, one per brain.</p></div></div>
+<pre>UnrealEditor.exe StreetballGym.uproject -game -windowed -ResX=1600 -ResY=900 -StreetballSeed=7 -StreetballDemoFeatures
+
+# compare against the other brains (files in Content/Sim/policies)
+-StreetballPolicy_balance=policies/balance_v1w.onnx        old brain
+-StreetballPolicy_balance=policies/balance_posture.onnx    posture brain
+
+# rebuild this page's media from the captures
+sim/.venv/Scripts/python.exe SCREENSHOTS/20261119_posture/make_media.py</pre>
+  </section>
+
+  <footer>Captured 2026-11-19 on Unreal 5.8.4, seed 7, 1600×900, from the game's own screenshot path; labels were drawn afterwards. Training: MuJoCo Warp on an RTX 2060. Logs: <code>DOCS/20261119/log.md</code>, reports <code>quiet_posture.md</code>, <code>posture_recover.md</code>, <code>posture_overnight.md</code>.</footer>
+</div>

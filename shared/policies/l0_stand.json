@@ -1,16 +1,16 @@
 {
-  "checkpoint": "runs\\production\\balance_posture.pt",
+  "checkpoint": "runs\\production\\balance_quiet.pt",
   "obs_spec_sha256": "32f5b79d3216e8a3020ac729f5f5766dd8f529f045e070474431b55d795597c7",
   "obs_spec_sha256_16": "32f5b79d3216e8a3",
   "n_obs": 125,
   "n_action": 29,
   "opset": 17,
-  "ort_vs_torch_max_abs_diff": 1.3168901205062866e-06,
+  "ort_vs_torch_max_abs_diff": 9.834766387939453e-07,
   "input": "obs[1,125]",
   "output": "action[1,29] in [-1,1]",
   "level": "l0_stand",
   "interface_sha": "32f5b79d3216e8a3",
   "physics_sha": "319cd05af6f00d17+c1c2207912c56781",
-  "train_steps": 375029760,
+  "train_steps": 25067520,
   "nan_grads": 0
 }

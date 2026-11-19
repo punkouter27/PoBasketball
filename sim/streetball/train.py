@@ -65,6 +65,7 @@ def parse():
     ap.add_argument("--posture-ramp-steps", type=float, default=0.0, help="l0_stand: blend v1->v2 posture reward over this many steps after the critic warm-up (0 = full v2 reward)")
     ap.add_argument("--toe-std", type=float, default=None, help="initial exploration std for the toe joints only (default: --init-std)")
     ap.add_argument("--no-v2-penalties", action="store_true", help="l0_stand: drop the humanoid_v2 jerk/toe-flat penalty terms")
+    ap.add_argument("--quiet-posture", action="store_true", help="l0_stand: torso-upright reward only in quiet periods")
     ap.add_argument("--freeze-norm", action="store_true", help="keep the observation normaliser fixed (fine-tuning an imported actor)")
     ap.add_argument("--lr-max", type=float, default=1e-3, help="adaptive-LR ceiling")
     ap.add_argument("--lr-min", type=float, default=1e-5, help="adaptive-LR floor")
@@ -109,6 +110,8 @@ def main():
         print(f"toe exploration std {args.toe_std} on action indices {toes}")
     if args.no_v2_penalties:
         level.v2_penalties = False
+    if args.quiet_posture:
+        level.quiet_posture = True
     if args.posture_ramp_steps > 0:
         level.posture_ramp = (args.critic_warmup_iters * args.num_envs * args.steps_per_env, args.posture_ramp_steps)
 

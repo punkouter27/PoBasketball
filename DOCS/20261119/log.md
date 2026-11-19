@@ -52,3 +52,23 @@ that failed each condition (not exclusive). 200 episodes, 100 N:
 Reading: the posture brain loses balance both ways. It falls (10 %), and it steps its feet more than 20 cm to recover (8 %). This fits
 losing the hip strategy: the v2 torso term applies during push recoveries too, so bending at the waist to absorb a shove is
 penalised. Python tests 13 / 14 (same `test_warp_vs_cpu_drift` failure as before).
+
+## Quiet-only posture fine-tune (planned, 1 h)
+
+Affected policy: `balance` / `l0_stand`. It replaces production only if a checkpoint passes the L0 gate (>= 95 %, holds 100, 0 NaN).
+Code: `l0_stand.py` gains `quiet_posture` (train flag `--quiet-posture`). With it on, the v2 torso term (1.5 x torso_upright)
+applies only in quiet periods (>= 1.5 s after a push started). During recoveries the v1 pelvis-upright term applies,
+so bending at the waist is allowed. Default off; the reward is unchanged otherwise.
+Run `l0_quiet_posture`: init `runs/production/balance_v1w.pt` (99 %), actor only, frozen normaliser, 60-iter critic warm-up,
+std 0.02 / toe 0.01, no v2 penalties, epochs 2, lr 1e-5 (max 1e-5, min 1e-6), kl-target 0.02, anchor 1.0, 40 min,
+a checkpoint every 5 M steps, each evaluated over 200 episodes.
+
+### Result (l0_quiet_posture, 12:56-13:55): PASS, promoted to production
+
+`ckpt_25M`: 97.0 % success, holds 100 straight, falls 1.0 %, torso_upright 0.903 (old 0.875), 0 NaN. Failed without falling: 2 %.
+Full table: DOCS/20261119/quiet_posture.md. Later checkpoints straighten slightly more (0.908) but drop below the 100-straight hold.
+- `tools/run_gate.py --level l0_stand --ckpt runs/production/balance_quiet.pt`: eval, export (9.83e-7), replay, and Unreal closed-loop gate all PASS.
+- `balance.onnx` exported from the same checkpoint; replays re-recorded (replay_balance, replay_l0_stand, replay_l0; final pelvis 0.942 m).
+- The posture brain from this morning (81.5 %, waived) is kept as `balance_posture.onnx` + `replay_balance_posture.json`.
+  The old brain stays as `balance_v1w`. Both are copied into Content/Sim/policies for `-StreetballPolicy_balance=` comparisons.
+- Feature page with side-by-side captures: `SCREENSHOTS/20261119_posture/index.html` (media: `make_media.py`).

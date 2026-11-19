@@ -1,26 +1,35 @@
 {
   "level": "l0_stand",
-  "checkpoint": "runs\\production\\balance_v1w.pt",
+  "checkpoint": "runs\\production\\balance_quiet.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 100.0,
-  "success_rate": 0.9899999499320984,
+  "success_rate": 0.9699999690055847,
   "pass_fraction": 0.95,
   "passed": true,
   "holds_100_straight": true,
   "nan_grads": 0,
   "interface_sha": "32f5b79d3216e8a3",
   "physics_sha": "319cd05af6f00d17+c1c2207912c56781",
-  "fall_rate": 0.004999999888241291,
-  "mean_episode_s": 59.68150329589844,
+  "fall_rate": 0.009999999776482582,
+  "mean_episode_s": 59.25709915161133,
   "metrics": {
-    "m/sway_cm": 4.028863906860352,
-    "m/quiet_sway_cm": 3.859041452407837,
-    "m/quiet_speed_cm_s": 1.320847749710083,
-    "m/quiet_jitter_cm": 0.5899803042411804,
-    "m/foot_drift_cm": 4.76754093170166,
-    "m/upright": 0.9989516735076904,
-    "m/torso_upright": 0.8746264576911926
+    "m/sway_cm": 4.786574363708496,
+    "m/quiet_sway_cm": 4.3278679847717285,
+    "m/quiet_speed_cm_s": 1.3510208129882812,
+    "m/quiet_jitter_cm": 0.6364877820014954,
+    "m/foot_drift_cm": 5.835421085357666,
+    "m/upright": 0.9985213875770569,
+    "m/torso_upright": 0.9027495384216309
   },
-  "wall_s": 85.43601029999991
+  "wall_s": 91.27940129999479,
+  "fail_reasons": {
+    "fell": 0.009999999776482582,
+    "feet_moved_35cm": 0.019999999552965164,
+    "stance_over_20cm": 0.02499999850988388,
+    "quiet_speed": 0.009999999776482582,
+    "quiet_jitter": 0.009999999776482582,
+    "ended_early": 0.02499999850988388,
+    "failed_without_falling": 0.019999999552965164
+  }
 }
