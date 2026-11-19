@@ -426,6 +426,9 @@ class StreetballEnv:
                 "time_outs": trunc & ~term}
         info.update(self.level.metrics())
         info["success"] = done & self.level.episode_success()   # evaluated before the auto-reset
+        if hasattr(self.level, "episode_fail_reasons"):          # diagnostics only (evaluate.py breakdown)
+            for k, v in self.level.episode_fail_reasons().items():
+                info[f"fail/{k}"] = done & v
         done_ids = done.nonzero(as_tuple=False).squeeze(-1)
         if done_ids.numel() > 0:
             info["ep_return"] = self.ep_return[done_ids].clone()

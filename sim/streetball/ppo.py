@@ -88,6 +88,8 @@ class PPOConfig:
     lr: float = 3e-4
     kl_target: float = 0.01
     lr_max: float = 1e-3          # adaptive-LR ceiling; lower it for fine-tunes of a good actor
+    lr_min: float = 1e-5          # adaptive-LR floor
+    anchor_coef: float = 0.0      # >0: penalise the actor mean drifting from a frozen anchor actor (set_anchor)
     adaptive_lr: bool = True
     hidden: tuple[int, ...] = (512, 256, 128)
     init_std: float = 0.5
@@ -107,6 +109,7 @@ class PPO:
         # freeze the observation normaliser: an imported actor's weights only mean what they meant under its own
         # stats; letting rollout data move them changes the policy with no gradient step (see DOCS/20261118).
         self.freeze_norm = False
+        self.anchor = None
         T = cfg.steps_per_env
         z = lambda *s: torch.zeros(*s, device=device)
         self.obs_buf = z(T, num_envs, n_obs)
@@ -119,6 +122,13 @@ class PPO:
         self.mean_buf = z(T, num_envs, n_act)
         self.std_buf = z(T, num_envs, n_act)
         self.t = 0
+
+    def set_anchor(self):
+        """Freeze a copy of the current actor; update() then adds anchor_coef * mean(sum((mu - mu_anchor)^2))."""
+        import copy
+        self.anchor = copy.deepcopy(self.ac.actor).eval()
+        for p in self.anchor.parameters():
+            p.requires_grad_(False)
 
     # ---- rollout --------------------------------------------------------------
     @torch.no_grad()
@@ -194,6 +204,12 @@ class PPO:
                 vloss = torch.max((v - ret[idx]) ** 2, (v_clipped - ret[idx]) ** 2).mean()
                 ent = d.entropy().sum(-1).mean()
                 loss = surr + cfg.value_coef * vloss - cfg.entropy_coef * ent
+                if self.anchor is not None and cfg.anchor_coef > 0.0:
+                    with torch.no_grad():
+                        mu0 = self.anchor(obs[idx])
+                    anc = ((d.mean - mu0) ** 2).sum(-1).mean()
+                    loss = loss + cfg.anchor_coef * anc
+                    stats["loss/anchor"] = stats.get("loss/anchor", 0.0) + anc.item()
                 if self.critic_only:
                     loss = cfg.value_coef * vloss
 
@@ -203,7 +219,7 @@ class PPO:
                     kl = (torch.log(std_new / std_old[idx]) + (std_old[idx] ** 2 + (mean_old[idx] - d.mean) ** 2) / (2 * std_new ** 2) - 0.5).sum(-1).mean()
                     if cfg.adaptive_lr and not self.critic_only:
                         if kl > 2.0 * cfg.kl_target:
-                            self.lr = max(1e-5, self.lr / 1.5)
+                            self.lr = max(cfg.lr_min, self.lr / 1.5)
                         elif kl < 0.5 * cfg.kl_target and kl > 0.0:
                             self.lr = min(cfg.lr_max, self.lr * 1.5)
                         for g in self.opt.param_groups:

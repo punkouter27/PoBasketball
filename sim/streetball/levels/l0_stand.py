@@ -115,6 +115,19 @@ class L0Stand(Level):
             "m/torso_upright": self.r_torso_upright(),
         }
 
+    def episode_fail_reasons(self) -> dict[str, torch.Tensor]:
+        """Each success condition that an episode breaks (not exclusive). Mirrors episode_success()."""
+        env = self.env
+        q = self.quiet_steps.clamp_min(1.0)
+        return {
+            "fell": env.fallen.clone(),
+            "feet_moved_35cm": self.terminated(),
+            "stance_over_20cm": ~(self._foot_drift() < 0.20).all(dim=1),
+            "quiet_speed": (self.speed_acc / q) >= 0.05,
+            "quiet_jitter": (self.jitter_acc / q) >= 0.02,
+            "ended_early": env.step_count < env.max_steps,
+        }
+
     def episode_success(self) -> torch.Tensor:
         env = self.env
         survived = env.step_count >= env.max_steps

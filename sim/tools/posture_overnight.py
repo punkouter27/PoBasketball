@@ -58,6 +58,7 @@ def main() -> None:
     ap.add_argument("--train-min", type=float, default=330.0)
     ap.add_argument("--ramp-steps", type=float, default=200e6)
     ap.add_argument("--init", default="runs/production/balance_v1w.pt")
+    ap.add_argument("--report-name", default="posture_overnight", help="DOCS/<date>/<name>.md")
     ap.add_argument("--extra", default="", help="extra train.py args appended last (later flags win), e.g. \"--init-std 0.05\"")
     args = ap.parse_args()
     keep_awake()
@@ -107,8 +108,8 @@ def main() -> None:
                    + ("Better than production: review, then export with run_gate." if better else
                       "Not meaningfully straighter than production (< +0.02): keep production."))
               if pick else "**No checkpoint passed the gate.** Production balance stays the widened v1 brain."]
-    (day / "posture_overnight.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    log(run_dir, f"done; pick {pick['ckpt'] if pick else None}; report {day / 'posture_overnight.md'}")
+    (day / f"{args.report_name}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    log(run_dir, f"done; pick {pick['ckpt'] if pick else None}; report {day / f"{args.report_name}.md"}")
 
 
 if __name__ == "__main__":

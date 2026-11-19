@@ -43,6 +43,7 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
     ep_len = torch.zeros(N, device=env.device)
     fell = torch.zeros(N, dtype=torch.bool, device=env.device)
     metrics_sum: dict[str, torch.Tensor] = {}
+    fail_flags: dict[str, torch.Tensor] = {}
     obs = env.obs
     t0 = time.perf_counter()
     step_i = 0
@@ -54,6 +55,9 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
             just = done & ~finished
             success |= just & info["success"]          # computed by the env before its auto-reset
             fell |= just & info["fallen"]
+            for k, v in info.items():
+                if k.startswith("fail/"):
+                    fail_flags[k[5:]] = fail_flags.get(k[5:], torch.zeros(N, dtype=torch.bool, device=env.device)) | (just & v)
             ep_len = torch.where(just, torch.full_like(ep_len, float(step_i)), ep_len)
             for k, v in info.items():
                 if k.startswith("m/"):
@@ -87,6 +91,10 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
         "metrics": {k: (v / steps_run).mean().item() for k, v in metrics_sum.items()},
         "wall_s": dt,
     }
+    if fail_flags:
+        # share of ALL episodes that broke each success condition (not exclusive), plus "standing failures"
+        res["fail_reasons"] = {k: (v & ~success).float().mean().item() for k, v in fail_flags.items()}
+        res["fail_reasons"]["failed_without_falling"] = (~success & ~fell).float().mean().item()
     REPORTS.mkdir(parents=True, exist_ok=True)
     (REPORTS / f"eval_{level_name}.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
     lines = [f"# Evaluation — {level_name}: {'PASS' if passed else 'FAIL'}", "",
@@ -97,6 +105,8 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
              f"| NaN-gradient batches in training | {nan_grads} (must be 0) |",
              f"| Fall rate | {res['fall_rate']*100:.1f} % |",
              f"| Mean episode length | {res['mean_episode_s']:.1f} s of {level.episode_s:.0f} s |"]
+    for k, v in res.get("fail_reasons", {}).items():
+        lines.append(f"| Failed: {k} | {v*100:.1f} % |")
     for k, v in res["metrics"].items():
         lines.append(f"| {k[2:]} | {v:.3f} |")
     (REPORTS / f"eval_{level_name}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
