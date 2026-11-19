@@ -31,8 +31,8 @@ struct STREETBALLGYM_API FStreetballResetSpec
 	 *  The world computes the spot from the root pose it applies. */
 	bool bDribbleStart = false;
 	double DribbleHand = 1.0;                    // +1 right, -1 left
-	double DribbleSpotFwd = 0.25;                // m ahead of the root (0.30 in tier 4)
-	double DribbleSpotSide = 0.35;               // m toward the active hand
+	double DribbleSpotFwd = 0.45;                // m ahead of the root (0.30 in tier 4)
+	double DribbleSpotSide = 0.30;               // m toward the active hand (0.35 in tier 4)
 	double BallStartZ = 0.7;                     // m
 	double BallStartVz = 0.0;                    // m/s
 	const TCHAR* Reason = TEXT("");              // string literal only (no heap allocation in the control step)
@@ -154,8 +154,8 @@ public:
 	double ReachRadius = 0.5;
 	FVector2d CourtHalf = FVector2d(13.0, 6.5);
 	int32 StreakGoal = 50;
-	FVector2d ApexBand = FVector2d(0.80, 1.15);
-	double ApexTarget = 1.0;
+	FVector2d ApexBand = FVector2d(0.65, 1.00);     // 2026-11-19: mirrors sim L2Dribble (was 0.80-1.15, target 1.0)
+	double ApexTarget = 0.8;
 	double CourseGoal = 100.0;
 	int32 SavesGoal = 3;
 	int32 ShotsGoal = 20;
@@ -165,7 +165,7 @@ public:
 	/** Command line -StreetballDribbleHand=right|left: 0 = table (random hand, commanded crossovers), +1/-1 = that
 	 *  hand only, no switches. For single-hand previews (the l2a policy only learned the right hand). */
 	double ForcedHand = 0.0;
-	FVector2d DribbleStartHeight = FVector2d(0.40, 0.95);
+	FVector2d DribbleStartHeight = FVector2d(0.30, 0.75);
 
 private:
 	void InstallDefaultTable();

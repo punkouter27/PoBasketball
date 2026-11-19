@@ -255,18 +255,19 @@ void UStreetballDirector::PrepareReset(int32 Tier, FStreetballResetSpec& Spec)
 	ParkBallForTier(Tier, Spec);
 	if (Tier != 3 && Tier != 4) return;
 	// Mirrors sim l2_dribble.on_reset (tier 3) / l3_roam.L3MovingDribble.on_reset (tier 4): ball at the active
-	// hand's dribble spot at a random point of a dribble cycle, h ~ U(0.40, 0.95) m, vz = -/+ sqrt(2 g (1 - h)).
+	// hand's dribble spot at a random point of a dribble cycle, h ~ U(0.30, 0.75) m, vz = -/+ sqrt(2 g (ApexTarget - h)).
+	// 2026-11-19: tier-3 spot (0.25, 0.35) -> (0.45, 0.30) and heights capped at 0.75 m, as in the sim (the old spot sat on the toe).
 	// Before 2026-11-08 the ball stayed at its keyframe spot on the floor and the policy fell ~1.2 s after every reset.
 	static const FTrackedState NoState{};
 	SetHand(true, NoState);
 	bHandPreset = true;
 	Spec.bDribbleStart = true;
 	Spec.DribbleHand = Hand;
-	Spec.DribbleSpotFwd = Tier == 3 ? 0.25 : 0.30;
-	Spec.DribbleSpotSide = 0.35;
+	Spec.DribbleSpotFwd = Tier == 3 ? 0.45 : 0.30;
+	Spec.DribbleSpotSide = Tier == 3 ? 0.30 : 0.35;
 	const double H = Rng.FRandRange(DribbleStartHeight.X, DribbleStartHeight.Y);
 	Spec.BallStartZ = H;
-	Spec.BallStartVz = -FMath::Sqrt(2.0 * 9.81 * FMath::Max(0.0, 1.0 - H)) * (Rng.FRand() < 0.5 ? 1.0 : -1.0);
+	Spec.BallStartVz = -FMath::Sqrt(2.0 * 9.81 * FMath::Max(0.0, ApexTarget - H)) * (Rng.FRand() < 0.5 ? 1.0 : -1.0);
 }
 
 void UStreetballDirector::StartAtTier(int32 Tier)

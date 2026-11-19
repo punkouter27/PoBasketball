@@ -86,12 +86,12 @@ def main() -> None:
                                      else [0.0, 8.0, 0.1205])
         else:
             # l2a_dribble_r start (l2_dribble.on_reset, mirrored by UStreetballDirector::PrepareReset): right hand,
-            # ball at the dribble spot (0.25 m ahead, 0.35 m right of the root), h ~ U(0.40, 0.95), vz = -/+ sqrt(2g(1-h))
+            # ball at the dribble spot (0.45 m ahead, 0.30 m right of the root), h ~ U(0.30, 0.75), vz = -/+ sqrt(2g(0.8-h))
             q = d.qpos[root + 3:root + 7]
             fwd = obs_spec.heading_mat(q)[:2, 0]; left = obs_spec.heading_mat(q)[:2, 1]
-            spot = d.qpos[root:root + 2] + 0.25 * fwd - 0.35 * left
-            h = rng.uniform(0.40, 0.95)
-            vz = -np.sqrt(2 * 9.81 * (1.0 - h)) * (1.0 if rng.uniform() < 0.5 else -1.0)
+            spot = d.qpos[root:root + 2] + 0.45 * fwd - 0.30 * left
+            h = rng.uniform(0.30, 0.75)
+            vz = -np.sqrt(2 * 9.81 * (0.8 - h)) * (1.0 if rng.uniform() < 0.5 else -1.0)
             d.qpos[ball:ball + 7] = [spot[0], spot[1], h, 1, 0, 0, 0]
             d.qvel[ball_v:ball_v + 6] = [0, 0, vz, 0, 0, 0]
             in_control0 = 1.0
@@ -135,7 +135,7 @@ def main() -> None:
                 dw = rel / max(dist, 1e-6)
                 task[:4] = [dw @ Hm[:2, 0], dw @ Hm[:2, 1], min(dist, 10.0), 1.5]
             elif args.level == "l2a_dribble_r":
-                task[:3] = [1.0, 1.0, 0.0]
+                task[:3] = [1.0, 0.8, 0.0]
             elif args.level == "l3b_scramble":
                 task[0] = countdown                    # L3Scramble.task_block             # right hand, apex 1.0 m, no commanded switches
             o = obs_spec.compute_obs(m, d, ix, prev, task, in_ctrl, countdown)

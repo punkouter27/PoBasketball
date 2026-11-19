@@ -9,7 +9,9 @@ A *bounce* is the rising edge of ball-floor contact. It is *clean* when the apex
 the previous bounce was within the target band, the ball stayed within 0.6 m of the
 pelvis horizontally, and the active palm touched the ball between the two bounces.
 Pass target: 50 consecutive clean bounces in 85 % (L2a/b) or 80 % with >= 10 hand
-switches (L2c) of evaluation episodes.
+switches (L2c) of evaluation episodes, within a 45 s episode. 2026-11-19 (user decision): the episode was 30 s, which
+even an ideal dribble cannot fit 50 bounces into (0.66-0.78 s per cycle at e = 0.853); apex band 0.80-1.15 m -> 0.65-1.00 m,
+target 1.0 -> 0.8 m (palm reach floor ~0.85 m standing left a ~15 cm push window). Mirrored in UStreetballDirector.
 """
 from __future__ import annotations
 
@@ -22,13 +24,15 @@ from streetball.levels.base import Level
 class L2Dribble(Level):
     name = "l2a_dribble_r"
     prd_tier = 3
-    episode_s = 30.0
+    episode_s = 45.0
     pass_fraction = 0.85
     mode = "right"               # right | left | crossover
     target_bounces = 50
-    apex_band = (0.80, 1.15)
-    apex_target = 1.0
-    hand_offset = (0.25, 0.35)   # dribble spot: forward, lateral (toward the active hand)
+    apex_band = (0.65, 1.00)
+    apex_target = 0.8
+    # dribble spot: forward, lateral (toward the active hand). 2026-11-19: was (0.25, 0.35), which sits on top of the toe in the start
+    # stance: a falling start ball hit toe_r and a high one spawned inside the palm, so 100 % of gate starts lost the ball (~1 s episodes).
+    hand_offset = (0.45, 0.30)
 
     def setup(self) -> None:
         N, dev = self.N, self.dev
@@ -78,8 +82,9 @@ class L2Dribble(Level):
         c, s_ = torch.cos(yaw), torch.sin(yaw)
         fwd = torch.stack([c, s_], -1); left = torch.stack([-s_, c], -1)
         spot = xy + self.hand_offset[0] * fwd - self.hand[ids, None] * self.hand_offset[1] * left
-        h = env.rand(k, lo=0.4, hi=0.95)
-        vz = -torch.sqrt(2 * 9.81 * (1.0 - h)) * torch.where(env.rand(k) < 0.5, 1.0, -1.0)
+        # a point of a dribble cycle with apex = apex_target; capped at 0.75 m so the ball never spawns inside the palm (~0.96 m)
+        h = env.rand(k, lo=0.30, hi=0.75)
+        vz = -torch.sqrt(2 * 9.81 * (self.apex_target - h)) * torch.where(env.rand(k) < 0.5, 1.0, -1.0)
         pos = torch.cat([spot, h[:, None]], -1)
         vel = torch.cat([torch.zeros(k, 2, device=self.dev), vz[:, None]], -1)
         env.set_ball(ids, pos, vel)
@@ -229,6 +234,18 @@ class L2Dribble(Level):
                 "m/palm_touch": getattr(self, "_m_touch", torch.zeros(self.N, device=self.dev)),
                 "m/reach": getattr(self, "_m_reach", torch.zeros(self.N, device=self.dev))}
 
+    def episode_fail_reasons(self) -> dict[str, torch.Tensor]:
+        """Why an episode ended without success (not exclusive); diagnostics for evaluate.py."""
+        env = self.env
+        horiz = (env.p_ball[:, :2] - env.p_pelvis[:, :2]).norm(dim=-1)
+        return {
+            "fell": env.fallen.clone(),
+            "ball_lost_countdown": env.countdown_frac <= 0.0,
+            "ball_over_1_5m": horiz > 1.5,
+            "pelvis_drifted_0_5m": (env.p_pelvis[:, :2] - self.start_xy).norm(dim=-1) > 0.5,
+            "out_of_time": env.step_count >= env.max_steps,
+        }
+
     def episode_success(self) -> torch.Tensor:
         ok = self.streak >= self.target_bounces
         if self.mode == "crossover":
@@ -274,8 +291,14 @@ class L2DribbleCycles(L2Dribble):
         self.peak_event = torch.zeros(N, dtype=torch.bool, device=dev)
         self.ep_steps = torch.zeros(N, dtype=torch.long, device=dev)
 
+    assist_anneal_steps = 100e6
+
     def assist_prob(self) -> float:
-        return 1.0                                  # every episode starts with the ball rising into the palm
+        # 2026-11-19: was a constant 1.0 (every episode started with the ball rising into the palm), but the gate and Unreal
+        # tier 3 never start that way, so the policy only learned the gifted start (11-17: K = 4 in training, gate 1.1 s).
+        if self.train_steps == float("inf"):
+            return 0.0
+        return max(0.0, 1.0 - self.train_steps / self.assist_anneal_steps)
 
     def on_reset(self, ids: torch.Tensor) -> None:
         if self.train_steps != float("inf") and hasattr(self, "cycles"):
