@@ -23,6 +23,7 @@ class L0Stand(Level):
     # Posture curriculum (DOCS/20261118): (start_step, ramp_steps) blends the v1 posture term (pelvis upright) into the
     # v2 one (pelvis + torso upright). None = full v2 reward, as before. Set by train.py --posture-ramp-steps.
     posture_ramp: tuple[float, float] | None = None
+    v2_penalties = True          # action-jerk + toe-flat terms added with humanoid_v2 (train.py --no-v2-penalties)
 
     def posture_alpha(self) -> float:
         if self.posture_ramp is None:
@@ -82,14 +83,15 @@ class L0Stand(Level):
         self.speed_acc += torch.where(quiet, speed, torch.zeros_like(speed))
         self.jitter_acc += torch.where(quiet, jitter, torch.zeros_like(jitter))
         alpha = self.posture_alpha()
+        v2 = 1.0 if self.v2_penalties else 0.0
         r = (
             (1.0 - alpha) * 1.0 * self.r_upright() + alpha * 1.5 * self.r_torso_upright()
             + 0.5 * self.r_height()
             + 0.5 * torch.exp(-(sway / 0.05) ** 2)
             - 2.0 * drift
             - 0.05 * self.p_action_rate()
-            - 0.02 * self.p_action_jerk()
-            - 0.05 * self.p_toe_stand()
+            - v2 * 0.02 * self.p_action_jerk()
+            - v2 * 0.05 * self.p_toe_stand()
             - 0.002 * self.p_joint_vel()
             - 0.1 * self.p_pose()
             - 1e-5 * self.p_torque()

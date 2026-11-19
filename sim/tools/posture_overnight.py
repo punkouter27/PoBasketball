@@ -58,17 +58,18 @@ def main() -> None:
     ap.add_argument("--train-min", type=float, default=330.0)
     ap.add_argument("--ramp-steps", type=float, default=200e6)
     ap.add_argument("--init", default="runs/production/balance_v1w.pt")
+    ap.add_argument("--extra", default="", help="extra train.py args appended last (later flags win), e.g. \"--init-std 0.05\"")
     args = ap.parse_args()
     keep_awake()
     run_dir = ROOT / "runs" / args.run_name
     run_dir.parent.mkdir(parents=True, exist_ok=True)
-    log(run_dir, f"start: train {args.train_min} min, ramp {args.ramp_steps / 1e6:.0f} M steps, init {args.init}")
+    log(run_dir, f"start: train {args.train_min} min, ramp {args.ramp_steps / 1e6:.0f} M steps, init {args.init}, extra [{args.extra}]")
 
     cmd = [PY, "-m", "streetball.train", "--level", "l0_stand", "--run-name", args.run_name,
            "--init", args.init, "--init-actor-only", "--freeze-norm", "--critic-warmup-iters", "60",
            "--init-std", "0.15", "--push-max", "100", "--lr", "3e-4", "--lr-max", "1e-4", "--kl-target", "0.005",
            "--posture-ramp-steps", str(args.ramp_steps), "--steps", "2e9", "--time-budget-min", str(args.train_min),
-           "--ckpt-every-steps", "25e6"]
+           "--ckpt-every-steps", "25e6"] + args.extra.split()
     with open(run_dir.parent / f"{args.run_name}.train.out", "w", encoding="utf-8") as out:
         rc = subprocess.run(cmd, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT).returncode
     log(run_dir, f"training exit {rc}")

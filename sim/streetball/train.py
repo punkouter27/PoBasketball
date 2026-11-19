@@ -13,6 +13,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import pathlib
 import time
 from dataclasses import asdict
@@ -62,6 +63,8 @@ def parse():
     ap.add_argument("--critic-warmup-iters", type=int, default=0, help="train only the critic for this many iterations (use after --init-actor-only)")
     ap.add_argument("--kl-target", type=float, default=0.01)
     ap.add_argument("--posture-ramp-steps", type=float, default=0.0, help="l0_stand: blend v1->v2 posture reward over this many steps after the critic warm-up (0 = full v2 reward)")
+    ap.add_argument("--toe-std", type=float, default=None, help="initial exploration std for the toe joints only (default: --init-std)")
+    ap.add_argument("--no-v2-penalties", action="store_true", help="l0_stand: drop the humanoid_v2 jerk/toe-flat penalty terms")
     ap.add_argument("--freeze-norm", action="store_true", help="keep the observation normaliser fixed (fine-tuning an imported actor)")
     ap.add_argument("--lr-max", type=float, default=1e-3, help="adaptive-LR ceiling")
     ap.add_argument("--push-max", type=float, default=150.0, help="max random push force in N")
@@ -91,6 +94,14 @@ def main():
         agent.load_state_dict(sd, actor_only=args.init_actor_only)
         print(f"initialised from {args.init} (actor_only={args.init_actor_only})")
     agent.freeze_norm = args.freeze_norm
+    if args.toe_std is not None:
+        order = json.loads((SHARED / "obs_spec.json").read_text(encoding="utf-8"))["joint_order"]
+        toes = [i for i, n in enumerate(order) if n.startswith("toe_")]
+        with torch.no_grad():
+            agent.ac.log_std[toes] = math.log(args.toe_std)
+        print(f"toe exploration std {args.toe_std} on action indices {toes}")
+    if args.no_v2_penalties:
+        level.v2_penalties = False
     if args.posture_ramp_steps > 0:
         level.posture_ramp = (args.critic_warmup_iters * args.num_envs * args.steps_per_env, args.posture_ramp_steps)
 
