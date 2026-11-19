@@ -132,6 +132,10 @@ def build(ball_solref=(0.01, 0.10)) -> str:
   <contact>
     <!-- Ball bounce is tuned by tools/tune_ball.py against the FIBA drop test. -->
     <pair name="ball_floor" geom1="ball" geom2="floor" condim="6" friction="0.6 0.6 0.02 0.005 0.005" solref="{sr}" solimp="0.95 0.99 0.001"/>
+    <!-- Soft, damped palm (2026-11-19, tools/dribble_bench.py): a hand absorbs and rides the ball (~80 ms contact),
+         not the ball's floor-tuned 20 ms spring, which made the palm act like a paddle. -->
+    <pair name="ball_palm_l" geom1="ball" geom2="palm_l" condim="6" friction="0.9 0.9 0.02 0.005 0.005" solref="-2025.0 -90.00" solimp="0.9 0.95 0.01"/>
+    <pair name="ball_palm_r" geom1="ball" geom2="palm_r" condim="6" friction="0.9 0.9 0.02 0.005 0.005" solref="-2025.0 -90.00" solimp="0.9 0.95 0.01"/>
   </contact>
 
   <sensor>

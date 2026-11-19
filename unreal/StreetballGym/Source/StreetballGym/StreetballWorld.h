@@ -124,6 +124,7 @@ public:
 	int32 GetAudioPlayedCount() const { return AudioPlayer.PlayedCount; }
 	const FStreetballDirectorOutput& GetLastDirectorOutput() const { return DirOut; }
 	int32 GetResetCount() const { return ResetCount; }
+	const TCHAR* GetLastResetReason() const { return LastResetReason; }
 	/** Observation fed to the policy at the last control step and the action it produced (tests). */
 	const TArray<float>& GetLastObs() const { return Obs; }
 	const TArray<float>& GetLastAction() const { return Action; }

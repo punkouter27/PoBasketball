@@ -71,7 +71,7 @@ bool FStreetballDirectorScrambleTest::RunTest(const FString&)
 	TestEqual(TEXT("stays in DRIBBLE_STATIONARY with ball in control"), (int32)Out.State, (int32)EStreetballState::DribbleStationary);
 	TestEqual(TEXT("policy family dribble"), Out.PolicyName.ToString(), FString(TEXT("dribble")));
 	TestTrue(TEXT("task hand +-1"), FMath::Abs(Out.Task[0]) == 1.f);
-	TestEqual(TEXT("task apex target 1.0"), Out.Task[1], 1.f);
+	TestEqual(TEXT("task apex target 0.8"), Out.Task[1], 0.8f);
 	TestTrue(TEXT("stationary dribble: bounces_to_switch in [2,4]"), Out.Task[2] >= 2.f && Out.Task[2] <= 4.f);
 	TestTrue(TEXT("stationary dribble: speed/dir/dist zero"), Out.Task[3] == 0.f && Out.Task[4] == 0.f && Out.Task[5] == 0.f && Out.Task[6] == 0.f);
 
@@ -344,7 +344,7 @@ bool FStreetballTransitionTableTest::RunTest(const FString&)
 	D->ForceState(EStreetballState::DribbleMoving, S);
 	D->Describe(S, Out);
 	TestTrue(TEXT("moving: hand +-1"), FMath::Abs(Out.Task[0]) == 1.f);
-	TestEqual(TEXT("moving: apex 1.0"), Out.Task[1], 1.f);
+	TestEqual(TEXT("moving: apex 0.8"), Out.Task[1], 0.8f);
 	TestEqual(TEXT("moving: bounces_to_switch 0"), Out.Task[2], 0.f);
 	TestTrue(TEXT("moving: speed in [1.5,2.5]"), Out.Task[3] >= 1.5f && Out.Task[3] <= 2.5f);
 	TestTrue(TEXT("moving: direction is a unit vector"), FMath::IsNearlyEqual(FMath::Sqrt(Out.Task[4] * Out.Task[4] + Out.Task[5] * Out.Task[5]), 1.f, 1e-3f));
@@ -393,8 +393,9 @@ bool FStreetballLoopTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("hand-over prev_action max diff %.3e"), HandoverErr));
 	W->GetDirector()->ForceState(EStreetballState::Stand, W->GetTracker()->State());
 
-	// Jump to tier 3 with the ball at the hand; the dummy policy will not dribble, so control is
-	// lost after 0.6 s, SCRAMBLE starts, and the 3 s countdown ends in a HARD_RESET.
+	// Jump to tier 3 with the ball at the hand; the dummy policy will not dribble, so control is lost after 0.6 s
+	// and SCRAMBLE starts. The ball is then moved 8 m away so the 3 s countdown must end in a HARD_RESET.
+	// (2026-11-19: the trained scramble brain now regains a nearby ball, which restarts the countdown every time.)
 	FStreetballResetSpec Spec; Spec.bRequested = true; Spec.Reason = TEXT("test: tier 3");
 	W->GetDirector()->SetMastered(1, true); W->GetDirector()->SetMastered(2, true);
 	W->GetDirector()->ForceState(EStreetballState::DribbleStationary, W->GetTracker()->State());
@@ -404,23 +405,33 @@ bool FStreetballLoopTest::RunTest(const FString&)
 	while (Steps++ < 300 && W->GetResetCount() == ResetsBefore)
 	{
 		W->StepControl();
-		if (W->GetDirector()->GetState() == EStreetballState::Scramble) SawScramble = true;
+		if (W->GetDirector()->GetState() == EStreetballState::Scramble && !SawScramble)
+		{
+			SawScramble = true;
+			UMuJoCoSim* Sim = W->GetSim();
+			const mjModel* M = Sim->GetModel();
+			const int32 BallAdr = M->jnt_qposadr[Sim->JointId(TEXT("ball"))];
+			TArray<double> Q(Sim->QPos().GetData(), Sim->QPos().Num());
+			Q[BallAdr] = 8.0; Q[BallAdr + 1] = 0.0; Q[BallAdr + 2] = 0.1205;
+			Sim->SetQPos(Q);
+			Sim->Forward();
+		}
 	}
 	TestTrue(TEXT("SCRAMBLE was entered"), SawScramble);
 	TestTrue(TEXT("countdown expiry produced a hard reset"), W->GetResetCount() > ResetsBefore);
 	TestEqual(TEXT("after reset the tier-3 state resumes"), (int32)W->GetDirector()->GetState(), (int32)EStreetballState::DribbleStationary);
-	AddInfo(FString::Printf(TEXT("scramble->reset after %d control steps (%.2f s); audio events seen so far: %d"), Steps, Steps * 0.02, W->GetRecentAudioEvents().Num()));
+	AddInfo(FString::Printf(TEXT("scramble->reset after %d control steps (%.2f s), reason \"%s\"; audio events seen so far: %d"), Steps, Steps * 0.02, W->GetLastResetReason(), W->GetRecentAudioEvents().Num()));
 
 	// Reset parity (2026-11-08): the tier-3 hard reset puts the ball at the active hand's dribble spot mid-cycle,
 	// as sim l2_dribble.on_reset does. Tracker state is the post-reset state (ResetState runs Update(0)).
 	{
 		const FTrackedState& T = W->GetTracker()->State();
 		const double HandCmd = W->GetLastDirectorOutput().Task[0];
-		const FVector2d Spot = FVector2d(T.PelvisPos.X, T.PelvisPos.Y) + 0.25 * T.HeadingFwd - HandCmd * 0.35 * T.HeadingLeft;
+		const FVector2d Spot = FVector2d(T.PelvisPos.X, T.PelvisPos.Y) + 0.45 * T.HeadingFwd - HandCmd * 0.30 * T.HeadingLeft;   // tier-3 spot (2026-11-19)
 		const double SpotErr = (FVector2d(T.BallPos.X, T.BallPos.Y) - Spot).Length();
 		TestTrue(TEXT("tier-3 reset: hand command is +/-1"), FMath::Abs(FMath::Abs(HandCmd) - 1.0) < 1e-6);
 		TestTrue(TEXT("tier-3 reset: ball at the dribble spot (< 2 cm)"), SpotErr < 0.02);
-		TestTrue(TEXT("tier-3 reset: ball mid-cycle (0.40-0.95 m), not on the floor"), T.BallPos.Z >= 0.399 && T.BallPos.Z <= 0.951);
+		TestTrue(TEXT("tier-3 reset: ball mid-cycle (0.30-0.75 m), not on the floor"), T.BallPos.Z >= 0.299 && T.BallPos.Z <= 0.751);
 		TestTrue(TEXT("tier-3 reset: ball in control"), T.InControl);
 		AddInfo(FString::Printf(TEXT("tier-3 reset: hand %+.0f, spot error %.4f m, ball z %.3f m, vz %.3f m/s"), HandCmd, SpotErr, T.BallPos.Z, T.BallVel.Z));
 	}

@@ -1,6 +1,6 @@
 # Evaluation — l0_stand: PASS
 
-Checkpoint `runs\production\balance_quiet.pt`, 200 randomised episodes, deterministic policy, pushes up to 100 N x scale 1.0.
+Checkpoint `runs\production\balance.pt`, 200 randomised episodes, deterministic policy, pushes up to 100 N x scale 1.0.
 
 | Metric | Value |
 |---|---|
@@ -20,6 +20,6 @@ Checkpoint `runs\production\balance_quiet.pt`, 200 randomised episodes, determin
 | quiet_sway_cm | 4.328 |
 | quiet_speed_cm_s | 1.351 |
 | quiet_jitter_cm | 0.636 |
-| foot_drift_cm | 5.835 |
+| foot_drift_cm | 5.834 |
 | upright | 0.999 |
 | torso_upright | 0.903 |

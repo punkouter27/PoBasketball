@@ -60,7 +60,9 @@ def court_xml(zeta: float) -> str:
     sys.path.insert(0, str(ROOT / "tools"))
     import build_court  # noqa: E402
 
-    return build_court.build(solref(zeta))
+    import re
+    # the court alone has no humanoid: drop the ball-palm pairs (they name palm_l / palm_r from humanoid.xml)
+    return re.sub(r'\s*<pair name="ball_palm_[lr]"[^>]*/>', "", build_court.build(solref(zeta)))
 
 
 def main() -> None:
