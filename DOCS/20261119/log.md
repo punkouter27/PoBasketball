@@ -72,3 +72,31 @@ Full table: DOCS/20261119/quiet_posture.md. Later checkpoints straighten slightl
 - The posture brain from this morning (81.5 %, waived) is kept as `balance_posture.onnx` + `replay_balance_posture.json`.
   The old brain stays as `balance_v1w`. Both are copied into Content/Sim/policies for `-StreetballPolicy_balance=` comparisons.
 - Feature page with side-by-side captures: `SCREENSHOTS/20261119_posture/index.html` (media: `make_media.py`).
+
+## Skills on the v2 body: scramble widened; dribble and shot have no v1 brain
+
+Finding: only `scramble` ever graduated on v1 (`shared/policies_v1_27dof/scramble.onnx`, 95 % on 2026-11-17). Dribble never passed
+(`l2a_dribble_r` 0 %, open episode-length bug, DOCS/20261117) and shot was never trained, so widening cannot help them.
+
+Scramble (`runs/production/scramble_v1w.pt`, widened 27 -> 29 DoF, parity 4.4e-6, toe actions exactly 0, no training):
+- `l3b_scramble` eval: **96.0 %** (gate 80 %), holds 100, falls 1.5 %, 0 NaN -> PASS. Export l3b_scramble.onnx 3.2e-6 PASS.
+- `run_gate` replay stage FAIL: the recorder only has the L0 standing scenario. The scramble brain dives toward the ball from that keyframe
+  (pelvis 0.58 m < 0.70 m upright check), which is expected behaviour for this skill and not a fall.
+- Unreal closed-loop gate FAIL on that replay: identical for the first 1 s, then diverges (root 8.2 cm at 5 s, joints 15 deg, action diff up to
+  1.8 at step 221). Likely cause: chaotic contact during the dive amplifying float differences. Not yet proven: there is no first-divergence step.
+- v1 scramble shipped on 2026-11-17 without a replay/Unreal check, so this check has never been run on any scramble brain.
+State: l3b_scramble.onnx was synced into Unreal Content by run_gate (Content/Sim is git-ignored). Nothing committed; awaiting decision.
+
+### Scramble shipped on its sim gate (user decision: "do recommended")
+
+- `shared/policies/scramble.onnx` (family) + `l3b_scramble.onnx` exported from `runs/production/scramble.pt` (widened v1, 96.0 %).
+  Synced to Unreal: balance, locomotion, scramble trained; dribble and shot still use the dummy policy.
+- Unreal `Streetball.*` full suite with the trained scramble: **22 / 22 pass** (the 11-17 note about a test that needed the dummy scramble no longer applies).
+- `tools/replay_recorder.py --level l3b_scramble`: new start state mirroring `L3Scramble.on_reset` (ball on the floor 1.5 m ahead / 0.5 m left,
+  countdown running, task[0] = countdown). The upright check uses the env fall line (0.55 m) for this level. Recorded `shared/golden/replay_scramble.json`:
+  ball regained at step 57 (1.1 s).
+- Unreal closed loop on that replay: exact to 1 s, 5.6 cm root / 8.7 deg at 5 s -> FAIL against the exact-match thresholds. Chaos probe
+  (Python only, +-1e-6 uniform noise on every policy output): scramble drifts **8.4 cm** (1e-4: 40 cm), balance drifts **0.0000 cm**.
+  Conclusion: the bridge is faithful (open loop 0.0000 cm). The dive-and-grab rollout amplifies float rounding, so an exact-match gate does not
+  apply to scramble. A meaningful gate for chaotic skills would compare Unreal's error with the Python noise band (follow-up, C++ change).
+  The gate also hard-codes pelvis >= 0.70 m, which a scramble never meets by design.

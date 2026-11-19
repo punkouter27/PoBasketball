@@ -1,22 +1,22 @@
 {
   "level": "l3b_scramble",
-  "checkpoint": "PoBasketball\\sim\\runs\\l3b_scramble_n16bq2\\model.pt",
+  "checkpoint": "runs\\production\\scramble_v1w.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 150.0,
-  "success_rate": 0.949999988079071,
+  "success_rate": 0.9599999785423279,
   "pass_fraction": 0.8,
   "passed": true,
   "holds_100_straight": true,
   "nan_grads": 0,
-  "interface_sha": "ccfa18d6f9aaf2a5",
-  "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
+  "interface_sha": "32f5b79d3216e8a3",
+  "physics_sha": "319cd05af6f00d17+c1c2207912c56781",
   "fall_rate": 0.014999999664723873,
-  "mean_episode_s": 4.841100215911865,
+  "mean_episode_s": 4.86359977722168,
   "metrics": {
-    "m/regained": 0.6250057220458984,
-    "m/ball_dist": 0.9167671799659729,
-    "m/reach": 0.5884931087493896
+    "m/regained": 0.6351713538169861,
+    "m/ball_dist": 0.9016756415367126,
+    "m/reach": 0.5884732604026794
   },
-  "wall_s": 5.42792229999759
+  "wall_s": 7.7966640000086045
 }

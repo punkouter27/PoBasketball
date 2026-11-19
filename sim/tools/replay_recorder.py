@@ -56,7 +56,7 @@ def main() -> None:
     ap.add_argument("--onnx", default=None)
     ap.add_argument("--seconds", type=float, default=5.0)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--level", default="l0_stand", choices=["l0_stand", "l1_traverse", "l2a_dribble_r"],
+    ap.add_argument("--level", default="l0_stand", choices=["l0_stand", "l1_traverse", "l2a_dribble_r", "l3b_scramble"],
                     help="policy mode: start state and task block of this level (zeros for l0_stand)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
@@ -70,8 +70,16 @@ def main() -> None:
     ball_v = m.jnt_dofadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "ball")]
     rng = np.random.default_rng(args.seed)
     in_control0 = 0.0
+    loose0 = -1.0
     if args.mode == "policy":
-        if args.level in ("l0_stand", "l1_traverse"):
+        if args.level == "l3b_scramble":
+            # l3_roam.L3Scramble.on_reset: loose ball on the floor 0.5-4 m away, countdown already running
+            q = d.qpos[root + 3:root + 7]
+            fwd = obs_spec.heading_mat(q)[:2, 0]; left = obs_spec.heading_mat(q)[:2, 1]
+            spot = d.qpos[root:root + 2] + 1.5 * fwd + 0.5 * left
+            d.qpos[ball:ball + 7] = [spot[0], spot[1], 0.1205, 1, 0, 0, 0]
+            loose0 = 0.0
+        elif args.level in ("l0_stand", "l1_traverse"):
             # Tier 1/2 start as in training and the Unreal director: ball parked away from the feet,
             # not at its keyframe spot beside the right foot (the athlete trips over it).
             d.qpos[ball:ball + 3] = ([d.qpos[root] + 3.0, d.qpos[root + 1], 0.1205] if args.level == "l0_stand"
@@ -118,7 +126,7 @@ def main() -> None:
         # l1_traverse command: a waypoint 10 m ahead and 2 m left of the start, 1.5 m/s (never reached in 5 s)
         q0 = d.qpos[root + 3:root + 7]
         wp = d.qpos[root:root + 2] + 10.0 * obs_spec.heading_mat(q0)[:2, 0] + 2.0 * obs_spec.heading_mat(q0)[:2, 1]
-        in_ctrl, countdown, loose_t, last_palm = in_control0, 1.0, -1.0, (0.0 if in_control0 else -10.0)
+        in_ctrl, countdown, loose_t, last_palm = in_control0, 1.0, loose0, (0.0 if in_control0 else -10.0)
         for t in range(T):
             if args.level == "l1_traverse":
                 rel = wp - d.qpos[root:root + 2]
@@ -127,7 +135,9 @@ def main() -> None:
                 dw = rel / max(dist, 1e-6)
                 task[:4] = [dw @ Hm[:2, 0], dw @ Hm[:2, 1], min(dist, 10.0), 1.5]
             elif args.level == "l2a_dribble_r":
-                task[:3] = [1.0, 1.0, 0.0]             # right hand, apex 1.0 m, no commanded switches
+                task[:3] = [1.0, 1.0, 0.0]
+            elif args.level == "l3b_scramble":
+                task[0] = countdown                    # L3Scramble.task_block             # right hand, apex 1.0 m, no commanded switches
             o = obs_spec.compute_obs(m, d, ix, prev, task, in_ctrl, countdown)
             rec["task"].append(task.tolist()); rec["in_control"].append(in_ctrl); rec["countdown"].append(countdown)
             a = sess.run(["action"], {"obs": o[None].astype(np.float32)})[0][0].astype(np.float64)
@@ -157,9 +167,11 @@ def main() -> None:
     root = m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "root")]
     print(f"wrote {out}: {T} control steps, final pelvis z {rec['qpos'][-1][root + 2]:.3f} m")
     min_z = min(q[root + 2] for q in rec["qpos"])
-    if args.mode == "policy" and min_z < 0.7:
+    # scramble dives for the ball by design: use the env's own fall line (pelvis < 0.55 m) instead of the standing 0.70 m
+    floor_z = 0.55 if args.level == "l3b_scramble" else 0.7
+    if args.mode == "policy" and min_z < floor_z:
         # a golden where the athlete falls makes the Unreal gate meaningless (it passed that way on 2026-11-06)
-        raise SystemExit(f"FAIL: pelvis dropped to {min_z:.3f} m (< 0.70 m); the policy does not stay upright from the keyframe")
+        raise SystemExit(f"FAIL: pelvis dropped to {min_z:.3f} m (< {floor_z:.2f} m); the policy does not stay upright from the keyframe")
 
 
 if __name__ == "__main__":
