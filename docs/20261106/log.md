@@ -4,10 +4,10 @@
 
 | Area | State | Pointer |
 |---|---|---|
-| Step 1–3 documents | approved | `DOCS/01_…`, `02_…`, `03_…` |
-| Phase A assets | complete, hashes frozen | `DOCS/phase_reports/PhaseA_summary.md` |
-| Phase B Unreal | complete, 14 headless tests green | `DOCS/phase_reports/PhaseB_B1_B7.md`, `PhaseB_B8_B10.md` |
-| Phase C training stack | complete | `DOCS/phase_reports/PhaseC_setup.md` |
+| Step 1–3 documents | approved | `docs/01_…`, `02_…`, `03_…` |
+| Phase A assets | complete, hashes frozen | `docs/phase_reports/PhaseA_summary.md` |
+| Phase B Unreal | complete, 14 headless tests green | `docs/phase_reports/PhaseB_B1_B7.md`, `PhaseB_B8_B10.md` |
+| Phase C training stack | complete | `docs/phase_reports/PhaseC_setup.md` |
 | L0 Stand policy | **training**, run `sim/runs/l0_v3` (detached python, pid in `sim/runs_l0_v3.log`) | TensorBoard http://localhost:6006 |
 | Step 4 gate | tooling ready, waiting on L0 | `sim/tools/run_gate.py` |
 | Git | initialised on `master` today, first commit `305e498` | |
@@ -34,7 +34,7 @@ cannot satisfy both "60 s" and "feet within 20 cm". Capped pushes target the PRD
 
 ## UU_AGENT standard adopted today
 
-See `AGENTS.md` and `DOCS/20261106/uu_agent_audit.md` for the compliance audit and the policy-impact list
+See `AGENTS.md` and `docs/20261106/uu_agent_audit.md` for the compliance audit and the policy-impact list
 of the proposed physics/architecture changes (awaiting the user's answers).
 
 ## Open issues (priority order)

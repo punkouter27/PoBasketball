@@ -4,7 +4,7 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, deployed
 
 ### 1. Workflow & Setup
 - **Target Engine:** Unreal Engine exclusively. Built-in engine physics (Chaos) is strictly disabled; UE5 serves solely as an audiovisual rendering, camera tracking, and input layer.
-- **Git:** Work on `master`. Commit before syncing or pulling. Check `/DOCS` first.
+- **Git:** Work on `master`. Commit before syncing or pulling. Check `/docs` first.
 - **Automation:** Set up levels, actors, and MJCF bindings via CLI and headless Blender. UI changes require before/after screenshots and an HTML report in `SCREENSHOTS/`.
 - **Build stamp:** Render the build date (`YYMMDD`) in the bottom-right corner.
 - **Paths & Toolchain:**
@@ -27,7 +27,7 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, deployed
 - **Hand-Overs:** All policies for a given character share the observation space, joint ordering, action layout, step rate ($dt$), and style rewards. Preload all policies at level initialization. Carry over the last action vector; never snap poses or blend bone transforms. Train recovery/get-up skills starting from real simulated falls.
 - **Interface Stability:** Append new observation features only at the end with zero-initialized weights; never reorder or delete inputs. Breakages require policy distillation.
 - **Isolation:** Each character trains from scratch with its own policy weights and character card traits. No policy sharing across different character bodies. Avoid full retraining once a baseline character passes all gates.
-- **Audit Trail:** Log all affected policies, state machine rows, and interface revisions in `/DOCS` prior to modifications. Re-run task and kinematic regression benchmarks after any update.
+- **Audit Trail:** Log all affected policies, state machine rows, and interface revisions in `/docs` prior to modifications. Re-run task and kinematic regression benchmarks after any update.
 
 ### 4. Training, Gates & Optimization
 - **Execution & Resources:** Close the UE5 editor during headless training runs exceeding 30 minutes or when available system RAM drops below 4 GB. Save and commit state beforehand.
@@ -35,7 +35,7 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, deployed
 - **Verification Gate:** Export the final ONNX model only after holding target rewards for 100 consecutive episodes with zero NaN gradients. Validate a 5-second rollout ensuring:
   1. *Kinematics:* Root velocity, angular momentum, and joint angles match the MuJoCo/URLab baseline.
   2. *Contacts:* No foot sliding, ground clipping, or contact chatter.
-- **Telemetry:** Run TensorBoard alongside all runs. Output training metrics to `/DOCS/<YYYYMMDD>/`.
+- **Telemetry:** Run TensorBoard alongside all runs. Output training metrics to `/docs/<YYYYMMDD>/`.
 - **Runtime Profiling:** Enforce zero heap allocation (no dynamic allocations) inside the real-time C++ inference loop to guarantee consistent frame budgets.
 - **Reporting:** Runs over 30 minutes require an HTML report with convergence curves and run-over-run deltas. Provide hourly progress summaries.
 
@@ -51,13 +51,96 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, deployed
 ## Project notes (PoBasketball / Streetball Humanoid Gym)
 
 - Engine: Unreal 5.8.4 with the `MuJoCoRuntime` plugin (libmujoco 4.0.0). Training: MuJoCo Warp in `sim/`.
-- `/DOCS` holds the step documents (`01_…`, `02_…`, `03_…`), `phase_reports/`, and daily logs under `DOCS/<YYYYMMDD>/`.
-- Shared contracts (`shared/obs_spec.json`, `shared/humanoid_spec.json`, assets in `sim/assets/`) are frozen; a change bumps the hashes in `DOCS/phase_reports/PhaseA_summary.md` and re-runs A5/A6/A8.
+- `/docs` holds the step documents (`01_…`, `02_…`, `03_…`), `phase_reports/`, and daily logs under `docs/<YYYYMMDD>/`.
+- Shared contracts (`shared/obs_spec.json`, `shared/humanoid_spec.json`, assets in `sim/assets/`) are frozen; a change bumps the hashes in `docs/phase_reports/PhaseA_summary.md` and re-runs A5/A6/A8.
 - Headless Unreal: always go through `unreal/StreetballGym/Scripts/run_headless.ps1`; never pass string CVars through `-ExecCmds`; never use `-nullrhi`.
 
 ## CI/CD and Azure
 
-- A push to `master` runs `.github/workflows/deploy.yml` on a GitHub-hosted runner (no self-hosted runner): the CPU sim tests (`test_stand`, `test_penetration`), then `web/build.py` bakes `shared/golden/replay_*.json` into a three.js replay viewer and deploys it to the Azure Static Web App `pobasketball` (resource group `PoBasketball`). Pull requests run the tests and the build, never a deploy.
-- The Unreal project is not built in CI (GitHub's runners have no Unreal Engine). `test_env` / `test_determinism` need CUDA and stay local.
-- A replay recorded against an older body (qpos length differs from `sim/assets/scene.xml`) is skipped with a warning; re-record it with `sim/tools/replay_recorder.py` after changing the humanoid.
+- One workflow, `.github/workflows/deploy.yml`, on a GitHub-hosted runner. Every push and pull request: Python checks
+  (`ruff check .`, `ruff format --check .`, `pytest` on CPU; GPU tests skip with a message), then `web/build.py` bakes
+  `shared/golden/replay_*.json` into the three.js replay viewer and `web/dist/`. Push to `master` only: deploy to the
+  Azure Static Web App `pobasketball` (resource group `PoBasketball`), then check the live `/` and `/diag`.
+- The Unreal project is not built in CI (GitHub's runners have no Unreal Engine); build it locally and from a fresh clone
+  (its `MuJoCoRuntime` plugin and libmujoco 4.0.0 are vendored in `unreal/StreetballGym/Plugins/`).
+- GPU tests (`sim/tests/test_env.py`, `test_determinism.py`) run locally in `sim/.venv`
+  (`uv run python -m pytest tests -q`). `test_determinism` writes its report to a temp dir only; refresh
+  `docs/phase_reports/A8_determinism.md` on purpose with `uv run python tools/a8_determinism_report.py`
+  (why Warp worlds are not bit-identical: `docs/phase_reports/A8_root_cause.md`).
+- Reward penalty weights and curriculum gates: `shared/reward_config.json`, read by `sim/streetball/reward_config.py`
+  and mirrored by the Unreal DataAsset `UStreetballRewardConfig`. Changing them does not retrain the shipped policies.
+- Version: one stamp, UTC `yyMMdd` of the HEAD commit, computed by `web/build.py` (index.html, diag.html) with the same
+  rule as the Unreal build. /diag checks are listed in `web/diag_checks.json`.
+- A replay recorded against an older body (qpos length differs from `sim/assets/scene.xml`) is skipped with a warning;
+  re-record it with `sim/tools/replay_recorder.py` after changing the humanoid. `replay_locomotion_ppo.json` is a
+  27-DoF v1-only PPO-vs-AMP comparison with no v2 counterpart and stays skipped (docs/20261118/log.md).
 - Repo secret: `AZURE_STATIC_WEB_APPS_API_TOKEN`.
+
+## Po Game Standard (Unity / Unreal RL games)
+
+This repo is one of several independent Po games. It follows the conventions below, but it owns every file:
+nothing is generated from, synced with, or required to stay identical to another repository (no "same file in
+every game" headers, no sync scripts that copy into other repos). Third-party code it needs (ML-Agents, MuJoCo
+plugins, URLab) is vendored INSIDE this repo at a pinned version. Azure resources may be shared through `PoShared`.
+
+### Repo skeleton
+```
+README.md   AGENTS.md (this standard + repo notes)   CLAUDE.md ("Read AGENTS.md.")
+docs/       lowercase, all prose (no DOCS/, no root DESIGN.md/SPEC.md/tasks.md — move them into docs/)
+scripts/    build/publish/helper scripts (Unity: Tools/ is renamed scripts/ unless Unity itself needs it)
+.github/workflows/<one file>.yml   the ONLY workflow
+pyproject.toml with a [tool.ruff] section for any Python in the repo
+```
+No absolute local paths (C:\Users\...) committed anywhere. No build outputs or node_modules tracked.
+
+### Web page around the game (WebGL template / web viewer)
+- The page chrome is drawn ONCE, by the HTML page, OUTSIDE the game canvas, so it can never overlap the HUD:
+  a 44px top bar (game name top-left, settings gear / fullscreen top-right) and the version `vYYMMDD` bottom-right
+  in the bar's counterpart or a 20px footer strip. The canvas fills the remaining viewport.
+- The in-game HUD does NOT repeat the game name or version (it may show them inside menus, not as corner chrome).
+- Same tokens as the web apps: dark background `#0b0f17`, surface `#121826`, text `#e6e9f2`, muted `#9aa3b5`,
+  accent `#6366f1`, Inter/system-ui font. Text ≥ 4.5:1 contrast.
+
+### Orientation (C11)
+The canvas fills any viewport (no fixed portrait aspect, no pillarboxing). UI is anchored and DPI-scaled
+(Unity: CanvasScaler "Scale With Screen Size" or UI Toolkit PanelSettings scale-with-screen; Unreal: UMG anchors +
+DPI curve). Must be checked at 1600x900 (landscape) and 450x800 (portrait) — screenshots in the PR/commit notes.
+
+### Version
+One stamp, UTC `yyMMdd`, computed once by the publish/build script and injected into: index.html, diag.html,
+and the player (`PlayerSettings.bundleVersion` / Unreal ProjectVersion) so `Application.version` matches the page.
+
+### /diag (games)
+`/diag` (static `diag.html` generated by the publish script) titled **System status**, same layout as the web apps:
+overall banner, then **API / Data / Services** sections. It must LIVE-probe (fetch from the browser, with latency)
+every external dependency the game really calls (leaderboard tables/functions, weather APIs, AI APIs, replay bundles,
+model files), plus the WebGL2 capability and that the build bundle files exist. Nothing hard-coded as "Ready".
+The checks are listed in the repo's own config (e.g. `scripts/webgl.json` → `diagChecks`).
+
+### In-game diagnostics overlay (C12)
+`Tab` (and a 44px corner button on touch devices) toggles an overlay showing: FPS, current episode reward,
+inference latency (ms, rolling average), curriculum stage. Readable text (≥ 4.5:1 on an opaque panel).
+
+### Demo mode (C13)
+After 30 s with no input (keyboard, mouse, touch, gamepad) from load or from last input: hide non-essential HUD,
+all agents are driven by the trained policy (inference only), showcase cameras cycle (~6–8 s each); any input
+returns control and the HUD. Idle threshold, camera list and dwell time are editor-tunable assets.
+
+### Rewards + editor-first config (C9, C10)
+Reward includes penalties for joint torque², joint angular velocity², action rate ‖a_t − a_{t−1}‖², and foot sliding
+(foot planar speed while in contact), each with its own weight. Reward weights, curriculum thresholds, cameras and UI
+references live in ScriptableObjects / `[SerializeField]` (Unity) or DataAssets / `UPROPERTY(EditAnywhere,
+BlueprintReadWrite)` (Unreal); Python trainers read the same values from the repo's training config. Changing a
+penalty does not retrain shipped policies — note this in docs when shipped models predate the change.
+
+### Workflow
+- Unity: the WebGL player is built locally with the EXACT pinned editor (Unity cannot be licensed in CI) by
+  `scripts/publish_webgl.ps1`, which runs EditMode tests first, then builds, zips and publishes a `webgl-*` release.
+  The one workflow: on release → deploy to the game's Static Web App → check the live page AND /diag; on push →
+  Python checks (`ruff check`, `ruff format --check`, `pytest`) only.
+- Unreal: the one workflow builds and deploys the repo's web front (viewer / showcase + /diag) to its Static Web App,
+  after Python checks. The Unreal project must compile from a fresh clone (all plugins vendored in `Plugins/`).
+
+### Tests
+Python: real pytest tests (collected by pytest, not ad-hoc scripts), ruff clean. Unity: EditMode tests pass before
+every publish. Tests never write into tracked files.

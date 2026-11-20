@@ -1,7 +1,7 @@
 # 2026-11-07 — daily log (overnight queue results)
 
 Queue `sim/runs/queue/20261106_2300`, 23:00 → 06:37, ~1.1 B simulated steps. Final report:
-`DOCS/20261107/extended_training_report.html` (per-run reports alongside it).
+`docs/20261107/extended_training_report.html` (per-run reports alongside it).
 
 ## Results
 
@@ -22,7 +22,7 @@ Zero falls and zero NaN-gradient batches in every evaluation.
    90-second episodes. Return was still rising when both boxes ended, so more steps should close the gap to 90 %.
    Speed is the limiter: the velocity-tracking reward is satisfied by the low end of the 0.8–3.0 m/s command range.
 2. **The dribble reward was exploitable three ways**, found and fixed in sequence during the night (see
-   `DOCS/20261106/change_self_collision_and_roster.md`): (a) a 20 cm "tap" instead of a waist-high bounce
+   `docs/20261106/change_self_collision_and_roster.md`): (a) a 20 cm "tap" instead of a waist-high bounce
    (apex shaping was a narrow band), (b) the tap persisted because spot/control terms paid regardless of height
    (now gated, monotonic shaping), (c) the ball was being juggled with feet and shins because the loose-ball
    countdown never armed without an initial grant of control (now granted at reset, as in Unreal).
@@ -46,7 +46,7 @@ Zero falls and zero NaN-gradient batches in every evaluation.
 - All queue runs are < 24 h old; nothing deleted (UU_AGENT §4). `l1_v1_resume.pt`, `l0_v*_*.pt` copies can be
   pruned after 2026-11-08.
 - One operational mistake during the night: I killed the pre-fix l3a stage early on purpose; the clock in my notes
-  was ~20 min ahead of the real time, so the DOCS timestamps for the 03:xx/04:xx entries are approximate.
+  was ~20 min ahead of the real time, so the docs timestamps for the 03:xx/04:xx entries are approximate.
 
 ## 15:50 — "play scene": athlete falls every 1.4 s in Tier 1 (diagnosed, not yet fixed)
 
@@ -165,7 +165,7 @@ Run `l1_v3_armcarry`: 90 min fine-tune from `l1_v2_armstop/model.pt` (runner `si
   `FBroadcastLogic::TargetFor` now frames only the athlete in STAND/ROAM; new assertions in `Streetball.B8.CameraCuts`.
 - Headless `Automation RunTests Streetball`: **15/15 pass**. Step 4 live-physics gate with the re-graduated balance policy
   on the arm-collision physics: root 0.0000 cm, joints 0.00002°, obs 8.2e-7, 0/250 foot mismatches, 0.054 ms inference,
-  **lowest pelvis 0.929 m** (new upright requirement ≥ 0.70 m). Report: `DOCS/phase_reports/Step4_gate_unreal.md`.
+  **lowest pelvis 0.929 m** (new upright requirement ≥ 0.70 m). Report: `docs/phase_reports/Step4_gate_unreal.md`.
 
 ## 15:26 — locomotion GRADUATED (`l1_v3_armcarry`, arm-carry penalty + 1.2 m/s floor, 90 min from `l1_v2_armstop`)
 
@@ -222,8 +222,8 @@ Not yet evaluated. Preview exported to Unreal as `Content/Sim/policies/locomotio
 ```
 uv run python -m streetball.train_amp --level l1_traverse_amp --init runs/l1_amp_v2/model.pt --run-name l1_amp_v3 --time-budget-min 40 --push-curriculum --init-std 0.3
 uv run python -m streetball.evaluate --level l1_traverse --ckpt runs/l1_amp_v3/model.pt
-copy ..\DOCS\phase_reports\eval_l1_traverse.json runs\l1_amp_v3\eval.json
-uv run python tools/compare_amp.py --baseline runs/l1_v3_armcarry --amp runs/l1_amp_v3 --out ../DOCS/<day>/amp_vs_baseline.html
+copy ..\docs\phase_reports\eval_l1_traverse.json runs\l1_amp_v3\eval.json
+uv run python tools/compare_amp.py --baseline runs/l1_v3_armcarry --amp runs/l1_amp_v3 --out ../docs/<day>/amp_vs_baseline.html
 ```
 Watch in Unreal: `-StreetballStartTier=2 -StreetballMaxTier=2 -StreetballPolicy_locomotion=policies/locomotion_amp.onnx`.
 Launch long jobs without a visible console next time (Windows Terminal ignores -WindowStyle Hidden).

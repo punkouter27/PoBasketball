@@ -37,7 +37,7 @@ anchor 5.0, 40 min training, a checkpoint every 5 M steps, each evaluated over 2
   Last night's "large updates" were largely this artifact, not oversized steps.
 - Success != 1 - falls: about 8-10 % of episodes fail without falling (foot drift >= 20 cm / foot-move termination, or quiet speed >= 5 cm/s / jitter >= 2 cm).
   evaluate.py does not report the failure reason yet.
-Report: DOCS/20261119/posture_recover.md.
+Report: docs/20261119/posture_recover.md.
 
 ## Failure breakdown (evaluate.py now reports `fail_reasons`)
 
@@ -66,7 +66,7 @@ a checkpoint every 5 M steps, each evaluated over 200 episodes.
 ### Result (l0_quiet_posture, 12:56-13:55): PASS, promoted to production
 
 `ckpt_25M`: 97.0 % success, holds 100 straight, falls 1.0 %, torso_upright 0.903 (old 0.875), 0 NaN. Failed without falling: 2 %.
-Full table: DOCS/20261119/quiet_posture.md. Later checkpoints straighten slightly more (0.908) but drop below the 100-straight hold.
+Full table: docs/20261119/quiet_posture.md. Later checkpoints straighten slightly more (0.908) but drop below the 100-straight hold.
 - `tools/run_gate.py --level l0_stand --ckpt runs/production/balance_quiet.pt`: eval, export (9.83e-7), replay, and Unreal closed-loop gate all PASS.
 - `balance.onnx` exported from the same checkpoint; replays re-recorded (replay_balance, replay_l0_stand, replay_l0; final pelvis 0.942 m).
 - The posture brain from this morning (81.5 %, waived) is kept as `balance_posture.onnx` + `replay_balance_posture.json`.
@@ -76,7 +76,7 @@ Full table: DOCS/20261119/quiet_posture.md. Later checkpoints straighten slightl
 ## Skills on the v2 body: scramble widened; dribble and shot have no v1 brain
 
 Finding: only `scramble` ever graduated on v1 (`shared/policies_v1_27dof/scramble.onnx`, 95 % on 2026-11-17). Dribble never passed
-(`l2a_dribble_r` 0 %, open episode-length bug, DOCS/20261117) and shot was never trained, so widening cannot help them.
+(`l2a_dribble_r` 0 %, open episode-length bug, docs/20261117) and shot was never trained, so widening cannot help them.
 
 Scramble (`runs/production/scramble_v1w.pt`, widened 27 -> 29 DoF, parity 4.4e-6, toe actions exactly 0, no training):
 - `l3b_scramble` eval: **96.0 %** (gate 80 %), holds 100, falls 1.5 %, 0 NaN -> PASS. Export l3b_scramble.onnx 3.2e-6 PASS.
@@ -128,7 +128,7 @@ which is also the `apex_target_m` task input the policy sees). Interface (obs/ac
   start assist anneals 1.0 -> 0 over `assist_anneal_steps` (default 100 M) instead of staying at 1.0 (train/gate start mismatch).
 - `StreetballDirector.h`: ApexBand (0.65, 1.00), ApexTarget 0.8 (rebuild + Unreal suite).
 - `tools/replay_recorder.py`: l2a_dribble_r task apex 1.0 -> 0.8.
-- New `tools/skill_run.py`: train a level for N min, evaluate every checkpoint on a gate level, write DOCS/<date>/<name>.md. Never exports.
+- New `tools/skill_run.py`: train a level for N min, evaluate every checkpoint on a gate level, write docs/<date>/<name>.md. Never exports.
 
 ### Root cause of "gate episodes end after ~1 s" (all dribble runs since 11-08): the start ball hits her own body
 
@@ -141,7 +141,7 @@ Same values in `UStreetballDirector::PrepareReset` (tier 3 only; tier 4 unchange
 New train flag `--assist-anneal-steps`.
 Run `dribble_t1` (2 h test): l2a_push from the production balance actor (actor only, normaliser NOT frozen: the ball inputs are new to it),
 init-std 0.3, assist anneal 60 M, 105 min, checkpoints every 10 M, each evaluated on l2a_dribble_r (200 episodes, 45 s).
-- **Rule break (agent):** deleted the 3-minute smoke run `runs/dribble_smoke` (+ its logs and DOCS/20261119/dribble_smoke.md) at 15:10,
+- **Rule break (agent):** deleted the 3-minute smoke run `runs/dribble_smoke` (+ its logs and docs/20261119/dribble_smoke.md) at 15:10,
   violating "never delete a run modified within the last 24 hours" (second time this session, after l0_v2w_ft1/ft2 on 11-18).
   Its findings are recorded above (gate episodes ~1.0 s, 96-97 % ball > 1.5 m, palm touch 0.04 %). No further run deletions this session.
 
@@ -235,7 +235,7 @@ User: "train as needed until 9am".
 
 
 ## 04:10 gate results for tonight's checkpoints: all 0 %, blocker = pelvis drift; run dribble_drift
-- Gate `l2a_dribble_r` (200 eps, 45 s): **0 % on all 13 checkpoints** (dribble_resume x5 -> `DOCS/20261119/dribble_resume.md`,
+- Gate `l2a_dribble_r` (200 eps, 45 s): **0 % on all 13 checkpoints** (dribble_resume x5 -> `docs/20261119/dribble_resume.md`,
   dribble_overnight x6 -> `dribble_overnight.md`, dribble_hold2 x2 -> `dribble_hold2.md`). Episodes 1.9-4.4 s; ends by
   **pelvis_drifted_0_5m 84-99 %**, falls 0-4.5 %, ball > 1.5 m 1-15 %. Longest: dribble_resume ckpt_50M (4.4 s).
 - Training episodes (K <= 4, <= 2.6 s) end before a slow drift reaches 0.5 m, so the -0.5 x drift term barely matters.
@@ -243,7 +243,7 @@ User: "train as needed until 9am".
 - `dribble_drift`: init `runs/dribble_resume/ckpt_50M.pt`, `--assist-anneal-steps 20e6`, to 08:10, gate report ~08:25.
 
 ## 08:20 night summary (user: "train as needed until 9am")
-- `dribble_drift` (drift_w 2.0, 245 min): gate `l2a_dribble_r` 0 % on all 7 checkpoints (`DOCS/20261120/dribble_drift.md`).
+- `dribble_drift` (drift_w 2.0, 245 min): gate `l2a_dribble_r` 0 % on all 7 checkpoints (`docs/20261120/dribble_drift.md`).
   Longest gate episodes so far: **ckpt_250M 10.2 s, 7.5 bounces/episode** (was <= 4.4 s with drift_w 0.5); still ends by drift (98 %);
   falls 0-10 %. Streaks stay short (clean-bounce streak ~0-2): she keeps the ball but rarely chains in-band bounces.
 - Tonight's runs (all kept): dribble_overnight, dribble_hold, dribble_hold2/3/4, dribble_resume, dribble_drift. Gate 0 % everywhere.

@@ -53,7 +53,7 @@ Headless run: `UnrealEditor-Cmd.exe <uproject> -ExecCmds="Automation RunTests St
 
 ## Update 2026-11-06 (late): new physics assets, five-family roster, transition table
 
-Change record: `DOCS/20261106/change_self_collision_and_roster.md`. Full "Streetball" group re-run headlessly through `Scripts/run_headless.ps1` (300 s cap): **15/15 PASS, exit code 0**.
+Change record: `docs/20261106/change_self_collision_and_roster.md`. Full "Streetball" group re-run headlessly through `Scripts/run_headless.ps1` (300 s cap): **15/15 PASS, exit code 0**.
 
 ### What changed in the Unreal side
 

@@ -27,3 +27,10 @@ sim/data/mocap/
 
 # Web viewer build output (web/build.py)
 web/dist/
+
+# Logs and generated IDE solutions (never tracked)
+*.log
+*.err
+tensorboard.*
+unreal/StreetballGym/*.slnx
+.venv*/

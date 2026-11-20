@@ -7,7 +7,7 @@ Status key: ✅ done · 🔧 applied today · ⏳ planned (no decision needed) �
 | Rule | Status | Note |
 |---|---|---|
 | Work on `master`, commit before sync | 🔧 | `git init -b master`, first commit `305e498`; `.gitignore` excludes venv, runs, UE build dirs |
-| Check `/DOCS` first | 🔧 | `docs/` renamed to `DOCS/`; `CLAUDE.md` points agents there; daily log `DOCS/20261106/log.md` |
+| Check `/docs` first | 🔧 | `docs/` renamed to `docs/`; `CLAUDE.md` points agents there; daily log `docs/20261106/log.md` |
 | Scenes/levels via CLI + headless Blender | ✅ / ⏳ | Level, audio assets and skeleton dump are headless scripts. No Blender step yet (no custom meshes); folders `Content/Art/Raw`, `Content/Art/Exports` created |
 | UI changes → before/after screenshots + HTML report in `SCREENSHOTS/` | 🔧 | `SCREENSHOTS/` created; first report for today's HUD/lighting change |
 | Build stamp YYMMDD bottom-right | 🔧 | `UStreetballHUDWidget::BuildStampYYMMDD()` from `__DATE__` |
@@ -36,7 +36,7 @@ Status key: ✅ done · 🔧 applied today · ⏳ planned (no decision needed) �
 | Train each policy on inherited states (get-up from real falls) | ❓ | No get-up policy in the PRD. Adding one = new skill + director rows |
 | Frozen interface, append-only | ✅ | documented in `obs.py`; task block padded to 12 |
 | One character, own policies | ✅ | |
-| Before any change: list touched policies, log in /DOCS | 🔧 | this file + the impact list below |
+| Before any change: list touched policies, log in /docs | 🔧 | this file + the impact list below |
 | Tag checkpoints with interface + physics versions | ⏳ | add `interface_sha` (obs_spec) and `physics_sha` (scene.xml) to `model.pt` metadata and ONNX sidecar |
 
 ## §4 Training, Gates & Reports
@@ -47,7 +47,7 @@ Status key: ✅ done · 🔧 applied today · ⏳ planned (no decision needed) �
 | Cleanup | ✅ | nothing eligible yet (all runs < 24 h old) |
 | Graduation gate: target holds 100 straight episodes, no NaN grads | ⏳ | current gate = ≥ pass fraction over 200 parallel episodes. Add: NaN-gradient counter in PPO, and a "100 consecutive episode" rolling check in `evaluate.py` |
 | TensorBoard with every run | 🔧 | server running on http://localhost:6006 over `sim/runs` |
-| Log metrics/progress to `/DOCS/<YYYYMMDD>/` | 🔧 | `DOCS/20261106/log.md` |
+| Log metrics/progress to `/docs/<YYYYMMDD>/` | 🔧 | `docs/20261106/log.md` |
 | HTML report for runs > 30 min, hourly updates, startup time estimate | ⏳ | `train.py` prints iteration count; add ETA line and an HTML report generator from `log.csv` |
 
 ## §5 Communication

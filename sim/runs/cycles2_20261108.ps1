@@ -7,6 +7,6 @@ uv run python -m streetball.train --level l2a_cycles --steps 1e9 --num-envs 4096
 Say "train rc $LASTEXITCODE; evaluating on the real gate level l2a_dribble_r"
 uv run python -m streetball.evaluate --level l2a_dribble_r --ckpt runs/l2a_cycles_c2/model.pt *> runs\l2a_cycles_c2_eval.txt
 Say "eval rc $LASTEXITCODE"
-Copy-Item ..\DOCS\phase_reports\eval_l2a_dribble_r.json runs\l2a_cycles_c2\eval.json
+Copy-Item ..\docs\phase_reports\eval_l2a_dribble_r.json runs\l2a_cycles_c2\eval.json
 uv run python tools/run_report.py runs/l2a_cycles_c2 *>> runs\l2a_cycles_c2_stdout.txt
 Say "report rc $LASTEXITCODE; all done"

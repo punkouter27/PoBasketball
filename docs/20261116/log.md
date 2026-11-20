@@ -36,7 +36,7 @@ Plan `grandma_20261116` in `sim/streetball/queue.py`, tag `n16`, 10 h budget (25
 
 `sim/runs/queue_n16_20261116.ps1` (hidden, WMI) -> `uv run python -m streetball.queue --hours 10 --plan grandma_20261116 --tag n16`.
 Started 10:33, deadline 20:33. TensorBoard on http://localhost:6006 (`sim/runs/tensorboard.ps1`). Hourly status goes to
-`DOCS/20261116/hourly_status.md`. Smoke check before launch: 2 min `l3b_scramble` from the rebuilt actor, 29k fps,
+`docs/20261116/hourly_status.md`. Smoke check before launch: 2 min `l3b_scramble` from the rebuilt actor, 29k fps,
 interface/physics SHA identical to production (`ccfa18d6f9aaf2a5`, `ac1c8d03c1e036df+1eba556a91fae556`); purged.
 
 ## Grandma skin
@@ -55,14 +55,14 @@ interface/physics SHA identical to production (`ccfa18d6f9aaf2a5`, `ac1c8d03c1e0
 - Unreal import + editor build are **deferred until the queue exits**: with training running the machine had 5.8 GB
   free RAM and only 2.9 GB commit headroom, so an editor commandlet or MSVC build risked killing the training
   process. `Scripts/post_queue_grandma.ps1` waits for the queue, imports, builds, checks the bind joints against
-  Manny (<= 1 cm), runs the Streetball automation tests, and writes `DOCS/<day>/post_queue_grandma.md`.
+  Manny (<= 1 cm), runs the Streetball automation tests, and writes `docs/<day>/post_queue_grandma.md`.
 
 ## 10:49 — run stopped early (user: "finish up all in 15 mins")
 
 - Queue and trainer killed at 10:49 after 16 min. Last checkpoint `sim/runs/l3b_scramble_n16q1/model.pt`
   (19.7 M steps, 0 NaN-gradient batches). Dribble stages never started.
 - 200-episode gate `l3b_scramble`: **0 % success, failed** (falls 2 %, mean episode 3.0 s). Result saved as
-  `eval_l3b_scramble_n16q1.{json,md}` in this folder; `DOCS/phase_reports/eval_l3b_scramble.*` keeps the Nov 11
+  `eval_l3b_scramble_n16q1.{json,md}` in this folder; `docs/phase_reports/eval_l3b_scramble.*` keeps the Nov 11
   record. No ONNX exported; production weights unchanged.
 - Post-queue runner fixes: arguments now go through `-EditorArgs` (after `--` PowerShell bound `-run=pythonscript`
   to `-Editor`, so Unreal never started), and the editor build now runs before the import (a fresh clone has no
@@ -106,5 +106,5 @@ Tiers 3-5 still need the full queue: `uv run python -m streetball.queue --hours 
 
 `sim/runs/queue_n16b_20261116.ps1` (hidden, WMI) -> `uv run python -m streetball.queue --hours 10 --plan grandma_20261116 --tag n16b`.
 New tag `n16b` so the morning `n16q1`/`n16q2` runs are kept. Deadline about 06:38 (Nov 17). Output
-`sim/runs/queue_n16b_20261116.txt`; hourly status `DOCS/20261116/hourly_status.md`. First iterations: about 48k fps,
+`sim/runs/queue_n16b_20261116.txt`; hourly status `docs/20261116/hourly_status.md`. First iterations: about 48k fps,
 0 NaN, same interface/physics SHA. No UE editor or C++ build while it runs.

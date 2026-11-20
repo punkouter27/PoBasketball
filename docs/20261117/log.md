@@ -101,4 +101,4 @@ Scope approved by user (`1. do whatever is pure rl training 2. skip (#14) 3. yes
   - Affected frozen files: `sim/tools/build_humanoid.py`, `sim/assets/humanoid.xml`, `shared/humanoid_spec.json`, `sim/streetball/obs.py`, `shared/obs_spec.json`, `shared/golden/obs_golden.*`, `unreal/StreetballGym/Source/StreetballGym/ObsBuilder.h`.
   - Affected state-machine rows: none (`shared/transition_table.json` unchanged).
   - Affected policies: **ALL** (`balance`, `locomotion`, `dribble`, `scramble`, `shot`) due to `27 -> 29` DoFs (`toe_l`, `toe_r` hinges, `N_OBS: 119 -> 125`) and pure-RL reward upgrades (`#6`: upright torso/head posture, heel-toe push-off, action-jerk smoothness, wrist follow-through—strictly pure PPO via `train.py`, no mocap/AMP).
-  - Required verification after Phase 2 edits: bump hashes in `DOCS/phase_reports/PhaseA_summary.md`, re-run A5/A6/A8, `Streetball.ObsGolden`, `Streetball.Gate.*`, and retrain/export policies.
+  - Required verification after Phase 2 edits: bump hashes in `docs/phase_reports/PhaseA_summary.md`, re-run A5/A6/A8, `Streetball.ObsGolden`, `Streetball.Gate.*`, and retrain/export policies.

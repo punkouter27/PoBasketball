@@ -13,7 +13,7 @@ Tags: `interface_sha ccfa18d6f9aaf2a5`, `physics_sha 01a3f59b037ef5e7+1eba556a91
 | Mean episode length | 59.2 s | 60 s max |
 | NaN-gradient batches | 0 | 0 |
 
-## Step 4 verification gate (Unreal 5.8.4, libmujoco 4.0.0, NNE ORT-CPU) — `DOCS/phase_reports/Step4_gate_unreal.md`
+## Step 4 verification gate (Unreal 5.8.4, libmujoco 4.0.0, NNE ORT-CPU) — `docs/phase_reports/Step4_gate_unreal.md`
 
 | Check | Result | Gate |
 |---|---|---|

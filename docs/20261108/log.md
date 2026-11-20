@@ -13,14 +13,14 @@ Policies touched (UU_AGENT §3):
 | Physics, obs interface, rewards, Unreal | — | none (interface `ccfa18d6f9aaf2a5`, physics `ac1c8d03c1e036df`) |
 
 Tooling: `queue.py` gains `--tag` (run names `<level>_r2q<N>`, never overwrite last night's `_q<N>`), `--init-actor-only`,
-and an hourly status grid in `DOCS/20261108/hourly_status.md`. First-pass budgets: L2a 150 min (hand-off asked for ≥150 M steps),
+and an hourly status grid in `docs/20261108/hourly_status.md`. First-pass budgets: L2a 150 min (hand-off asked for ≥150 M steps),
 L2b 40, L2c 60, L3a 80, L3b 50, L4 60; leftover time retries the earliest failed stage. Gate unchanged (target held 100 straight
 episodes, 0 NaN grads) → export ONNX to `shared/policies/` + `runs/production/` + Unreal.
 
 GPU note: an unrelated app (`Maestro\launch.py`, ~5 GB VRAM, ~40 % util) was already running; throughput will be below last night's.
 
 Command (from `sim/`): `uv run python -m streetball.queue --hours 8 --start-from l2a_dribble_r --init runs/production/locomotion.pt --init-actor-only --tag r2`
-Watch: `DOCS/20261108/hourly_status.md`, `sim/runs/queue/<stamp>/queue_log.md`, TensorBoard `--logdir sim/runs` (port 6006).
+Watch: `docs/20261108/hourly_status.md`, `sim/runs/queue/<stamp>/queue_log.md`, TensorBoard `--logdir sim/runs` (port 6006).
 
 ## 02:48 — r2 stopped at 40 min: L2a was learning to ignore the ball
 
@@ -72,8 +72,8 @@ after the ball's first bounce. Rhythm/timing credit assignment, not reach, is th
 3.3 h did not move it; the next step is a method choice for the user (see proposal in the final report).
 
 Rest of the window (runner `sim/runs/night_20261108_part2.ps1`, log `night_20261108_part2.txt`):
-1. AMP locomotion resume `l1_amp_v3` (40 min from `l1_amp_v2`, 34 M steps) → `l1_traverse` evaluation → `DOCS/20261108/amp_vs_baseline.html`.
-   The baseline's `DOCS/phase_reports/eval_l1_traverse.*` is backed up and restored around the AMP evaluation.
+1. AMP locomotion resume `l1_amp_v3` (40 min from `l1_amp_v2`, 34 M steps) → `l1_traverse` evaluation → `docs/20261108/amp_vs_baseline.html`.
+   The baseline's `docs/phase_reports/eval_l1_traverse.*` is backed up and restored around the AMP evaluation.
 2. Queue r5 until 10:00: L2a continued from `l2a_dribble_r_r4q1/model.pt` (assist curriculum restarts at 75 %), then the ladder.
 
 ## 06:05 — AMP locomotion `l1_amp_v3` finished (~95 min total, same budget as the baseline) and PASSES the gate
@@ -87,10 +87,10 @@ Rest of the window (runner `sim/runs/night_20261108_part2.ps1`, log `night_20261
 | Arm-swing symmetry (L/R) | 38 % | **52 %** |
 | Arm-carry deviation (lower = more relaxed) | **0.068** | 0.113 |
 | Fresh mocap classifier "human" score | 0.0006 | 0.0005 (both fully separable from mocap) |
-NaN grads 0. Comparison page: `DOCS/20261108/amp_vs_baseline.html`. Verdict: task-equal, mixed on style.
+NaN grads 0. Comparison page: `docs/20261108/amp_vs_baseline.html`. Verdict: task-equal, mixed on style.
 Exported as a graduated **candidate**, not production: `shared/policies/locomotion_amp.{onnx,json}`, `runs/production/candidates/locomotion_amp.*`,
 Unreal `Content/Sim/policies/locomotion_amp.onnx` (ORT vs torch 1.6e-6). Production `locomotion.onnx` unchanged — user decision.
-Baseline `DOCS/phase_reports/eval_l1_traverse.*` restored after the AMP evaluation (checked).
+Baseline `docs/phase_reports/eval_l1_traverse.*` restored after the AMP evaluation (checked).
 
 ## 09:40 — Night window closed: queue r5 results (dribble continuation)
 Policies touched: dribble (training only; nothing exported). Locomotion/balance production unchanged.
@@ -103,7 +103,7 @@ Policies touched: dribble (training only; nothing exported). Locomotion/balance 
 
 L3a/L3b/L4 skipped (24 min left < reserve). No NaN gradients. Reward rose (168 → 371) while touch stayed ~0.2 %:
 same "stand still, let the ball die" optimum as r2–r4. More time on this reward will not fix it.
-Final report: `DOCS/20261108/night_training_report.html` (tools/night_report.py). Open: dribble teaching method
+Final report: `docs/20261108/night_training_report.html` (tools/night_report.py). Open: dribble teaching method
 (scripted hand–ball reference recommended) and whether to promote `locomotion_amp` — both await the user.
 
 ## 11:49 — Dribble approach #5 (user said "go"): scripted hand–ball teacher, feasibility findings
@@ -162,7 +162,7 @@ runs/cycles2_20261108.ps1), then eval on l2a_dribble_r + run report. (Headings a
 - Real gate `l2a_dribble_r` (200 episodes): **0 % success, not passed**. Falls 0.5 %, no NaN gradients. Mean episode 1.56 s; r5q1 lasted 3.78 s.
   - Mean bounces per episode 1.05: the first push works, then the ball is lost before the second.
   - Compared with r5q1: apex 0.47 -> 0.65 m, in-control 0.23 -> 0.42.
-- No ONNX export: the gate failed. `DOCS/phase_reports/eval_l2a_dribble_r.*` now holds this c2 evaluation. HTML report: `DOCS/20261108/report_l2a_cycles_c2.html`.
+- No ONNX export: the gate failed. `docs/phase_reports/eval_l2a_dribble_r.*` now holds this c2 evaluation. HTML report: `docs/20261108/report_l2a_cycles_c2.html`.
 - Open issue: chaining the second push. The two-bounce curve was still rising when the time budget ran out.
 
 ## 14:42 — l2a_cycles_c3 started (user approved)
@@ -173,7 +173,7 @@ runs/cycles2_20261108.ps1), then eval on l2a_dribble_r + run report. (Headings a
 
 ## 16:00 — l2a_cycles_c3 stopped early (user request), result, Unreal preview
 - Stopped at 54 M steps (about 76 of 120 min) because two-bounce success had been flat at about 15 % for 45 min. `model.pt` was saved at 15:58:13, 35 s before the stop, and it loads cleanly (no NaN gradients).
-- Real gate `l2a_dribble_r` (200 episodes): **0 % success, not passed**. Falls 2 %, mean episode 1.29 s, 0.89 bounces, apex 0.70 m, ball in control 0.60. No improvement over c2. HTML report: `DOCS/20261108/report_l2a_cycles_c3.html`.
+- Real gate `l2a_dribble_r` (200 episodes): **0 % success, not passed**. Falls 2 %, mean episode 1.29 s, 0.89 bounces, apex 0.70 m, ball in control 0.60. No improvement over c2. HTML report: `docs/20261108/report_l2a_cycles_c3.html`.
 - Unreal preview (user asked to play it): exported a **preview-only** ONNX (not production, nothing in `shared/policies`) to `unreal/StreetballGym/Content/Sim/policies/dribble_c3_preview.onnx`. The onnxruntime-vs-torch check passed.
   - Launched with `-StreetballStartTier=3 -StreetballMaxTier=3 -StreetballPolicy_dribble=policies/dribble_c3_preview.onnx`.
   - In Unreal the character **falls about 1.2 s after every reset** (HARD_RESET "fallen", 13 in the first 15 s), against 2 % falls in the sim.
@@ -205,7 +205,7 @@ Planned changes logged before any edit (UU_AGENT §3 audit trail):
   4. `ApplyReset` allocates and logs inside the step.
   5. Bones are not strictly 1:1: spine slerp, head undriven, display interpolation.
 
-  Minor gaps: coordinate bridge duplicated in `BroadcastCamera.cpp:10` and `CourtAudio.cpp:49`; TensorBoard events are not mirrored to `DOCS/<date>`. Meets: allocate-at-startup, build stamp, action-rate penalty, self-collision.
+  Minor gaps: coordinate bridge duplicated in `BroadcastCamera.cpp:10` and `CourtAudio.cpp:49`; TensorBoard events are not mirrored to `docs/<date>`. Meets: allocate-at-startup, build stamp, action-rate penalty, self-collision.
 
 ## Evening, continued: item 1 done, AMP regression verified, allocation fixes (user answers: hand switch, report-first gate, zero-alloc now, user fixes Smart App Control)
 - **Tier-3/4 reset parity (Unreal).** New `UStreetballDirector::PrepareReset` mirrors `l2_dribble.on_reset` / `L3MovingDribble.on_reset`:
@@ -253,11 +253,11 @@ Plan `urgent_20261108` (run tag `n9`, priority order):
 4. `l3b_scramble`, rest of the budget, resume
 
 Shot is not scheduled (it needs a working dribble). Passing stages export production ONNX and sync to Unreal; others are saved as candidates. Reserve 25 min for evaluation and the report.
-Watch: `sim/runs/queue/<stamp>/queue_log.md`, `DOCS/20261108/hourly_status.md`, TensorBoard http://localhost:6006. Launcher: `sim/runs/night_20261108.ps1`.
+Watch: `sim/runs/queue/<stamp>/queue_log.md`, `docs/20261108/hourly_status.md`, TensorBoard http://localhost:6006. Launcher: `sim/runs/night_20261108.ps1`.
 
 ## 2026-11-09 05:42 — Extended training (8 h queue urgent_20261108) finished
 
-Queue: sim/runs/queue/20261108_2206 (22:06 → 05:41, plan finished 25 min early). Report: DOCS/20261108/extended_training_report_night.html.
+Queue: sim/runs/queue/20261108_2206 (22:06 → 05:41, plan finished 25 min early). Report: docs/20261108/extended_training_report_night.html.
 
 | Stage | Run | Gate level | Time | Success | Falls | NaN grads | Gate |
 |---|---|---|---|---|---|---|---|

@@ -104,10 +104,10 @@ Posture curriculum (step 3), tools only (defaults unchanged):
   `train.py --posture-ramp-steps` ramps it after the critic warm-up and logs `posture_alpha`.
 - `tools/posture_overnight.py`: trains from the production balance brain, evaluates every 25 M checkpoint into the run
   folder (production eval reports kept intact), picks the straightest-torso checkpoint that still passes, writes
-  `DOCS/<date>/posture_overnight.md`. It never exports; promotion is a reviewed `run_gate.py` run.
+  `docs/<date>/posture_overnight.md`. It never exports; promotion is a reviewed `run_gate.py` run.
 - 21:28 user: train for 10 hours. Stopped `l0_v2w_posture` after 16 M steps (kept; training jitter 1.45 -> 3.2 cm by
   alpha 0.05, same early pattern as ft3) and relaunched as `l0_v2w_posture10h`: 600 min, ramp 400 M steps, otherwise
-  identical. Expected: training ends ~07:34, ~27 checkpoint evals (~45 min) -> done ~08:20; report `DOCS/20261119/posture_overnight.md`.
+  identical. Expected: training ends ~07:34, ~27 checkpoint evals (~45 min) -> done ~08:20; report `docs/20261119/posture_overnight.md`.
 - 22:30 `l0_v2w_posture10h` stopped at 59 M steps (kept): deterministic eval `ckpt_25M` 46.0 % (falls 19.5 %),
   `ckpt_50M` 0.0 % (quiet speed 18.8 cm/s, torso 0.826) while posture alpha was only 0.02-0.11. The curriculum is not
   the cause: fine-tuning itself destroys the imported balance. User approved a 3-way ablation at alpha = 0
@@ -121,7 +121,7 @@ Posture curriculum (step 3), tools only (defaults unchanged):
   ablation's `model.pt`, takes the best one's flags if it holds >= 95 % (else fallback `--init-std 0.02 --toe-std 0.01
   --no-v2-penalties`), then runs `posture_overnight.py` as `l0_v2w_posture_0900` (ramp 300 M) with training ending
   08:10 and checkpoint evals after. `posture_overnight.py` gained `--extra` (train args appended last).
-  Log: `sim/runs/chain_until_0900.log`; report `DOCS/20261119/posture_overnight.md`.
+  Log: `sim/runs/chain_until_0900.log`; report `docs/20261119/posture_overnight.md`.
 
 ## Overnight result (l0_v2w_posture_0900, finished 08:47 on 2026-11-19)
 
@@ -129,4 +129,4 @@ Posture curriculum (step 3), tools only (defaults unchanged):
 - 515 min, 590.6 M steps, 0 NaN. No checkpoint passed the L0 gate (best success 88.5 % at ckpt_75M, torso 0.819).
 - The posture objective was learned: torso_upright rose from 0.875 to 0.98 (ckpt_375M 0.978 at 81.5 %; best.pt 0.981 at 78 %). Jitter fell to about 0.75 cm against the gate. Success stayed at 50-80 %.
 - Conclusion: PPO fine-tuning of the imported actor buys posture at the cost of balance. The KL stayed at about 0.018 with lr pinned at its 1e-5 floor and std 0.019, so update size is the open suspect.
-- Nothing exported; production balance.onnx is unchanged. Full table: DOCS/20261119/posture_overnight.md.
+- Nothing exported; production balance.onnx is unchanged. Full table: docs/20261119/posture_overnight.md.

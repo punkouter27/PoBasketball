@@ -9,7 +9,7 @@
   File "C:\Users\punko\Downloads\_CODEMATT\PoBasketball\unreal\StreetballGym\Scripts\compare_bones.py", line 21, in <module>
     cand = {b["name"]: b["component_space"]["pos_cm"] for b in json.load(open(a.candidate, encoding="utf-8"))["bones"]}
                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\punko\\Downloads\\_CODEMATT\\PoBasketball\\DOCS\\20261116\\grandma_bones_ue.json'
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\punko\\Downloads\\_CODEMATT\\PoBasketball\\docs\\20261116\\grandma_bones_ue.json'
 ```
 
 - [11:17:08] bind-joint check vs Manny: rc=1
