@@ -15,6 +15,7 @@ Also refreshes Content/Sim/{obs_spec,humanoid_spec,transition_table}.json.
 
 Usage: uv run python tools/sync_policies_to_unreal.py
 """
+
 import hashlib
 import json
 import pathlib

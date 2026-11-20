@@ -1,11 +1,12 @@
 """Night report for 2026-11-08 (UU_AGENT section 4): one self-contained HTML page that explains, in plain
 language and with charts, what each policy family learned during the 8-hour unattended window.
 
-    uv run python tools/night_report.py --out ../DOCS/20261108/night_training_report.html
+    uv run python tools/night_report.py --out ../docs/20261108/night_training_report.html
 
 Inputs (all optional; missing runs are skipped): runs/<run>/log.csv, runs/<run>/eval.json, done.json,
 runs/queue/20261108_*/queue_state.json. Charts are inline SVG with a hover crosshair/tooltip and a table view.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,12 +22,17 @@ RUNS = ROOT / "runs"
 
 # Each "attempt" is a lineage of runs; later runs continue the earlier one (steps are offset to line up).
 DRIBBLE = [
-    ("r2: original reward", ["l2a_dribble_r_r2q1"],
-     "Reward as of last night, started from the walking policy."),
-    ("r3: + reach & touch reward", ["l2a_reachcheck", "l2a_dribble_r_r3q1"],
-     "Adds a reward for bringing the palm to the ball and a bonus for each touch."),
-    ("r4/r5: + ball-in-hand starts", ["l2a_dribble_r_r4q1", "l2a_dribble_r_r5q1", "l2a_dribble_r_r5q2", "l2a_dribble_r_r5q3"],
-     "Many training episodes start with the ball rising into the palm, so touches actually happen."),
+    ("r2: original reward", ["l2a_dribble_r_r2q1"], "Reward as of last night, started from the walking policy."),
+    (
+        "r3: + reach & touch reward",
+        ["l2a_reachcheck", "l2a_dribble_r_r3q1"],
+        "Adds a reward for bringing the palm to the ball and a bonus for each touch.",
+    ),
+    (
+        "r4/r5: + ball-in-hand starts",
+        ["l2a_dribble_r_r4q1", "l2a_dribble_r_r5q1", "l2a_dribble_r_r5q2", "l2a_dribble_r_r5q3"],
+        "Many training episodes start with the ball rising into the palm, so touches actually happen.",
+    ),
 ]
 AMP = [
     ("Hand-tuned: hand-written posture reward (production)", ["l1_v3_armcarry"], ""),
@@ -54,7 +60,9 @@ def lineage(runs: list[str]) -> list[dict]:
             skip = int(rows[-1].get("ep_len_s", 3.0) / 0.02 / 24) + 10
             rs_plot = rs[skip:]
         for x in rs_plot:
-            x = dict(x); x["steps"] = x["steps"] + off; rows.append(x)
+            x = dict(x)
+            x["steps"] = x["steps"] + off
+            rows.append(x)
         if rs:
             off += rs[-1]["steps"]
     return rows
@@ -65,7 +73,7 @@ def smooth(xs: list[float], ys: list[float], n: int = 160, win: int = 9):
         return [], []
     sm = []
     for i in range(len(ys)):
-        a = ys[max(0, i - win + 1): i + 1]
+        a = ys[max(0, i - win + 1) : i + 1]
         sm.append(sum(a) / len(a))
     step = max(1, len(xs) // n)
     idx = list(range(0, len(xs), step))
@@ -95,8 +103,16 @@ def fmt(v: float, unit: str = "") -> str:
 CHART_ID = [0]
 
 
-def line_chart(title: str, sub: str, series: list[tuple[str, str, list[dict]]], key: str, unit: str = "",
-               target: tuple[float, str] | None = None, scale: float = 1.0, y_max: float | None = None) -> str:
+def line_chart(
+    title: str,
+    sub: str,
+    series: list[tuple[str, str, list[dict]]],
+    key: str,
+    unit: str = "",
+    target: tuple[float, str] | None = None,
+    scale: float = 1.0,
+    y_max: float | None = None,
+) -> str:
     """series: (label, css var, rows). One y-axis, x = million steps."""
     CHART_ID[0] += 1
     cid = f"c{CHART_ID[0]}"
@@ -118,35 +134,61 @@ def line_chart(title: str, sub: str, series: list[tuple[str, str, list[dict]]], 
     g = []
     for i in range(5):
         yv = ymin + (ymax - ymin) * i / 4
-        g.append(f'<line x1="{L}" x2="{W - R}" y1="{Y(yv):.1f}" y2="{Y(yv):.1f}" class="grid"/>'
-                 f'<text x="{L - 6}" y="{Y(yv) + 4:.1f}" class="tick" text-anchor="end">{fmt(yv, "%" if unit == "%" else "")}</text>')
+        g.append(
+            f'<line x1="{L}" x2="{W - R}" y1="{Y(yv):.1f}" y2="{Y(yv):.1f}" class="grid"/>'
+            f'<text x="{L - 6}" y="{Y(yv) + 4:.1f}" class="tick" text-anchor="end">{fmt(yv, "%" if unit == "%" else "")}</text>'
+        )
     for i in range(5):
         xv = xmax * i / 4
         g.append(f'<text x="{X(xv):.1f}" y="{H - 10}" class="tick" text-anchor="middle">{xv:.0f}M</text>')
     g.append(f'<line x1="{L}" x2="{W - R}" y1="{Y(ymin):.1f}" y2="{Y(ymin):.1f}" class="axis"/>')
     if target:
-        g.append(f'<line x1="{L}" x2="{W - R}" y1="{Y(target[0]):.1f}" y2="{Y(target[0]):.1f}" class="target"/>'
-                 f'<text x="{L + 4}" y="{Y(target[0]) - 5:.1f}" class="tick">{html.escape(target[1])}</text>')
+        g.append(
+            f'<line x1="{L}" x2="{W - R}" y1="{Y(target[0]):.1f}" y2="{Y(target[0]):.1f}" class="target"/>'
+            f'<text x="{L + 4}" y="{Y(target[0]) - 5:.1f}" class="tick">{html.escape(target[1])}</text>'
+        )
     labels = []
     for label, var, xs, ys in data:
         d = " ".join(f"{'M' if i == 0 else 'L'}{X(x):.1f},{Y(y):.1f}" for i, (x, y) in enumerate(zip(xs, ys)))
-        g.append(f'<path d="{d}" fill="none" stroke="var({var})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>')
+        g.append(
+            f'<path d="{d}" fill="none" stroke="var({var})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+        )
         labels.append([Y(ys[-1]), label, var, X(xs[-1]), ys[-1]])
     labels.sort()
-    for i in range(1, len(labels)):                      # de-collide end labels
+    for i in range(1, len(labels)):  # de-collide end labels
         labels[i][0] = max(labels[i][0], labels[i - 1][0] + 13)
     over = labels[-1][0] - (H - B) if labels else 0
-    if over > 0:                                        # keep labels inside the plot: shift the stack up
+    if over > 0:  # keep labels inside the plot: shift the stack up
         for lab in labels:
             lab[0] -= over
     for y, label, var, x, v in labels:
         short = label.split(":")[0]
-        g.append(f'<circle cx="{x:.1f}" cy="{Y(v):.1f}" r="4" fill="var({var})" stroke="var(--surface)" stroke-width="2"/>'
-                 f'<text x="{W - R + 6}" y="{y + 4:.1f}" class="dlabel">{html.escape(short)} {fmt(v, unit)}</text>')
-    payload = json.dumps({"xmax": xmax, "L": L, "R": R, "W": W, "unit": unit,
-                          "series": [{"label": d[0], "var": d[1], "x": [round(v, 2) for v in d[2]], "y": [round(v, 5) for v in d[3]]} for d in data]})
-    legend = "".join(f'<span class="lg"><i style="background:var({d[1]})"></i>{html.escape(d[0])}</span>' for d in data) if len(data) > 1 else ""
-    rows = "".join(f"<tr><td>{html.escape(d[0])}</td><td>{d[2][-1]:.0f}M</td><td>{fmt(d[3][0], unit)}</td><td>{fmt(max(d[3]), unit)}</td><td>{fmt(d[3][-1], unit)}</td></tr>" for d in data)
+        g.append(
+            f'<circle cx="{x:.1f}" cy="{Y(v):.1f}" r="4" fill="var({var})" stroke="var(--surface)" stroke-width="2"/>'
+            f'<text x="{W - R + 6}" y="{y + 4:.1f}" class="dlabel">{html.escape(short)} {fmt(v, unit)}</text>'
+        )
+    payload = json.dumps(
+        {
+            "xmax": xmax,
+            "L": L,
+            "R": R,
+            "W": W,
+            "unit": unit,
+            "series": [
+                {"label": d[0], "var": d[1], "x": [round(v, 2) for v in d[2]], "y": [round(v, 5) for v in d[3]]}
+                for d in data
+            ],
+        }
+    )
+    legend = (
+        "".join(f'<span class="lg"><i style="background:var({d[1]})"></i>{html.escape(d[0])}</span>' for d in data)
+        if len(data) > 1
+        else ""
+    )
+    rows = "".join(
+        f"<tr><td>{html.escape(d[0])}</td><td>{d[2][-1]:.0f}M</td><td>{fmt(d[3][0], unit)}</td><td>{fmt(max(d[3]), unit)}</td><td>{fmt(d[3][-1], unit)}</td></tr>"
+        for d in data
+    )
     return f'''<figure class="chart" id="{cid}">
 <figcaption><b>{html.escape(title)}</b><span>{html.escape(sub)}</span></figcaption>
 <div class="legend">{legend}</div>
@@ -167,20 +209,24 @@ def queue_states() -> list[dict]:
     for d in sorted((RUNS / "queue").glob("20261108_*")):
         p = d / "queue_state.json"
         if p.exists():
-            s = json.loads(p.read_text(encoding="utf-8")); s["dir"] = d.name; out.append(s)
+            s = json.loads(p.read_text(encoding="utf-8"))
+            s["dir"] = d.name
+            out.append(s)
     return out
 
 
 def tile(name: str, status: str, kind: str, detail: str) -> str:
     icon = {"good": "✓", "warn": "!", "bad": "✕", "idle": "–"}[kind]
-    return (f'<div class="tile"><div class="tname">{html.escape(name)}</div>'
-            f'<div class="tstat {kind}"><span class="ic">{icon}</span>{html.escape(status)}</div>'
-            f'<div class="tdet">{detail}</div></div>')
+    return (
+        f'<div class="tile"><div class="tname">{html.escape(name)}</div>'
+        f'<div class="tstat {kind}"><span class="ic">{icon}</span>{html.escape(status)}</div>'
+        f'<div class="tdet">{detail}</div></div>'
+    )
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=str(ROOT.parent / "DOCS" / "20261108" / "night_training_report.html"))
+    ap.add_argument("--out", default=str(ROOT.parent / "docs" / "20261108" / "night_training_report.html"))
     args = ap.parse_args()
 
     drib = [(lab, PALETTE[i], lineage(runs)) for i, (lab, runs, _) in enumerate(DRIBBLE)]
@@ -195,7 +241,17 @@ def main():
         for lv, st in qs["stages"].items():
             for a in st["attempts"]:
                 e = a.get("eval") or {}
-                gate_rows.append((qs["dir"], a["run"], lv, a.get("steps"), e.get("success_rate"), e.get("fall_rate"), a.get("passed")))
+                gate_rows.append(
+                    (
+                        qs["dir"],
+                        a["run"],
+                        lv,
+                        a.get("steps"),
+                        e.get("success_rate"),
+                        e.get("fall_rate"),
+                        a.get("passed"),
+                    )
+                )
                 if a.get("passed"):
                     passed_any.append((lv, a["run"]))
     amp_ev, base_ev = ev("l1_amp_v3"), ev("l1_v3_armcarry")
@@ -206,57 +262,134 @@ def main():
 
     tiles = [
         tile("Balance", "Graduated", "good", "100% of 200 test episodes (from 2026-11-07). Not retrained tonight."),
-        tile("Locomotion", "Graduated", "good", "97% of test episodes reach all 10 waypoints (2026-11-07). "
-             + (f"AMP challenger: {amp_ev.get('success_rate', 0) * 100:.0f}%." if amp_ev else "AMP challenger trained tonight.")),
-        tile("Dribble", "Graduated" if dribble_passed else "Not learned yet", "good" if dribble_passed else "bad",
-             f"Latest: ball kept in control {last.get('m/in_control', 0) * 100:.0f}% of the time (target 80%); "
-             f"palm touches the ball in {best_touch * 100:.1f}% of moments at best."),
+        tile(
+            "Locomotion",
+            "Graduated",
+            "good",
+            "97% of test episodes reach all 10 waypoints (2026-11-07). "
+            + (
+                f"AMP challenger: {amp_ev.get('success_rate', 0) * 100:.0f}%."
+                if amp_ev
+                else "AMP challenger trained tonight."
+            ),
+        ),
+        tile(
+            "Dribble",
+            "Graduated" if dribble_passed else "Not learned yet",
+            "good" if dribble_passed else "bad",
+            f"Latest: ball kept in control {last.get('m/in_control', 0) * 100:.0f}% of the time (target 80%); "
+            f"palm touches the ball in {best_touch * 100:.1f}% of moments at best.",
+        ),
         tile("Scramble", "Waiting on dribble", "idle", "Needs the hand-to-ball touch that dribble has not found."),
         tile("Shot", "Waiting on dribble", "idle", "Needs the athlete to hold the ball up to the shot trigger."),
     ]
 
-    sec_drib = "".join([
-        line_chart("Palm touches the ball", "Share of moments the dribbling palm is in contact. A real dribble needs a touch every bounce (~5%+).",
-                   drib, "m/palm_touch", "%"),
-        line_chart("Ball under control", "Share of time the ball counts as controlled. Target above 80%.", drib, "m/in_control", "%",
-                   target=(0.8, "target 80%"), y_max=1.0),
-        line_chart("Bounce height (apex)", "How high the ball comes back up. Target 0.8–1.15 m (waist high).", drib, "m/apex", "m",
-                   target=(0.8, "target ≥ 0.8 m")),
-        line_chart("Episode length", "Seconds before the ball is lost. 30 s = a full dribble session.", drib, "ep_len_s", "s"),
-        line_chart("Reward per episode", "Total reward the policy collects. Rising reward with flat touches = it found easier points.",
-                   drib, "ep_return"),
-        line_chart("Value loss (critic error)", "How wrong the critic's predictions are. Spikes mean the task changed under it.",
-                   drib, "loss/value"),
-        line_chart("Exploration (action noise)", "Policy's random exploration. When it shrinks the policy stops trying new things.",
-                   drib, "ppo/std"),
-    ])
-    sec_amp = "".join([
-        line_chart("Reward per episode", "Higher = more of the course covered per episode.", amp, "ep_return"),
-        line_chart("Walking speed", "Average speed (target range 1.2–3.0 m/s).", amp, "m/speed", "m/s"),
-        line_chart("Arm carry (lower is more natural)", "How far the arms sit from a relaxed carry. AMP gets no hand-written arm penalty.",
-                   amp, "m/arm_carry"),
-        line_chart("Waypoints reached", "Average waypoints per episode (out of 10).", amp, "m/waypoints"),
-    ])
+    sec_drib = "".join(
+        [
+            line_chart(
+                "Palm touches the ball",
+                "Share of moments the dribbling palm is in contact. A real dribble needs a touch every bounce (~5%+).",
+                drib,
+                "m/palm_touch",
+                "%",
+            ),
+            line_chart(
+                "Ball under control",
+                "Share of time the ball counts as controlled. Target above 80%.",
+                drib,
+                "m/in_control",
+                "%",
+                target=(0.8, "target 80%"),
+                y_max=1.0,
+            ),
+            line_chart(
+                "Bounce height (apex)",
+                "How high the ball comes back up. Target 0.8–1.15 m (waist high).",
+                drib,
+                "m/apex",
+                "m",
+                target=(0.8, "target ≥ 0.8 m"),
+            ),
+            line_chart(
+                "Episode length",
+                "Seconds before the ball is lost. 30 s = a full dribble session.",
+                drib,
+                "ep_len_s",
+                "s",
+            ),
+            line_chart(
+                "Reward per episode",
+                "Total reward the policy collects. Rising reward with flat touches = it found easier points.",
+                drib,
+                "ep_return",
+            ),
+            line_chart(
+                "Value loss (critic error)",
+                "How wrong the critic's predictions are. Spikes mean the task changed under it.",
+                drib,
+                "loss/value",
+            ),
+            line_chart(
+                "Exploration (action noise)",
+                "Policy's random exploration. When it shrinks the policy stops trying new things.",
+                drib,
+                "ppo/std",
+            ),
+        ]
+    )
+    sec_amp = "".join(
+        [
+            line_chart("Reward per episode", "Higher = more of the course covered per episode.", amp, "ep_return"),
+            line_chart("Walking speed", "Average speed (target range 1.2–3.0 m/s).", amp, "m/speed", "m/s"),
+            line_chart(
+                "Arm carry (lower is more natural)",
+                "How far the arms sit from a relaxed carry. AMP gets no hand-written arm penalty.",
+                amp,
+                "m/arm_carry",
+            ),
+            line_chart("Waypoints reached", "Average waypoints per episode (out of 10).", amp, "m/waypoints"),
+        ]
+    )
 
     def pct(v):
         return "—" if v is None else f"{v * 100:.1f}%"
-    gate_html = "".join(f"<tr><td>{q}</td><td>{r}</td><td>{lv}</td><td>{(s or 0) / 1e6:.0f}M</td><td>{pct(sr)}</td><td>{pct(fr)}</td>"
-                        f"<td>{'<b class=good>✓ pass</b>' if p else '✕ no'}</td></tr>" for q, r, lv, s, sr, fr, p in gate_rows)
+
+    gate_html = "".join(
+        f"<tr><td>{q}</td><td>{r}</td><td>{lv}</td><td>{(s or 0) / 1e6:.0f}M</td><td>{pct(sr)}</td><td>{pct(fr)}</td>"
+        f"<td>{'<b class=good>✓ pass</b>' if p else '✕ no'}</td></tr>"
+        for q, r, lv, s, sr, fr, p in gate_rows
+    )
     amp_tbl = ""
     if amp_ev or base_ev:
-        def row(name, e):
-            return (f"<tr><td>{name}</td><td>{pct(e.get('success_rate'))}</td><td>{pct(e.get('fall_rate'))}</td>"
-                    f"<td>{'yes' if e.get('holds_100_straight') else 'no'}</td><td>{e.get('mean_episode_s', 0):.0f} s</td></tr>")
-        amp_tbl = ("<table><tr><th>Locomotion policy</th><th>Success (200 ep)</th><th>Falls</th><th>Holds 100 straight</th><th>Mean episode</th></tr>"
-                   + row("Hand-tuned (production)", base_ev) + (row("AMP", amp_ev) if amp_ev else "") + "</table>")
 
-    attempts = "".join(f'<li><span class="sw" style="background:var({PALETTE[i]})"></span><b>{html.escape(lab)}</b> — {html.escape(desc)}</li>'
-                       for i, (lab, _, desc) in enumerate(DRIBBLE))
+        def row(name, e):
+            return (
+                f"<tr><td>{name}</td><td>{pct(e.get('success_rate'))}</td><td>{pct(e.get('fall_rate'))}</td>"
+                f"<td>{'yes' if e.get('holds_100_straight') else 'no'}</td><td>{e.get('mean_episode_s', 0):.0f} s</td></tr>"
+            )
+
+        amp_tbl = (
+            "<table><tr><th>Locomotion policy</th><th>Success (200 ep)</th><th>Falls</th><th>Holds 100 straight</th><th>Mean episode</th></tr>"
+            + row("Hand-tuned (production)", base_ev)
+            + (row("AMP", amp_ev) if amp_ev else "")
+            + "</table>"
+        )
+
+    attempts = "".join(
+        f'<li><span class="sw" style="background:var({PALETTE[i]})"></span><b>{html.escape(lab)}</b> — {html.escape(desc)}</li>'
+        for i, (lab, _, desc) in enumerate(DRIBBLE)
+    )
 
     page = TEMPLATE.format(
-        generated=time.strftime("%Y-%m-%d %H:%M"), tiles="".join(tiles), sec_drib=sec_drib, sec_amp=sec_amp,
-        gate=gate_html or "<tr><td colspan=7>No evaluations recorded.</td></tr>", amp_tbl=amp_tbl, attempts=attempts,
-        steps=f"{total_steps / 1e6:.0f} M")
+        generated=time.strftime("%Y-%m-%d %H:%M"),
+        tiles="".join(tiles),
+        sec_drib=sec_drib,
+        sec_amp=sec_amp,
+        gate=gate_html or "<tr><td colspan=7>No evaluations recorded.</td></tr>",
+        amp_tbl=amp_tbl,
+        attempts=attempts,
+        steps=f"{total_steps / 1e6:.0f} M",
+    )
     out = pathlib.Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding="utf-8")
@@ -331,7 +464,7 @@ imitation target for the right arm only; the legs keep the walking policy's bala
 data set).</li>
 <li><b>Phase signal in the task inputs</b>: tell the policy when the next touch is due (appended input, zero-initialised, per the frozen-interface rule).</li></ol>
 Scramble and shot stay parked until dribble passes.</div>
-<p class="meta">Data: sim/runs/&lt;run&gt;/log.csv, eval.json; queue state in sim/runs/queue/20261108_*; log DOCS/20261108/log.md. Charts smoothed (9-iteration mean); the first episode-length of each resumed run is hidden (averages refill after a resume).</p>
+<p class="meta">Data: sim/runs/&lt;run&gt;/log.csv, eval.json; queue state in sim/runs/queue/20261108_*; log docs/20261108/log.md. Charts smoothed (9-iteration mean); the first episode-length of each resumed run is hidden (averages refill after a resume).</p>
 </main><div class="stamp">Build 261108</div>
 <script>
 document.querySelectorAll('figure.chart').forEach(fig=>{{

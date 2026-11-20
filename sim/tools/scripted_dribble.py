@@ -8,35 +8,62 @@ the arm joints. Legs/torso come from the production balance policy. Purpose:
 
     uv run python tools/scripted_dribble.py [--seconds 20] [--render out.mp4|frames_dir] [--hand 1]
 """
+
 from __future__ import annotations
 
 import argparse
 import pathlib
+import sys
 
 import mujoco
 import numpy as np
 import torch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-import sys
 sys.path.insert(0, str(ROOT))
-from streetball import obs as obs_spec          # noqa: E402
-from streetball.ppo import Actor                # noqa: E402
+from streetball import obs as obs_spec  # noqa: E402
+from streetball.ppo import Actor  # noqa: E402
 
-ARM = {1: list(range(6, 12)) + [24], -1: list(range(0, 6)) + [24]}   # active arm + lumbar_flex (lean to reach)
-HAND_OFFSET = [0.45, 0.30]                             # dribble spot: forward, lateral (clear of the foot; --spot)
+ARM = {1: list(range(6, 12)) + [24], -1: list(range(0, 6)) + [24]}  # active arm + lumbar_flex (lean to reach)
+HAND_OFFSET = [0.45, 0.30]  # dribble spot: forward, lateral (clear of the foot; --spot)
 
 
 class ArmTeacher:
     """Palm target from ball state -> arm joint targets (IK). Parameters are tuned by --sweep."""
 
-    def __init__(self, m: mujoco.MjModel, ix: obs_spec.ObsIndex, hand: int = 1,
-                 hold_z=1.00, push_depth=0.40, catch_r=0.20, steer=0.6, lead=0.06, push_v=3.0, align=0.10, damp=0.04, gain=0.3, orient_w=0.3, rest_w=0.05, lean=0.1, stroke_t=0.1, gap=0.08, max_step=0.10):
+    def __init__(
+        self,
+        m: mujoco.MjModel,
+        ix: obs_spec.ObsIndex,
+        hand: int = 1,
+        hold_z=1.00,
+        push_depth=0.40,
+        catch_r=0.20,
+        steer=0.6,
+        lead=0.06,
+        push_v=3.0,
+        align=0.10,
+        damp=0.04,
+        gain=0.3,
+        orient_w=0.3,
+        rest_w=0.05,
+        lean=0.1,
+        stroke_t=0.1,
+        gap=0.08,
+        max_step=0.10,
+    ):
         self.m, self.ix, self.hand = m, ix, hand
         self.site = ix.palm_r if hand > 0 else ix.palm_l
         self.joints = ARM[hand]
         self.dofs = [int(ix.vadr[j]) for j in self.joints]
-        self.hold_z, self.push_depth, self.catch_r, self.steer, self.lead, self.push_v = hold_z, push_depth, catch_r, steer, lead, push_v
+        self.hold_z, self.push_depth, self.catch_r, self.steer, self.lead, self.push_v = (
+            hold_z,
+            push_depth,
+            catch_r,
+            steer,
+            lead,
+            push_v,
+        )
         self.align, self.damp, self.gain, self.orient_w = align, damp, gain, orient_w
         self.rest_w, self.lean, self.stroke_t, self.gap = rest_w, lean, stroke_t, gap
         self.max_step = max_step
@@ -46,14 +73,14 @@ class ArmTeacher:
         self.pushing = False
 
     def spot(self, d) -> np.ndarray:
-        H = obs_spec.heading_mat(d.qpos[self.ix.root_q + 3:self.ix.root_q + 7])
-        p = d.qpos[self.ix.root_q:self.ix.root_q + 3]
+        H = obs_spec.heading_mat(d.qpos[self.ix.root_q + 3 : self.ix.root_q + 7])
+        p = d.qpos[self.ix.root_q : self.ix.root_q + 3]
         return p[:2] + HAND_OFFSET[0] * H[:2, 0] - self.hand * HAND_OFFSET[1] * H[:2, 1]
 
     def target(self, d) -> np.ndarray:
         ix = self.ix
-        b = d.qpos[ix.ball_q:ix.ball_q + 3]
-        vb = d.qvel[ix.ball_v:ix.ball_v + 3]
+        b = d.qpos[ix.ball_q : ix.ball_q + 3]
+        vb = d.qvel[ix.ball_v : ix.ball_v + 3]
         palm = d.site_xpos[self.site]
         spot = self.spot(d)
         dist = np.linalg.norm(palm - b)
@@ -71,7 +98,7 @@ class ArmTeacher:
             # A downward push from a palm offset by +d (horizontally) sends the ball toward -d: to change the
             # ball's horizontal velocity by dv (back to the spot, cancelling drift) the palm sits at b - k*dv.
             xy = b[:2] - self.damp * dv
-            z = b[2] + 0.12 - self.push_depth              # drive through the top of the ball
+            z = b[2] + 0.12 - self.push_depth  # drive through the top of the ball
         else:
             xy = b[:2] + vb[:2] * self.lead
             # wait a little above where the ball top will peak (capped), leaving room to accelerate down
@@ -123,7 +150,8 @@ class ArmTeacher:
             sd.qpos[self.qa] = np.clip(sd.qpos[self.qa] + np.clip(dq, -0.3, 0.3), lo, hi)
         q_star = sd.qpos[self.qa].copy()
         self.q_prev = q_star
-        self.ik_err = float(np.linalg.norm(ep)); self.q_err = float(np.abs(q_star - d.qpos[self.qa]).max())
+        self.ik_err = float(np.linalg.norm(ep))
+        self.q_err = float(np.abs(q_star - d.qpos[self.qa]).max())
         q_now = d.qpos[self.qa]
         # gravity compensation + a lead term so the servo gets there within ~0.1 s
         q_cmd = q_star + self.gain * (q_star - q_now) + d.qfrc_bias[self.dofs] / self.kp
@@ -135,7 +163,7 @@ class ArmTeacher:
 def load_actor(path: pathlib.Path) -> Actor:
     sd = torch.load(path, map_location="cpu", weights_only=False)
     act = Actor(obs_spec.N_OBS, obs_spec.N_JOINTS)
-    act.load_state_dict({k[len("actor."):]: v for k, v in sd["ac"].items() if k.startswith("actor.")})
+    act.load_state_dict({k[len("actor.") :]: v for k, v in sd["ac"].items() if k.startswith("actor.")})
     return act.eval()
 
 
@@ -147,7 +175,9 @@ def palm_ball(m, d, ix, palm_geom, ball_geom) -> bool:
     return False
 
 
-BASE = ROOT / "runs" / "l2a_dribble_r_r5q1" / "model.pt"   # legs/torso: last dribble policy (stands with a ball; 0 % falls)
+BASE = (
+    ROOT / "runs" / "l2a_dribble_r_r5q1" / "model.pt"
+)  # legs/torso: last dribble policy (stands with a ball; 0 % falls)
 
 
 def run(seconds=20.0, hand=1, seed=0, render=None, quiet=False, base=None, trace=False, **kw) -> dict:
@@ -159,28 +189,41 @@ def run(seconds=20.0, hand=1, seed=0, render=None, quiet=False, base=None, trace
     mujoco.mj_forward(m, d)
     rng = np.random.default_rng(seed)
     sp = teacher.spot(d)
-    h = 0.4 + 0.3 * rng.random()                        # as L2Dribble.on_reset: mid-cycle, apex 1.0 m
-    d.qpos[ix.ball_q:ix.ball_q + 3] = [sp[0], sp[1], h]
-    d.qvel[ix.ball_v:ix.ball_v + 3] = [0, 0, np.sqrt(2 * 9.81 * (1.0 - h)) * (1 if rng.random() < 0.5 else -1)]
+    h = 0.4 + 0.3 * rng.random()  # as L2Dribble.on_reset: mid-cycle, apex 1.0 m
+    d.qpos[ix.ball_q : ix.ball_q + 3] = [sp[0], sp[1], h]
+    d.qvel[ix.ball_v : ix.ball_v + 3] = [0, 0, np.sqrt(2 * 9.81 * (1.0 - h)) * (1 if rng.random() < 0.5 else -1)]
     mujoco.mj_forward(m, d)
     actor = load_actor(pathlib.Path(base) if base else BASE)
     ball_g = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "ball")
     palm_g = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "palm_r" if hand > 0 else "palm_l")
     floor_g = ix.floor_geom
     prev_a = np.zeros(obs_spec.N_JOINTS)
-    task = np.zeros(obs_spec.N_TASK); task[0] = hand; task[1] = 1.0
+    task = np.zeros(obs_spec.N_TASK)
+    task[0] = hand
+    task[1] = 1.0
     sub = int(round(0.02 / m.opt.timestep))
-    stats = {"bounces": 0, "apexes": [], "touch_steps": 0, "steps": 0, "touched_cycles": 0, "fell": False, "lost": False}
+    stats = {
+        "bounces": 0,
+        "apexes": [],
+        "touch_steps": 0,
+        "steps": 0,
+        "touched_cycles": 0,
+        "fell": False,
+        "lost": False,
+    }
     apex, on_floor, touched = 0.0, False, False
     frames, r = [], None
     if render:
         r = mujoco.Renderer(m, 480, 640)
-        cam = mujoco.MjvCamera(); cam.type = mujoco.mjtCamera.mjCAMERA_FREE
+        cam = mujoco.MjvCamera()
+        cam.type = mujoco.mjtCamera.mjCAMERA_FREE
         cam.azimuth, cam.elevation, cam.distance = 150, -12, 3.0
     for t in range(int(seconds / 0.02)):
         o = obs_spec.compute_obs(m, d, ix, prev_a, task, 1.0, 1.0)
         sb = obs_spec._S_BALL
-        o[sb + 8 if hand > 0 else sb + 7] = np.linalg.norm(d.site_xpos[teacher.site] - d.qpos[ix.ball_q:ix.ball_q + 3])
+        o[sb + 8 if hand > 0 else sb + 7] = np.linalg.norm(
+            d.site_xpos[teacher.site] - d.qpos[ix.ball_q : ix.ball_q + 3]
+        )
         with torch.no_grad():
             a = actor(torch.as_tensor(o, dtype=torch.float32)[None])[0].numpy().astype(np.float64)
         a = teacher.action(d, a)
@@ -189,26 +232,52 @@ def run(seconds=20.0, hand=1, seed=0, render=None, quiet=False, base=None, trace
             mujoco.mj_step(m, d)
         prev_a = a
         if trace:
-            print(t, 'ball', np.round(d.qpos[ix.ball_q:ix.ball_q + 3], 2), 'vb', np.round(d.qvel[ix.ball_v:ix.ball_v + 3], 2),
-                  'palm', np.round(d.site_xpos[teacher.site], 2), 'tgt', np.round(teacher.target(d), 2), 'push', teacher.pushing, 'pel', np.round(d.qpos[ix.root_q:ix.root_q + 3], 2), 'spot', np.round(teacher.spot(d), 2), 'ik', round(teacher.ik_err, 3), 'qerr', round(teacher.q_err, 2), 'q', np.round(d.qpos[teacher.qa], 2))
+            print(
+                t,
+                "ball",
+                np.round(d.qpos[ix.ball_q : ix.ball_q + 3], 2),
+                "vb",
+                np.round(d.qvel[ix.ball_v : ix.ball_v + 3], 2),
+                "palm",
+                np.round(d.site_xpos[teacher.site], 2),
+                "tgt",
+                np.round(teacher.target(d), 2),
+                "push",
+                teacher.pushing,
+                "pel",
+                np.round(d.qpos[ix.root_q : ix.root_q + 3], 2),
+                "spot",
+                np.round(teacher.spot(d), 2),
+                "ik",
+                round(teacher.ik_err, 3),
+                "qerr",
+                round(teacher.q_err, 2),
+                "q",
+                np.round(d.qpos[teacher.qa], 2),
+            )
         stats["steps"] += 1
         bz = d.qpos[ix.ball_q + 2]
         apex = max(apex, bz)
         tp = palm_ball(m, d, ix, palm_g, ball_g)
         stats["touch_steps"] += tp
         touched |= tp
-        fl = any(floor_g in (d.contact[c].geom1, d.contact[c].geom2) and ball_g in (d.contact[c].geom1, d.contact[c].geom2) for c in range(d.ncon))
+        fl = any(
+            floor_g in (d.contact[c].geom1, d.contact[c].geom2) and ball_g in (d.contact[c].geom1, d.contact[c].geom2)
+            for c in range(d.ncon)
+        )
         if fl and not on_floor:
             stats["bounces"] += 1
             stats["apexes"].append(apex)
             stats["touched_cycles"] += touched
             apex, touched = bz, False
         on_floor = fl
-        pel = d.qpos[ix.root_q:ix.root_q + 3]
+        pel = d.qpos[ix.root_q : ix.root_q + 3]
         if pel[2] < 0.55:
-            stats["fell"] = True; break
-        if np.linalg.norm(d.qpos[ix.ball_q:ix.ball_q + 2] - pel[:2]) > 1.5:
-            stats["lost"] = True; break
+            stats["fell"] = True
+            break
+        if np.linalg.norm(d.qpos[ix.ball_q : ix.ball_q + 2] - pel[:2]) > 1.5:
+            stats["lost"] = True
+            break
         if r is not None and t % 2 == 0:
             cam.lookat[:] = [pel[0], pel[1], 0.8]
             r.update_scene(d, camera=cam)
@@ -219,13 +288,17 @@ def run(seconds=20.0, hand=1, seed=0, render=None, quiet=False, base=None, trace
     stats["apex_in_band"] = float(((ap >= 0.8) & (ap <= 1.15)).mean())
     stats["touch_frac"] = stats["touch_steps"] / max(1, stats["steps"])
     if not quiet:
-        print({k: (round(v, 3) if isinstance(v, float) else v) for k, v in stats.items() if k != "apexes"},
-              "apexes", np.round(stats["apexes"][:12], 2))
+        print(
+            {k: (round(v, 3) if isinstance(v, float) else v) for k, v in stats.items() if k != "apexes"},
+            "apexes",
+            np.round(stats["apexes"][:12], 2),
+        )
     if render and frames:
         out = pathlib.Path(render)
         from PIL import Image
-        sel = frames[::max(1, len(frames) // 12)][:12]
-        rows = [np.concatenate(sel[i:i + 4], axis=1) for i in range(0, len(sel) - len(sel) % 4, 4)]
+
+        sel = frames[:: max(1, len(frames) // 12)][:12]
+        rows = [np.concatenate(sel[i : i + 4], axis=1) for i in range(0, len(sel) - len(sel) % 4, 4)]
         Image.fromarray(np.concatenate(rows, axis=0)).save(out)
         print("wrote", out)
     return stats
@@ -248,9 +321,14 @@ def main():
             for depth in (0.3, 0.45, 0.6):
                 for cr in (0.16, 0.22):
                     s = run(a.seconds, a.hand, quiet=True, hold_z=hold, push_depth=depth, catch_r=cr)
-                    score = s["bounces"] * s["apex_in_band"] * (s["touched_cycles"] / max(1, s["bounces"])) + s["seconds"] / 100
-                    print(f"hold {hold} depth {depth} catch {cr}: {s['seconds']:.1f}s bounces {s['bounces']} touched {s['touched_cycles']} "
-                          f"apex {s['apex_mean']:.2f} band {s['apex_in_band']:.2f} fell {s['fell']} lost {s['lost']}")
+                    score = (
+                        s["bounces"] * s["apex_in_band"] * (s["touched_cycles"] / max(1, s["bounces"]))
+                        + s["seconds"] / 100
+                    )
+                    print(
+                        f"hold {hold} depth {depth} catch {cr}: {s['seconds']:.1f}s bounces {s['bounces']} touched {s['touched_cycles']} "
+                        f"apex {s['apex_mean']:.2f} band {s['apex_in_band']:.2f} fell {s['fell']} lost {s['lost']}"
+                    )
                     if best is None or score > best[0]:
                         best = (score, hold, depth, cr)
         print("best", best)

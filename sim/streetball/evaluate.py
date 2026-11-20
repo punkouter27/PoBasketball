@@ -5,6 +5,7 @@ pass/fail against the level's PRD milestone (blueprint C.2).
 
 Writes docs/phase_reports/eval_<level>.md and .json. Exit code 0 on pass.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,19 +23,29 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 REPORTS = ROOT.parent / "docs" / "phase_reports"
 
 
-def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int = 123,
-             push_scale: float = 1.0, push_max: float | None = None) -> dict:
+def evaluate(
+    level_name: str,
+    ckpt: pathlib.Path,
+    episodes: int = 200,
+    seed: int = 123,
+    push_scale: float = 1.0,
+    push_max: float | None = None,
+) -> dict:
     level = make(level_name)
     sd = torch.load(ckpt, map_location="cpu")
     # evaluate under the same push magnitude the checkpoint was trained with unless overridden
     if push_max is None:
         push_max = float(sd.get("push_max", 150.0))
-    env = StreetballEnv(level, EnvConfig(num_envs=episodes, seed=seed,
-                                         randomization=RandomizationConfig(enabled=True, push_force=(0.0, push_max))))
+    env = StreetballEnv(
+        level,
+        EnvConfig(
+            num_envs=episodes, seed=seed, randomization=RandomizationConfig(enabled=True, push_force=(0.0, push_max))
+        ),
+    )
     env.push_scale = push_scale
     sd = torch.load(ckpt, map_location=env.device)
     actor = Actor(env.N_OBS, env.N_ACT).to(env.device)
-    actor.load_state_dict({k[len("actor."):]: v for k, v in sd["ac"].items() if k.startswith("actor.")})
+    actor.load_state_dict({k[len("actor.") :]: v for k, v in sd["ac"].items() if k.startswith("actor.")})
     actor.eval()
 
     N = env.N
@@ -53,15 +64,19 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
             obs, rew, done, info = env.step(a)
             step_i += 1
             just = done & ~finished
-            success |= just & info["success"]          # computed by the env before its auto-reset
+            success |= just & info["success"]  # computed by the env before its auto-reset
             fell |= just & info["fallen"]
             for k, v in info.items():
                 if k.startswith("fail/"):
-                    fail_flags[k[5:]] = fail_flags.get(k[5:], torch.zeros(N, dtype=torch.bool, device=env.device)) | (just & v)
+                    fail_flags[k[5:]] = fail_flags.get(k[5:], torch.zeros(N, dtype=torch.bool, device=env.device)) | (
+                        just & v
+                    )
             ep_len = torch.where(just, torch.full_like(ep_len, float(step_i)), ep_len)
             for k, v in info.items():
                 if k.startswith("m/"):
-                    metrics_sum[k] = metrics_sum.get(k, torch.zeros(N, device=env.device)) + torch.where(finished, 0.0, v.float())
+                    metrics_sum[k] = metrics_sum.get(k, torch.zeros(N, device=env.device)) + torch.where(
+                        finished, 0.0, v.float()
+                    )
             finished |= just
     dt = time.perf_counter() - t0
     rate = success.float().mean().item()
@@ -69,6 +84,7 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
     # parallel, so 'straight' is evaluated in finishing order: every window of 100 consecutive finishes
     # must meet the level's pass fraction.
     import numpy as np
+
     order = torch.argsort(ep_len)
     succ_sorted = success[order].float().cpu().numpy()
     window = 100
@@ -82,10 +98,18 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
     passed = rate >= level.pass_fraction and holds_100 and nan_grads == 0
     steps_run = ep_len.clamp_min(1)
     res = {
-        "level": level_name, "checkpoint": str(ckpt), "episodes": episodes, "push_scale": push_scale, "push_max_N": push_max,
-        "success_rate": rate, "pass_fraction": level.pass_fraction, "passed": passed,
-        "holds_100_straight": holds_100, "nan_grads": nan_grads,
-        "interface_sha": ckpt_sd.get("interface_sha"), "physics_sha": ckpt_sd.get("physics_sha"),
+        "level": level_name,
+        "checkpoint": str(ckpt),
+        "episodes": episodes,
+        "push_scale": push_scale,
+        "push_max_N": push_max,
+        "success_rate": rate,
+        "pass_fraction": level.pass_fraction,
+        "passed": passed,
+        "holds_100_straight": holds_100,
+        "nan_grads": nan_grads,
+        "interface_sha": ckpt_sd.get("interface_sha"),
+        "physics_sha": ckpt_sd.get("physics_sha"),
         "fall_rate": fell.float().mean().item(),
         "mean_episode_s": (ep_len * env.control_dt).mean().item(),
         "metrics": {k: (v / steps_run).mean().item() for k, v in metrics_sum.items()},
@@ -97,16 +121,21 @@ def evaluate(level_name: str, ckpt: pathlib.Path, episodes: int = 200, seed: int
         res["fail_reasons"]["failed_without_falling"] = (~success & ~fell).float().mean().item()
     REPORTS.mkdir(parents=True, exist_ok=True)
     (REPORTS / f"eval_{level_name}.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
-    lines = [f"# Evaluation — {level_name}: {'PASS' if passed else 'FAIL'}", "",
-             f"Checkpoint `{ckpt}`, {episodes} randomised episodes, deterministic policy, pushes up to {push_max:.0f} N x scale {push_scale}.", "",
-             "| Metric | Value |", "|---|---|",
-             f"| Success rate | {rate*100:.1f} % (need >= {level.pass_fraction*100:.0f} %) |",
-             f"| Holds for 100 straight episodes | {'yes' if holds_100 else 'no'} |",
-             f"| NaN-gradient batches in training | {nan_grads} (must be 0) |",
-             f"| Fall rate | {res['fall_rate']*100:.1f} % |",
-             f"| Mean episode length | {res['mean_episode_s']:.1f} s of {level.episode_s:.0f} s |"]
+    lines = [
+        f"# Evaluation — {level_name}: {'PASS' if passed else 'FAIL'}",
+        "",
+        f"Checkpoint `{ckpt}`, {episodes} randomised episodes, deterministic policy, pushes up to {push_max:.0f} N x scale {push_scale}.",
+        "",
+        "| Metric | Value |",
+        "|---|---|",
+        f"| Success rate | {rate * 100:.1f} % (need >= {level.pass_fraction * 100:.0f} %) |",
+        f"| Holds for 100 straight episodes | {'yes' if holds_100 else 'no'} |",
+        f"| NaN-gradient batches in training | {nan_grads} (must be 0) |",
+        f"| Fall rate | {res['fall_rate'] * 100:.1f} % |",
+        f"| Mean episode length | {res['mean_episode_s']:.1f} s of {level.episode_s:.0f} s |",
+    ]
     for k, v in res.get("fail_reasons", {}).items():
-        lines.append(f"| Failed: {k} | {v*100:.1f} % |")
+        lines.append(f"| Failed: {k} | {v * 100:.1f} % |")
     for k, v in res["metrics"].items():
         lines.append(f"| {k[2:]} | {v:.3f} |")
     (REPORTS / f"eval_{level_name}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -119,9 +148,13 @@ def main():
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--episodes", type=int, default=200)
     ap.add_argument("--push-scale", type=float, default=1.0)
-    ap.add_argument("--push-max", type=float, default=None, help="override the push force cap (N); default: from checkpoint")
+    ap.add_argument(
+        "--push-max", type=float, default=None, help="override the push force cap (N); default: from checkpoint"
+    )
     args = ap.parse_args()
-    res = evaluate(args.level, pathlib.Path(args.ckpt), args.episodes, push_scale=args.push_scale, push_max=args.push_max)
+    res = evaluate(
+        args.level, pathlib.Path(args.ckpt), args.episodes, push_scale=args.push_scale, push_max=args.push_max
+    )
     print(json.dumps(res, indent=2))
     raise SystemExit(0 if res["passed"] else 1)
 

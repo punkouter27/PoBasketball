@@ -1,19 +1,24 @@
-import sys, pathlib
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 """C1/C2 acceptance: the Warp env builds observations identical to obs.py (golden
 cross-check), steps without NaN under random actions, and randomisation varies
 per world. Run: uv run python -m pytest tests/test_env.py -q -s
 """
+
 import pathlib
 import time
 
 import numpy as np
 import pytest
-import torch
 
-from streetball import obs as obs_spec
-from streetball.env_base import EnvConfig, RandomizationConfig, StreetballEnv
-from streetball.levels import make
+torch = pytest.importorskip("torch", reason="torch not installed (GPU test; run in sim/.venv)")
+pytest.importorskip("mujoco_warp", reason="MuJoCo Warp not installed (GPU test; run in sim/.venv)")
+if not torch.cuda.is_available():
+    pytest.skip("no CUDA device: the Warp environment runs on the GPU only", allow_module_level=True)
+
+from streetball import obs as obs_spec  # noqa: E402
+from streetball.env_base import EnvConfig, RandomizationConfig, StreetballEnv  # noqa: E402
+from streetball.levels import make  # noqa: E402
+
+pytestmark = pytest.mark.gpu
 
 SHARED = pathlib.Path(__file__).resolve().parents[2] / "shared"
 
@@ -37,15 +42,15 @@ def test_obs_parity_with_golden(env):
     env.forward()
     env._scan_contacts()
     o = env.compute_obs()
-    o[:, obs_spec.N_BASE:obs_spec.N_OBS] = env.task
-    diff = (o.cpu().numpy() - g["obs"][:n])
+    o[:, obs_spec.N_BASE : obs_spec.N_OBS] = env.task
+    diff = o.cpu().numpy() - g["obs"][:n]
     # Contact flags can legitimately differ (float32 vs float64 contact detection at exactly-touching feet);
     # compare them separately and everything else tightly.
     fc0 = obs_spec._S_BALL + 9
-    flags = np.abs(diff[:, fc0:fc0 + 2]).max()
-    diff[:, fc0:fc0 + 2] = 0.0
+    flags = np.abs(diff[:, fc0 : fc0 + 2]).max()
+    diff[:, fc0 : fc0 + 2] = 0.0
     worst = np.abs(diff).max()
-    print(f"max abs obs diff (non-flag) {worst:.2e}, flag mismatches {int((np.abs(diff[:, fc0:fc0 + 2]) > 0).sum())}")
+    print(f"max abs obs diff (non-flag) {worst:.2e}, flag mismatches {int((np.abs(diff[:, fc0 : fc0 + 2]) > 0).sum())}")
     assert worst < 2e-4, f"obs mismatch {worst:.3e} at slot {np.abs(diff).max(axis=0).argmax()}"
     assert flags <= 1.0
 
@@ -63,7 +68,9 @@ def test_step_random_actions(env):
         assert not info["nan"].any()
         dones += int(done.sum())
     dt = time.perf_counter() - t0
-    print(f"{env.N} envs x {steps} control steps in {dt:.2f}s -> {env.N*steps/dt:.0f} control steps/s, {dones} episode ends")
+    print(
+        f"{env.N} envs x {steps} control steps in {dt:.2f}s -> {env.N * steps / dt:.0f} control steps/s, {dones} episode ends"
+    )
     assert dones > 0, "random actions should make the character fall at least once"
 
 

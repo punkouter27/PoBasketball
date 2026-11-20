@@ -3,6 +3,7 @@ from Unreal captures (unreal/StreetballGym/Saved/Screenshots/cap_*.png).
 
     uv run --with pillow python SCREENSHOTS/20261117_features/make_media.py annotations.json
 """
+
 import json
 import os
 import subprocess
@@ -71,7 +72,21 @@ def gif(burst, out, fps, width=840, crop=None):
     pattern = os.path.join(tmp, "f_%03d.png")
     vf = f"fps={fps},scale={width}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=160[p];[b][p]paletteuse=dither=bayer:bayer_scale=4"
     subprocess.run(
-        ["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(fps), "-i", pattern, "-vf", vf, "-loop", "0", os.path.join(HERE, out)],
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-framerate",
+            str(fps),
+            "-i",
+            pattern,
+            "-vf",
+            vf,
+            "-loop",
+            "0",
+            os.path.join(HERE, out),
+        ],
         check=True,
     )
     for f in os.listdir(tmp):
@@ -81,7 +96,9 @@ def gif(burst, out, fps, width=840, crop=None):
 
 
 def main():
-    spec = json.load(open(os.path.join(HERE, sys.argv[1] if len(sys.argv) > 1 else "annotations.json"), encoding="utf-8"))
+    spec = json.load(
+        open(os.path.join(HERE, sys.argv[1] if len(sys.argv) > 1 else "annotations.json"), encoding="utf-8")
+    )
     for a in spec.get("annotate", []):
         if os.path.exists(os.path.join(SRC, a["src"])):
             annotate(a)

@@ -6,6 +6,7 @@
 * plain before/after pairs -> before_<view>.jpg / after_<view>.jpg
 * GIFs from capture bursts via ffmpeg (palettegen/paletteuse) -> <burst>.gif
 """
+
 import json
 import os
 import subprocess
@@ -47,7 +48,7 @@ def annotate(spec):
         lx, ly = c.get("label_at", (x0, max(0, y0 - 52)))
         text = f"{i}  {c['label']}"
         tw = d.textlength(text, font=f)
-        lx = max(8, min(lx, im.width - tw - 40))       # keep the label inside the frame
+        lx = max(8, min(lx, im.width - tw - 40))  # keep the label inside the frame
         d.rounded_rectangle((lx, ly, lx + tw + 28, ly + 46), radius=8, fill=ACCENT)
         d.text((lx + 14, ly + 6), text, fill=INK, font=f)
         if "label_at" in c:
@@ -74,8 +75,24 @@ def gif(burst, out, fps, width=800, crop=None):
         im.save(os.path.join(tmp, f"f_{i:03d}.png"))
     pattern = os.path.join(tmp, "f_%03d.png")
     vf = f"fps={fps},scale={width}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=160[p];[b][p]paletteuse=dither=bayer:bayer_scale=4"
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(fps), "-i", pattern, "-vf", vf, "-loop", "0",
-                    os.path.join(HERE, out)], check=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-framerate",
+            str(fps),
+            "-i",
+            pattern,
+            "-vf",
+            vf,
+            "-loop",
+            "0",
+            os.path.join(HERE, out),
+        ],
+        check=True,
+    )
     for f in os.listdir(tmp):
         os.remove(os.path.join(tmp, f))
     os.rmdir(tmp)
@@ -83,7 +100,9 @@ def gif(burst, out, fps, width=800, crop=None):
 
 
 def main():
-    spec = json.load(open(os.path.join(HERE, sys.argv[1] if len(sys.argv) > 1 else "annotations.json"), encoding="utf-8"))
+    spec = json.load(
+        open(os.path.join(HERE, sys.argv[1] if len(sys.argv) > 1 else "annotations.json"), encoding="utf-8")
+    )
     for a in spec.get("annotate", []):
         annotate(a)
         print("annotated", a["out"])

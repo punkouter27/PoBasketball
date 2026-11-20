@@ -6,6 +6,7 @@ Actor: obs -> normalise -> MLP(512, 256, 128, ELU) -> tanh -> mean in [-1, 1];
 Gaussian exploration with a state-independent log_std, samples clipped by the env.
 Critic: same trunk shape, separate weights.
 """
+
 from __future__ import annotations
 
 import math
@@ -30,7 +31,7 @@ class RunningMeanStd(nn.Module):
         self.mean += delta * bc / tot
         m_a = self.var * self.count
         m_b = bv * bc
-        self.var = (m_a + m_b + delta ** 2 * self.count * bc / tot) / tot
+        self.var = (m_a + m_b + delta**2 * self.count * bc / tot) / tot
         self.count = tot
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -87,9 +88,9 @@ class PPOConfig:
     max_grad_norm: float = 1.0
     lr: float = 3e-4
     kl_target: float = 0.01
-    lr_max: float = 1e-3          # adaptive-LR ceiling; lower it for fine-tunes of a good actor
-    lr_min: float = 1e-5          # adaptive-LR floor
-    anchor_coef: float = 0.0      # >0: penalise the actor mean drifting from a frozen anchor actor (set_anchor)
+    lr_max: float = 1e-3  # adaptive-LR ceiling; lower it for fine-tunes of a good actor
+    lr_min: float = 1e-5  # adaptive-LR floor
+    anchor_coef: float = 0.0  # >0: penalise the actor mean drifting from a frozen anchor actor (set_anchor)
     adaptive_lr: bool = True
     hidden: tuple[int, ...] = (512, 256, 128)
     init_std: float = 0.5
@@ -107,7 +108,7 @@ class PPO:
         # LR untouched). Used after an actor-only init, whose fresh critic would otherwise feed PPO noise.
         self.critic_only = False
         # freeze the observation normaliser: an imported actor's weights only mean what they meant under its own
-        # stats; letting rollout data move them changes the policy with no gradient step (see DOCS/20261118).
+        # stats; letting rollout data move them changes the policy with no gradient step (see docs/20261118).
         self.freeze_norm = False
         self.anchor = None
         T = cfg.steps_per_env
@@ -126,6 +127,7 @@ class PPO:
     def set_anchor(self):
         """Freeze a copy of the current actor; update() then adds anchor_coef * mean(sum((mu - mu_anchor)^2))."""
         import copy
+
         self.anchor = copy.deepcopy(self.ac.actor).eval()
         for p in self.anchor.parameters():
             p.requires_grad_(False)
@@ -183,7 +185,7 @@ class PPO:
         val_old = self.val_buf.reshape(B)
         mean_old = self.mean_buf.reshape(B, -1)
         std_old = self.std_buf.reshape(B, -1)
-        if not self.critic_only and self.lr > cfg.lr_max:      # warm-up may run the critic faster than lr_max
+        if not self.critic_only and self.lr > cfg.lr_max:  # warm-up may run the critic faster than lr_max
             self.lr = cfg.lr_max
             for g in self.opt.param_groups:
                 g["lr"] = self.lr
@@ -193,7 +195,7 @@ class PPO:
         for _ in range(cfg.epochs):
             perm = torch.randperm(B, device=self.device)
             for i in range(cfg.minibatches):
-                idx = perm[i * mb:(i + 1) * mb]
+                idx = perm[i * mb : (i + 1) * mb]
                 d = self.ac.dist(obs[idx])
                 logp = d.log_prob(act[idx]).sum(-1)
                 ratio = torch.exp(logp - logp_old[idx])
@@ -216,7 +218,15 @@ class PPO:
                 with torch.no_grad():
                     # KL(old || new) for diagonal Gaussians
                     std_new = d.stddev
-                    kl = (torch.log(std_new / std_old[idx]) + (std_old[idx] ** 2 + (mean_old[idx] - d.mean) ** 2) / (2 * std_new ** 2) - 0.5).sum(-1).mean()
+                    kl = (
+                        (
+                            torch.log(std_new / std_old[idx])
+                            + (std_old[idx] ** 2 + (mean_old[idx] - d.mean) ** 2) / (2 * std_new**2)
+                            - 0.5
+                        )
+                        .sum(-1)
+                        .mean()
+                    )
                     if cfg.adaptive_lr and not self.critic_only:
                         if kl > 2.0 * cfg.kl_target:
                             self.lr = max(cfg.lr_min, self.lr / 1.5)
@@ -232,9 +242,12 @@ class PPO:
                 if torch.isfinite(gn):
                     self.opt.step()
                 else:
-                    nan_batches += 1          # UU_AGENT gate: exported policies must have zero of these
-                stats["loss/surrogate"] += surr.item(); stats["loss/value"] += vloss.item()
-                stats["loss/entropy"] += ent.item(); stats["ppo/kl"] += kl.item(); stats["ppo/clip_frac"] += clip_frac.item()
+                    nan_batches += 1  # UU_AGENT gate: exported policies must have zero of these
+                stats["loss/surrogate"] += surr.item()
+                stats["loss/value"] += vloss.item()
+                stats["loss/entropy"] += ent.item()
+                stats["ppo/kl"] += kl.item()
+                stats["ppo/clip_frac"] += clip_frac.item()
                 n_upd += 1
         for k in stats:
             stats[k] /= n_upd
@@ -250,7 +263,9 @@ class PPO:
 
     def load_state_dict(self, sd: dict, actor_only: bool = False):
         if actor_only:
-            self.ac.actor.load_state_dict({k[len("actor."):]: v for k, v in sd["ac"].items() if k.startswith("actor.")})
+            self.ac.actor.load_state_dict(
+                {k[len("actor.") :]: v for k, v in sd["ac"].items() if k.startswith("actor.")}
+            )
             return
         self.ac.load_state_dict(sd["ac"])
         self.opt.load_state_dict(sd["opt"])

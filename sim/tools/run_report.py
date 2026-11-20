@@ -1,12 +1,13 @@
 """UU_AGENT section 4: HTML report for a training run (metric charts + run-over-run deltas).
 
-    uv run python tools/run_report.py runs/l0_v4 [--compare runs/l0_v3] [--out ../DOCS/<YYYYMMDD>/report_<run>.html]
+    uv run python tools/run_report.py runs/l0_v4 [--compare runs/l0_v3] [--out ../docs/<YYYYMMDD>/report_<run>.html]
 
-Reads runs/<run>/log.csv and config.json (and DOCS/phase_reports/eval_<level>.json if present).
+Reads runs/<run>/log.csv and config.json (and docs/phase_reports/eval_<level>.json if present).
 Charts: one metric per panel (single series, one hue, 2 px line, recessive grid, crosshair tooltip),
 light/dark via prefers-color-scheme, plus a table view and a deltas table against the comparison run
 (the previous run of the same level by default). No external libraries.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,7 +19,7 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
-DOCS = ROOT.parent / "DOCS"
+DOCS_DIR = ROOT.parent / "docs"
 
 PANELS = [  # (column, title, unit)
     ("ep_return", "Episode return", ""),
@@ -65,11 +66,11 @@ def svg_panel(rows: list[dict], col: str, title: str, unit: str, idx: int) -> st
     grid = ""
     for k in range(4):
         gy = y0 + (y1 - y0) * k / 3
-        grid += f'<line x1="{L}" y1="{sy(gy):.1f}" x2="{W-R}" y2="{sy(gy):.1f}" class="grid"/>'
-        grid += f'<text x="{L-6}" y="{sy(gy)+4:.1f}" class="tick" text-anchor="end">{gy:.3g}</text>'
+        grid += f'<line x1="{L}" y1="{sy(gy):.1f}" x2="{W - R}" y2="{sy(gy):.1f}" class="grid"/>'
+        grid += f'<text x="{L - 6}" y="{sy(gy) + 4:.1f}" class="tick" text-anchor="end">{gy:.3g}</text>'
     for k in range(4):
         gx = x0 + (x1 - x0) * k / 3
-        grid += f'<text x="{sx(gx):.1f}" y="{H-10}" class="tick" text-anchor="middle">{gx:.1f}M</text>'
+        grid += f'<text x="{sx(gx):.1f}" y="{H - 10}" class="tick" text-anchor="middle">{gx:.1f}M</text>'
     last = ys[-1]
     data = json.dumps([[round(x, 3), round(y, 5)] for x, y in zip(xs, ys)])
     return f'''
@@ -78,9 +79,9 @@ def svg_panel(rows: list[dict], col: str, title: str, unit: str, idx: int) -> st
   <svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="{html.escape(title)} over training steps">
     {grid}
     <polyline points="{pts}" class="series"/>
-    <line class="xhair" x1="0" y1="{T}" x2="0" y2="{H-B}" visibility="hidden"/>
+    <line class="xhair" x1="0" y1="{T}" x2="0" y2="{H - B}" visibility="hidden"/>
     <circle class="dot" r="4" visibility="hidden"/>
-    <rect class="hit" x="{L}" y="{T}" width="{W-L-R}" height="{H-T-B}" fill="transparent"/>
+    <rect class="hit" x="{L}" y="{T}" width="{W - L - R}" height="{H - T - B}" fill="transparent"/>
   </svg>
   <div class="tip" hidden></div>
   <script type="application/json" class="data">{data}</script>
@@ -98,29 +99,48 @@ def main() -> None:
     level = cfg.get("level", "?")
     comp = pathlib.Path(args.compare) if args.compare else None
     if comp is None:
-        cands = sorted([p for p in RUNS.iterdir() if p.is_dir() and p != run and (p / "log.csv").exists()
-                        and json.loads((p / "config.json").read_text(encoding="utf-8")).get("level") == level]
-                       if RUNS.exists() else [], key=lambda p: p.stat().st_mtime)
+        cands = sorted(
+            [
+                p
+                for p in RUNS.iterdir()
+                if p.is_dir()
+                and p != run
+                and (p / "log.csv").exists()
+                and json.loads((p / "config.json").read_text(encoding="utf-8")).get("level") == level
+            ]
+            if RUNS.exists()
+            else [],
+            key=lambda p: p.stat().st_mtime,
+        )
         comp = cands[-1] if cands else None
     crow, _ = read_run(comp) if comp else ([], {})
 
     cols = [c for c, _, _ in PANELS] + sorted({k for r in rows for k in r if k.startswith("m/")})
     titles = {c: t for c, t, _ in PANELS}
     units = {c: u for c, _, u in PANELS}
-    panels = "".join(svg_panel(rows, c, titles.get(c, c[2:].replace("_", " ")), units.get(c, ""), i) for i, c in enumerate(cols))
+    panels = "".join(
+        svg_panel(rows, c, titles.get(c, c[2:].replace("_", " ")), units.get(c, ""), i) for i, c in enumerate(cols)
+    )
 
     total_steps = rows[-1]["steps"] if rows else 0
     per_iter = [rows[i]["steps"] - (rows[i - 1]["steps"] if i else 0.0) for i in range(len(rows))]
     wall_min = sum(n / max(r.get("fps", 1.0), 1.0) for n, r in zip(per_iter, rows)) / 60
-    eval_json = DOCS / "phase_reports" / f"eval_{level}.json"
+    eval_json = DOCS_DIR / "phase_reports" / f"eval_{level}.json"
     ev = json.loads(eval_json.read_text(encoding="utf-8")) if eval_json.exists() else {}
 
     def tile(label, value):
         return f'<div class="tile"><div class="lbl">{html.escape(label)}</div><div class="val">{value}</div></div>'
-    tiles = tile("Steps", f"{total_steps/1e6:.1f} M") + tile("Wall time (est.)", f"{wall_min:.0f} min") + \
-        tile("Final return", f"{tail_mean(rows, 'ep_return') or 0:.1f}") + tile("Final episode", f"{tail_mean(rows, 'ep_len_s') or 0:.1f} s")
+
+    tiles = (
+        tile("Steps", f"{total_steps / 1e6:.1f} M")
+        + tile("Wall time (est.)", f"{wall_min:.0f} min")
+        + tile("Final return", f"{tail_mean(rows, 'ep_return') or 0:.1f}")
+        + tile("Final episode", f"{tail_mean(rows, 'ep_len_s') or 0:.1f} s")
+    )
     if ev:
-        tiles += tile("Eval success", f"{ev.get('success_rate', 0)*100:.1f} %") + tile("Gate", "PASS" if ev.get("passed") else "FAIL")
+        tiles += tile("Eval success", f"{ev.get('success_rate', 0) * 100:.1f} %") + tile(
+            "Gate", "PASS" if ev.get("passed") else "FAIL"
+        )
 
     delta_rows = ""
     for c in cols:
@@ -128,21 +148,31 @@ def main() -> None:
         if a is None:
             continue
         d = "" if b is None else f"{a - b:+.4g}"
-        delta_rows += f"<tr><td>{html.escape(c)}</td><td>{a:.4g}</td><td>{'' if b is None else f'{b:.4g}'}</td><td>{d}</td></tr>"
+        delta_rows += (
+            f"<tr><td>{html.escape(c)}</td><td>{a:.4g}</td><td>{'' if b is None else f'{b:.4g}'}</td><td>{d}</td></tr>"
+        )
 
     table_head = "".join(f"<th>{html.escape(c)}</th>" for c in ["iter", "steps"] + cols)
-    table_rows = "".join("<tr>" + "".join(f"<td>{r.get(c, ''):.5g}</td>" if isinstance(r.get(c, ''), float) else f"<td></td>"
-                                         for c in ["iter", "steps"] + cols) + "</tr>" for r in rows[::max(1, len(rows) // 200)])
+    table_rows = "".join(
+        "<tr>"
+        + "".join(
+            f"<td>{r.get(c, ''):.5g}</td>" if isinstance(r.get(c, ""), float) else "<td></td>"
+            for c in ["iter", "steps"] + cols
+        )
+        + "</tr>"
+        for r in rows[:: max(1, len(rows) // 200)]
+    )
 
-    out = pathlib.Path(args.out) if args.out else DOCS / time.strftime("%Y%m%d") / f"report_{run.name}.html"
+    out = pathlib.Path(args.out) if args.out else DOCS_DIR / time.strftime("%Y%m%d") / f"report_{run.name}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(f'''<!doctype html>
+    out.write_text(
+        f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Run {html.escape(run.name)}</title>
 <style>
-:root{{--surface:{LIGHT['surface']};--text:{LIGHT['text']};--text2:{LIGHT['text2']};--grid:{LIGHT['grid']};--series:{LIGHT['series']}}}
-@media (prefers-color-scheme: dark){{:root:not([data-theme=light]){{--surface:{DARK['surface']};--text:{DARK['text']};--text2:{DARK['text2']};--grid:{DARK['grid']};--series:{DARK['series']}}}}}
-:root[data-theme=dark]{{--surface:{DARK['surface']};--text:{DARK['text']};--text2:{DARK['text2']};--grid:{DARK['grid']};--series:{DARK['series']}}}
+:root{{--surface:{LIGHT["surface"]};--text:{LIGHT["text"]};--text2:{LIGHT["text2"]};--grid:{LIGHT["grid"]};--series:{LIGHT["series"]}}}
+@media (prefers-color-scheme: dark){{:root:not([data-theme=light]){{--surface:{DARK["surface"]};--text:{DARK["text"]};--text2:{DARK["text2"]};--grid:{DARK["grid"]};--series:{DARK["series"]}}}}}
+:root[data-theme=dark]{{--surface:{DARK["surface"]};--text:{DARK["text"]};--text2:{DARK["text2"]};--grid:{DARK["grid"]};--series:{DARK["series"]}}}
 body{{background:var(--surface);color:var(--text);font:14px/1.45 system-ui,sans-serif;margin:0;padding:24px 16px;max-width:1400px}}
 h1{{font-size:20px;margin:0 0 4px}} .meta{{color:var(--text2);margin-bottom:16px}}
 .tiles{{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0 20px}} .tile{{border:1px solid var(--grid);border-radius:8px;padding:10px 14px;min-width:120px}}
@@ -161,7 +191,7 @@ details{{margin-top:20px}} .wrap{{overflow:auto;max-height:420px}}
 <div class="panels">{panels}</div>
 <h2 style="font-size:16px;margin-top:24px">Run-over-run deltas (mean of the last 20 iterations)</h2>
 <table><thead><tr><th>metric</th><th>{html.escape(run.name)}</th><th>{html.escape(comp.name) if comp else "—"}</th><th>delta</th></tr></thead><tbody>{delta_rows}</tbody></table>
-<details><summary>Table view (every {max(1, len(rows)//200)} iterations)</summary><div class="wrap"><table><thead><tr>{table_head}</tr></thead><tbody>{table_rows}</tbody></table></div></details>
+<details><summary>Table view (every {max(1, len(rows) // 200)} iterations)</summary><div class="wrap"><table><thead><tr>{table_head}</tr></thead><tbody>{table_rows}</tbody></table></div></details>
 <script>
 document.querySelectorAll("figure.panel").forEach(fig => {{
   const data = JSON.parse(fig.querySelector(".data").textContent);
@@ -178,7 +208,9 @@ document.querySelectorAll("figure.panel").forEach(fig => {{
   hit.addEventListener("mousemove", show); hit.addEventListener("mouseleave", () => {{ xh.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); tip.hidden = true; }});
 }});
 </script>
-</body></html>''', encoding="utf-8")
+</body></html>""",
+        encoding="utf-8",
+    )
     print("wrote", out)
 
 

@@ -12,6 +12,7 @@ the reward per step becomes
 with r_style from the discriminator in streetball/amp.py, which is trained every iteration on the rollout's
 transitions vs. the retargeted LocoMuJoCo motion capture.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -58,8 +59,11 @@ def main():
     torch.manual_seed(args.seed)
     out = base.RUNS / args.run_name
     out.mkdir(parents=True, exist_ok=True)
-    env_cfg = EnvConfig(num_envs=args.num_envs, seed=args.seed,
-                        randomization=RandomizationConfig(enabled=True, push_force=(0.0, args.push_max)))
+    env_cfg = EnvConfig(
+        num_envs=args.num_envs,
+        seed=args.seed,
+        randomization=RandomizationConfig(enabled=True, push_force=(0.0, args.push_max)),
+    )
     ppo_cfg = PPOConfig(lr=args.lr, init_std=args.init_std)
     level = make(args.level)
     env = StreetballEnv(level, env_cfg)
@@ -77,15 +81,36 @@ def main():
         amp.opt.load_state_dict(sd["amp"]["opt"])
         print("resumed AMP discriminator from the init checkpoint", flush=True)
 
-    keyb = torch.as_tensor([mujoco.mj_name2id(env.mjm, mujoco.mjtObj.mjOBJ_BODY, b) for b in KEY_BODIES], device=env.device)
+    keyb = torch.as_tensor(
+        [mujoco.mj_name2id(env.mjm, mujoco.mjtObj.mjOBJ_BODY, b) for b in KEY_BODIES], device=env.device
+    )
     rq, rv = env.root_q, env.root_v
 
     def feats():
-        return amp_features(env.qpos[:, rq:rq + 3], env.qpos[:, rq + 3:rq + 7], env.qvel[:, rv:rv + 3],
-                            env.qvel[:, rv + 3:rv + 6], env.joint_pos(), env.joint_vel(), env.xpos[:, keyb])
+        return amp_features(
+            env.qpos[:, rq : rq + 3],
+            env.qpos[:, rq + 3 : rq + 7],
+            env.qvel[:, rv : rv + 3],
+            env.qvel[:, rv + 3 : rv + 6],
+            env.joint_pos(),
+            env.joint_vel(),
+            env.xpos[:, keyb],
+        )
 
-    (out / "config.json").write_text(json.dumps({"args": vars(args), "env": asdict(env_cfg), "ppo": asdict(ppo_cfg),
-        "level": level.name, "method": "AMP (MimicKit port, streetball/amp.py)"}, indent=2, default=str), encoding="utf-8")
+    (out / "config.json").write_text(
+        json.dumps(
+            {
+                "args": vars(args),
+                "env": asdict(env_cfg),
+                "ppo": asdict(ppo_cfg),
+                "level": level.name,
+                "method": "AMP (MimicKit port, streetball/amp.py)",
+            },
+            indent=2,
+            default=str,
+        ),
+        encoding="utf-8",
+    )
     writer = SummaryWriter(str(out))
     csvf = open(out / "log.csv", "w", newline="", encoding="utf-8")
     csvw = None
@@ -113,19 +138,20 @@ def main():
             obs, rew, done, info = env.step(a)
             f_cur = feats()
             pairs = torch.cat([f_prev, f_cur], -1)
-            valid = ~done                                  # a done step's f_cur is already the reset state
+            valid = ~done  # a done step's f_cur is already the reset state
             r_style = amp.reward(pairs) * valid.float()
             agent.record(args.task_w * rew + args.style_w * r_style, done, info["time_outs"])
             pair_list.append(pairs[valid])
             f_prev = f_cur.clone()
-            r_task_sum += float(rew.mean()); r_style_sum += float(r_style.mean())
+            r_task_sum += float(rew.mean())
+            r_style_sum += float(r_style.mean())
             if "ep_return" in info:
-                ep_returns += info["ep_return"].tolist(); ep_lens += info["ep_len"].tolist()
+                ep_returns += info["ep_return"].tolist()
+                ep_lens += info["ep_len"].tolist()
             for k, v in info.items():
                 if k.startswith("m/"):
                     metric_acc[k] = metric_acc.get(k, 0.0) + float(v.float().mean())
         agent.compute_returns(obs)
-        t_roll = time.time() - t0
         stats = agent.update()
         stats.update(amp.update(torch.cat(pair_list, 0)))
         nan_grads += int(stats.pop("ppo/nan_grad_batches", 0))
@@ -135,10 +161,15 @@ def main():
         stats["amp/r_style"] = r_style_sum / T
         total_steps = it * steps_per_iter
         fps = steps_per_iter / (time.time() - t0)
-        rec = {"iter": it, "steps": total_steps, "fps": fps,
-               "ep_return": sum(ep_returns[-1000:]) / max(1, len(ep_returns[-1000:])),
-               "ep_len_s": env.control_dt * sum(ep_lens[-1000:]) / max(1, len(ep_lens[-1000:])),
-               "push_scale": env.push_scale, **stats}
+        rec = {
+            "iter": it,
+            "steps": total_steps,
+            "fps": fps,
+            "ep_return": sum(ep_returns[-1000:]) / max(1, len(ep_returns[-1000:])),
+            "ep_len_s": env.control_dt * sum(ep_lens[-1000:]) / max(1, len(ep_lens[-1000:])),
+            "push_scale": env.push_scale,
+            **stats,
+        }
         for k, v in metric_acc.items():
             rec[k] = v / T
         for k, v in rec.items():
@@ -146,14 +177,18 @@ def main():
         if csvw is None:
             csvw = csv.DictWriter(csvf, fieldnames=list(rec.keys()))
             csvw.writeheader()
-        csvw.writerow(rec); csvf.flush()
+        csvw.writerow(rec)
+        csvf.flush()
         if it % 10 == 0 or it == 1:
-            print(f"it {it:5d} | {total_steps/1e6:7.1f}M | {fps/1e3:5.1f}k fps | ret {rec['ep_return']:8.1f} | ep {rec['ep_len_s']:5.1f}s | "
-                  f"r_task {stats['amp/r_task']:.2f} r_style {stats['amp/r_style']:.2f} | D acc agent {stats['amp/agent_acc']:.2f} "
-                  f"demo {stats['amp/demo_acc']:.2f} | {(time.time()-t_start)/60:.1f} min", flush=True)
+            print(
+                f"it {it:5d} | {total_steps / 1e6:7.1f}M | {fps / 1e3:5.1f}k fps | ret {rec['ep_return']:8.1f} | ep {rec['ep_len_s']:5.1f}s | "
+                f"r_task {stats['amp/r_task']:.2f} r_style {stats['amp/r_style']:.2f} | D acc agent {stats['amp/agent_acc']:.2f} "
+                f"demo {stats['amp/demo_acc']:.2f} | {(time.time() - t_start) / 60:.1f} min",
+                flush=True,
+            )
         extra = {"steps": total_steps, "nan_grads": nan_grads, "amp": amp.state_dict()}
         if args.time_budget_min > 0 and (time.time() - t_start) / 60 >= args.time_budget_min:
-            stop_reason = f"time budget {args.time_budget_min:.0f} min reached at {total_steps/1e6:.1f}M steps"
+            stop_reason = f"time budget {args.time_budget_min:.0f} min reached at {total_steps / 1e6:.1f}M steps"
             base.save_ckpt(agent, out / "model.pt", tags, extra)
             break
         if it % args.save_every == 0:
@@ -161,11 +196,25 @@ def main():
             if rec["ep_return"] > best and len(ep_returns) > 100:
                 best = rec["ep_return"]
                 base.save_ckpt(agent, out / "best.pt", tags, extra)
-    base.save_ckpt(agent, out / "model.pt", tags, {"steps": it * steps_per_iter, "nan_grads": nan_grads, "amp": amp.state_dict()})
-    writer.close(); csvf.close()
-    (out / "done.json").write_text(json.dumps({"stop_reason": stop_reason, "steps": int(it * steps_per_iter), "iters": it,
-        "wall_min": (time.time() - t_start) / 60, "nan_grads": nan_grads, "final_ep_return": rec.get("ep_return"),
-        "final_ep_len_s": rec.get("ep_len_s")}), encoding="utf-8")
+    base.save_ckpt(
+        agent, out / "model.pt", tags, {"steps": it * steps_per_iter, "nan_grads": nan_grads, "amp": amp.state_dict()}
+    )
+    writer.close()
+    csvf.close()
+    (out / "done.json").write_text(
+        json.dumps(
+            {
+                "stop_reason": stop_reason,
+                "steps": int(it * steps_per_iter),
+                "iters": it,
+                "wall_min": (time.time() - t_start) / 60,
+                "nan_grads": nan_grads,
+                "final_ep_return": rec.get("ep_return"),
+                "final_ep_len_s": rec.get("ep_len_s"),
+            }
+        ),
+        encoding="utf-8",
+    )
     print(f"done: {out} ({stop_reason})", flush=True)
 
 

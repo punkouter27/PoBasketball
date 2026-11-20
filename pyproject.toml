@@ -1,11 +1,37 @@
 [project]
 name = "pobasketball"
 version = "0.1.0"
-requires-python = ">=3.10"
+# sim/ (the only Python package) pins 3.12 (sim/.python-version, sim/pyproject.toml); CI runs 3.12.
+requires-python = ">=3.12"
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "ruff==0.17.6"]
 
 [tool.pytest.ini_options]
 pythonpath = ["sim"]
 testpaths = ["sim/tests"]
+markers = ["gpu: needs CUDA + mujoco_warp (skipped with a message when unavailable)"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [
+    ".venv*",
+    "sim/.venv",
+    "sim/runs",
+    "web/dist",
+    "node_modules",
+    # Unreal editor/Blender scripts run inside UE's / Blender's own Python and are owned by the Unreal project
+    # (checked with the Unreal build, not by this repo's Python tooling).
+    "unreal",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
+ignore = [
+    "E731",  # small lambdas assigned to names are used deliberately as one-line reward/shaping helpers
+    "B905",  # zip() without strict=: the zipped sequences are built together; strict= adds noise, not safety
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["streetball"]

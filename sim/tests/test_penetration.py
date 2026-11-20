@@ -1,5 +1,3 @@
-import sys, pathlib
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 """UU_AGENT section 2: primitive colliders, non-adjacent parts collide, zero penetration at rest,
 at joint limits and through motion.
 
@@ -7,6 +5,7 @@ at joint limits and through motion.
 (rest pose, every joint at either limit) between any pair that is allowed to collide, and
 bounded contact depth (<= 1 cm) while moving under random actions at 500 Hz.
 """
+
 import pathlib
 
 import mujoco
@@ -14,8 +13,8 @@ import numpy as np
 import pytest
 
 ASSETS = pathlib.Path(__file__).resolve().parents[1] / "assets"
-MOTION_DEPTH_LIMIT = 0.010   # m, dynamic (soft contact) tolerance
-STATIC_DEPTH_LIMIT = 0.002   # m, geometric overlap tolerance in static poses
+MOTION_DEPTH_LIMIT = 0.010  # m, dynamic (soft contact) tolerance
+STATIC_DEPTH_LIMIT = 0.002  # m, geometric overlap tolerance in static poses
 
 
 def _model():
@@ -40,17 +39,31 @@ def _self_contacts(m, d, hum):
     for c in range(d.ncon):
         con = d.contact[c]
         if con.geom1 in hum and con.geom2 in hum:
-            out.append((mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, con.geom1),
-                        mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, con.geom2), float(con.dist)))
+            out.append(
+                (
+                    mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, con.geom1),
+                    mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, con.geom2),
+                    float(con.dist),
+                )
+            )
     return out
 
 
 def test_primitive_colliders_only():
     m, _ = _model()
     # plain ints on both sides: numpy-int-in-enum-set membership differs between platforms (failed on Linux CI)
-    allowed = {int(t) for t in (mujoco.mjtGeom.mjGEOM_CAPSULE, mujoco.mjtGeom.mjGEOM_SPHERE,
-                                mujoco.mjtGeom.mjGEOM_BOX, mujoco.mjtGeom.mjGEOM_PLANE)}
-    bad = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) for g in range(m.ngeom) if int(m.geom_type[g]) not in allowed]
+    allowed = {
+        int(t)
+        for t in (
+            mujoco.mjtGeom.mjGEOM_CAPSULE,
+            mujoco.mjtGeom.mjGEOM_SPHERE,
+            mujoco.mjtGeom.mjGEOM_BOX,
+            mujoco.mjtGeom.mjGEOM_PLANE,
+        )
+    }
+    bad = [
+        mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) for g in range(m.ngeom) if int(m.geom_type[g]) not in allowed
+    ]
     assert not bad, f"non-primitive geoms: {bad}"
 
 
@@ -61,7 +74,7 @@ def test_non_adjacent_parts_collide():
     mujoco.mj_resetDataKeyframe(m, d, 0)
     for s in "lr":
         j = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, f"hip_abd_{s}")
-        d.qpos[m.jnt_qposadr[j]] = np.radians(-30.0)       # adduct both legs toward each other
+        d.qpos[m.jnt_qposadr[j]] = np.radians(-30.0)  # adduct both legs toward each other
     mujoco.mj_forward(m, d)
     pairs = {tuple(sorted(p[:2])) for p in _self_contacts(m, d, hum)}
     assert ("calf_l", "calf_r") in pairs or ("thigh_l", "thigh_r") in pairs, f"legs crossed without a contact: {pairs}"
@@ -77,7 +90,7 @@ def test_no_overlap_at_rest():
     for _ in range(500):
         mujoco.mj_step(m, d)
     depth = min([float(d.contact[c].dist) for c in range(d.ncon)] + [0.0])
-    assert depth > -MOTION_DEPTH_LIMIT, f"contact depth after settling {depth*1000:.1f} mm"
+    assert depth > -MOTION_DEPTH_LIMIT, f"contact depth after settling {depth * 1000:.1f} mm"
 
 
 def test_no_overlap_at_joint_limits():
@@ -93,7 +106,15 @@ def test_no_overlap_at_joint_limits():
             mujoco.mj_forward(m, d)
             for g1, g2, dist in _self_contacts(m, d, hum):
                 if dist < -STATIC_DEPTH_LIMIT:
-                    offenders.append((mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_JOINT, j), "lo" if k == 0 else "hi", g1, g2, round(dist * 1000, 1)))
+                    offenders.append(
+                        (
+                            mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_JOINT, j),
+                            "lo" if k == 0 else "hi",
+                            g1,
+                            g2,
+                            round(dist * 1000, 1),
+                        )
+                    )
     assert not offenders, "overlap at joint limits (joint, end, geom1, geom2, mm): " + str(offenders)
 
 
@@ -108,7 +129,7 @@ def test_bounded_depth_through_motion(seed):
     a = np.zeros(m.nu)
     worst = 0.0
     worst_pair = None
-    for t in range(200):
+    for _t in range(200):
         a = 0.9 * a + 0.1 * rng.uniform(-1, 1, m.nu)
         d.ctrl[:] = np.clip(nominal + 0.6 * 0.5 * (hi - lo) * a, lo, hi)
         for _ in range(10):
@@ -116,6 +137,8 @@ def test_bounded_depth_through_motion(seed):
             for c in range(d.ncon):
                 if d.contact[c].dist < worst:
                     worst = float(d.contact[c].dist)
-                    worst_pair = (mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, d.contact[c].geom1),
-                                  mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, d.contact[c].geom2))
-    assert worst > -MOTION_DEPTH_LIMIT, f"deepest contact {worst*1000:.1f} mm between {worst_pair}"
+                    worst_pair = (
+                        mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, d.contact[c].geom1),
+                        mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, d.contact[c].geom2),
+                    )
+    assert worst > -MOTION_DEPTH_LIMIT, f"deepest contact {worst * 1000:.1f} mm between {worst_pair}"

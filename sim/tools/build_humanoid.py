@@ -21,6 +21,7 @@ frame equals the world frame and the pose equals Manny's reference (A-)pose.
 
 Usage: uv run python tools/build_humanoid.py
 """
+
 from __future__ import annotations
 
 import json
@@ -34,12 +35,28 @@ SHARED = ROOT.parent / "shared"
 ASSETS = ROOT / "assets"
 
 # ----------------------------------------------------------------------------- blueprint A.2 / A.4
-MASS = dict(pelvis=11.2, torso=28.6, head=6.5, upperarm=2.24, lowerarm=1.28, hand=0.48,
-            thigh=8.0, calf=3.72, foot=0.96, toe=0.20)
+MASS = dict(
+    pelvis=11.2,
+    torso=28.6,
+    head=6.5,
+    upperarm=2.24,
+    lowerarm=1.28,
+    hand=0.48,
+    thigh=8.0,
+    calf=3.72,
+    foot=0.96,
+    toe=0.20,
+)
 RADIUS = dict(torso=0.12, upperarm=0.045, lowerarm=0.035, thigh=0.07, calf=0.05, head=0.11)
 GAINS = {  # group: (kp, kv, torque)
-    "hip": (400, 40, 300), "knee": (400, 40, 300), "ankle": (200, 20, 150), "toe": (60, 6, 30),
-    "lumbar": (300, 30, 200), "shoulder": (150, 15, 100), "elbow": (100, 10, 80), "wrist": (30, 3, 20),
+    "hip": (400, 40, 300),
+    "knee": (400, 40, 300),
+    "ankle": (200, 20, 150),
+    "toe": (60, 6, 30),
+    "lumbar": (300, 30, 200),
+    "shoulder": (150, 15, 100),
+    "elbow": (100, 10, 80),
+    "wrist": (30, 3, 20),
 }
 D2R = math.pi / 180.0
 
@@ -96,7 +113,7 @@ def main() -> None:
     neck = P["neck_01"]
     head = P["head"]
 
-    joints: list[dict] = []     # ordered joint spec rows for humanoid_spec.json
+    joints: list[dict] = []  # ordered joint spec rows for humanoid_spec.json
     actuators: list[str] = []
 
     def hinge(name, group, axis, lo, hi, nominal, offset_deg=0.0, stop_lo=None) -> str:
@@ -106,34 +123,45 @@ def main() -> None:
         the physical joint stop; the actuator ctrlrange and the policy interface keep lo."""
         lo_m, hi_m, nom_m = lo - offset_deg, hi - offset_deg, nominal - offset_deg
         kp, kv, tq = GAINS[group]
-        joints.append(dict(name=name, group=group, axis=[float(a) for a in axis],
-                           range_deg=[lo_m, hi_m], nominal_deg=nom_m, anatomical_offset_deg=offset_deg,
-                           kp=kp, kv=kv, torque=tq))
+        joints.append(
+            dict(
+                name=name,
+                group=group,
+                axis=[float(a) for a in axis],
+                range_deg=[lo_m, hi_m],
+                nominal_deg=nom_m,
+                anatomical_offset_deg=offset_deg,
+                kp=kp,
+                kv=kv,
+                torque=tq,
+            )
+        )
         actuators.append(
             f'    <position name="{name}" joint="{name}" kp="{kp}" kv="{kv}" '
             f'ctrlrange="{lo_m * D2R:.4f} {hi_m * D2R:.4f}" forcerange="{-tq} {tq}"/>'
         )
         stop_m = lo_m if stop_lo is None else stop_lo - offset_deg
-        return (f'<joint name="{name}" axis="{f3(axis)}" range="{stop_m:.2f} {hi_m:.2f}"/>')
+        return f'<joint name="{name}" axis="{f3(axis)}" range="{stop_m:.2f} {hi_m:.2f}"/>'
 
     def capsule(name, a, b, r, mass, origin) -> str:
-        return (f'<geom name="{name}" type="capsule" fromto="{f3(a - origin)} {f3(b - origin)}" '
-                f'size="{r}" mass="{mass}"/>')
+        return (
+            f'<geom name="{name}" type="capsule" fromto="{f3(a - origin)} {f3(b - origin)}" size="{r}" mass="{mass}"/>'
+        )
 
     # ---- arms (computed per side so axes follow the A-pose geometry) --------
     def arm(side: str) -> tuple[str, dict]:
         s = side
-        sgn = 1.0 if s == "l" else -1.0           # left = +Y
+        sgn = 1.0 if s == "l" else -1.0  # left = +Y
         sh, el, wr = P[f"upperarm_{s}"], P[f"lowerarm_{s}"], P[f"hand_{s}"]
         fingertip = P[f"middle_03_{s}"]
-        u, f = wr - sh, wr - el                   # placeholders, refined below
-        u = el - sh                                # upper arm direction
-        f = wr - el                                # forearm direction
-        elbow_axis = unit(np.cross(f, u))          # positive = flexion (hand toward shoulder)
-        elbow_now = angle_between(u, f)            # flexion already in the A-pose
-        abd_now = angle_between(u, [0, 0, -1])     # abduction already in the A-pose
+        u, f = wr - sh, wr - el  # placeholders, refined below
+        u = el - sh  # upper arm direction
+        f = wr - el  # forearm direction
+        elbow_axis = unit(np.cross(f, u))  # positive = flexion (hand toward shoulder)
+        elbow_now = angle_between(u, f)  # flexion already in the A-pose
+        abd_now = angle_between(u, [0, 0, -1])  # abduction already in the A-pose
         hand_dir = unit(fingertip - wr)
-        palm_n = unit(np.cross(elbow_axis, f))     # roughly the palm normal
+        palm_n = unit(np.cross(elbow_axis, f))  # roughly the palm normal
         wrist_dev_axis = palm_n
         # palm box frame: x along hand, y along elbow axis, z = palm normal
         Rm = np.column_stack([hand_dir, unit(np.cross(palm_n, hand_dir)), palm_n])
@@ -141,8 +169,9 @@ def main() -> None:
         palm_c = wr + 0.07 * hand_dir
 
         j_pitch = hinge(f"shoulder_pitch_{s}", "shoulder", [0, -1, 0], -60, 180, 15)
-        j_abd = hinge(f"shoulder_abd_{s}", "shoulder", [sgn, 0, 0], -30, 150, 10, offset_deg=abd_now,
-                      stop_lo=-5)   # physical stop before the forearm reaches the torso (contact at ~-8 deg)
+        j_abd = hinge(
+            f"shoulder_abd_{s}", "shoulder", [sgn, 0, 0], -30, 150, 10, offset_deg=abd_now, stop_lo=-5
+        )  # physical stop before the forearm reaches the torso (contact at ~-8 deg)
         j_rot = hinge(f"shoulder_rot_{s}", "shoulder", [0, 0, sgn], -90, 90, 0)
         j_elb = hinge(f"elbow_{s}", "elbow", elbow_axis, 0, 145, 30, offset_deg=elbow_now)
         j_wf = hinge(f"wrist_flex_{s}", "wrist", elbow_axis, -70, 80, 0)
@@ -178,7 +207,7 @@ def main() -> None:
         foot_dir = unit([toe[0] - an[0], toe[1] - an[1], 0.0])
         yaw = math.atan2(foot_dir[1], foot_dir[0])
         foot_q = np.array([math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)])
-        heel_back, toe_fwd = 0.05, 0.22            # metres from ankle along foot_dir
+        heel_back, toe_fwd = 0.05, 0.22  # metres from ankle along foot_dir
         split_fwd = float(np.dot((toe[:2] - an[:2]), foot_dir[:2]))
         half_len_foot = (heel_back + split_fwd) / 2
         half_len_toe = (toe_fwd - split_fwd) / 2
@@ -186,10 +215,10 @@ def main() -> None:
         toe_c = an * np.array([1, 1, 0]) + foot_dir * (split_fwd + toe_fwd) / 2 + np.array([0, 0, 0.025])
 
         j_hf = hinge(f"hip_flex_{s}", "hip", [0, -1, 0], -30, 120, 15)
-        j_ha = hinge(f"hip_abd_{s}", "hip", [sgn, 0, 0], -15, 45, 5)   # adduction capped where the other leg blocks it
+        j_ha = hinge(f"hip_abd_{s}", "hip", [sgn, 0, 0], -15, 45, 5)  # adduction capped where the other leg blocks it
         j_hr = hinge(f"hip_rot_{s}", "hip", [0, 0, sgn], -40, 40, 0)
         j_kn = hinge(f"knee_{s}", "knee", [0, 1, 0], 0, 150, 25, offset_deg=knee_now)
-        j_ap = hinge(f"ankle_pitch_{s}", "ankle", [0, -1, 0], -45, 25, 10)   # + = dorsiflexion
+        j_ap = hinge(f"ankle_pitch_{s}", "ankle", [0, -1, 0], -45, 25, 10)  # + = dorsiflexion
         j_ar = hinge(f"ankle_roll_{s}", "ankle", [1, 0, 0], -25, 25, 0)
         j_toe = hinge(f"toe_{s}", "toe", [foot_dir[1], -foot_dir[0], 0.0], -25, 55, 0)  # + = toe dorsiflexion
 
@@ -327,13 +356,15 @@ def main() -> None:
         jid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, j["name"])
         d.qpos[m.jnt_qposadr[jid]] = j["nominal_deg"] * D2R
     mujoco.mj_forward(m, d)
-    foot_sites = [i for i in range(m.nsite) if (mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_SITE, i) or "").startswith("foot_")]
+    foot_sites = [
+        i for i in range(m.nsite) if (mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_SITE, i) or "").startswith("foot_")
+    ]
     zmin = min(d.site_xpos[i][2] for i in foot_sites)
     root_adr = m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "root")]
     d.qpos[root_adr + 2] -= zmin
     ball_adr = m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "ball")]
-    d.qpos[ball_adr:ball_adr + 3] = [0.45, -0.35, 0.1205]        # resting by the right hand
-    d.qpos[ball_adr + 3:ball_adr + 7] = [1, 0, 0, 0]
+    d.qpos[ball_adr : ball_adr + 3] = [0.45, -0.35, 0.1205]  # resting by the right hand
+    d.qpos[ball_adr + 3 : ball_adr + 7] = [1, 0, 0, 0]
     ctrl = [j["nominal_deg"] * D2R for j in joints]
     qs = " ".join(f"{v:.5f}" for v in d.qpos)
     cs = " ".join(f"{v:.5f}" for v in ctrl)
@@ -346,15 +377,26 @@ def main() -> None:
     # ---- spec JSON (single source of truth for obs.py and the UE plugin) ----
     body_bone_map = {
         "pelvis": {"bones": ["pelvis"], "rule": "position+rotation"},
-        "torso": {"anchor": "spine_02", "bones": ["spine_01", "spine_02", "spine_03"], "rule": "lumbar slerp 1/3, 2/3, 1; spine_04, spine_05, clavicle_l, clavicle_r rigid"},
+        "torso": {
+            "anchor": "spine_02",
+            "bones": ["spine_01", "spine_02", "spine_03"],
+            "rule": "lumbar slerp 1/3, 2/3, 1; spine_04, spine_05, clavicle_l, clavicle_r rigid",
+        },
         "head": {"bones": ["neck_01", "neck_02", "head"], "rule": "rigid with torso"},
-        "upperarm_l": {"bones": ["upperarm_l"], "rule": "rotation"}, "upperarm_r": {"bones": ["upperarm_r"], "rule": "rotation"},
-        "lowerarm_l": {"bones": ["lowerarm_l"], "rule": "rotation"}, "lowerarm_r": {"bones": ["lowerarm_r"], "rule": "rotation"},
-        "hand_l": {"bones": ["hand_l"], "rule": "rotation; fingers fixed"}, "hand_r": {"bones": ["hand_r"], "rule": "rotation; fingers fixed"},
-        "thigh_l": {"bones": ["thigh_l"], "rule": "rotation"}, "thigh_r": {"bones": ["thigh_r"], "rule": "rotation"},
-        "calf_l": {"bones": ["calf_l"], "rule": "rotation"}, "calf_r": {"bones": ["calf_r"], "rule": "rotation"},
-        "foot_l": {"bones": ["foot_l"], "rule": "rotation"}, "foot_r": {"bones": ["foot_r"], "rule": "rotation"},
-        "toe_l": {"bones": ["ball_l"], "rule": "rotation"}, "toe_r": {"bones": ["ball_r"], "rule": "rotation"},
+        "upperarm_l": {"bones": ["upperarm_l"], "rule": "rotation"},
+        "upperarm_r": {"bones": ["upperarm_r"], "rule": "rotation"},
+        "lowerarm_l": {"bones": ["lowerarm_l"], "rule": "rotation"},
+        "lowerarm_r": {"bones": ["lowerarm_r"], "rule": "rotation"},
+        "hand_l": {"bones": ["hand_l"], "rule": "rotation; fingers fixed"},
+        "hand_r": {"bones": ["hand_r"], "rule": "rotation; fingers fixed"},
+        "thigh_l": {"bones": ["thigh_l"], "rule": "rotation"},
+        "thigh_r": {"bones": ["thigh_r"], "rule": "rotation"},
+        "calf_l": {"bones": ["calf_l"], "rule": "rotation"},
+        "calf_r": {"bones": ["calf_r"], "rule": "rotation"},
+        "foot_l": {"bones": ["foot_l"], "rule": "rotation"},
+        "foot_r": {"bones": ["foot_r"], "rule": "rotation"},
+        "toe_l": {"bones": ["ball_l"], "rule": "rotation"},
+        "toe_r": {"bones": ["ball_r"], "rule": "rotation"},
     }
     spec = {
         "generated_from": "shared/mannequin_bones.json",
@@ -380,8 +422,10 @@ def main() -> None:
     SHARED.mkdir(parents=True, exist_ok=True)
     (SHARED / "humanoid_spec.json").write_text(json.dumps(spec, indent=2), encoding="utf-8")
     print(f"wrote {ASSETS / 'humanoid.xml'}, {ASSETS / 'scene.xml'}, {SHARED / 'humanoid_spec.json'}")
-    print(f"{len(joints)} actuated joints; ref-pose offsets: elbow {arm_l_info['elbow_now']:.1f} deg, "
-          f"shoulder abd {arm_l_info['abd_now']:.1f} deg, knee {leg_l_info['knee_now']:.1f} deg, foot yaw {leg_l_info['foot_yaw_deg']:.1f} deg")
+    print(
+        f"{len(joints)} actuated joints; ref-pose offsets: elbow {arm_l_info['elbow_now']:.1f} deg, "
+        f"shoulder abd {arm_l_info['abd_now']:.1f} deg, knee {leg_l_info['knee_now']:.1f} deg, foot yaw {leg_l_info['foot_yaw_deg']:.1f} deg"
+    )
 
 
 if __name__ == "__main__":

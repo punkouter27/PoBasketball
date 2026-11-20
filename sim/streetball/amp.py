@@ -18,6 +18,7 @@ Differences from MimicKit (documented, deliberate):
 The feature function `amp_features` is the single definition used for both the retargeted mocap
 (tools/retarget_loco_mujoco.py) and live rollouts (train_amp.py), so the two distributions are comparable.
 """
+
 from __future__ import annotations
 
 import torch
@@ -27,20 +28,23 @@ KEY_BODIES = ("hand_l", "hand_r", "foot_l", "foot_r", "head")
 # Joints without a mocap counterpart are left out of the style features: the retargeted data holds them at
 # exactly zero (wrists: zeroed in retargeting; ankle roll: SkeletonTorque subtalar joint is locked), so any real
 # motion there would let the discriminator separate policy from mocap trivially (seen in the first smoke test).
-EXCLUDED_JOINTS = (4, 5, 10, 11, 17, 23)   # wrist_flex/dev l+r, ankle_roll l+r (humanoid_spec order)
+EXCLUDED_JOINTS = (4, 5, 10, 11, 17, 23)  # wrist_flex/dev l+r, ankle_roll l+r (humanoid_spec order)
 AMP_JOINTS = tuple(i for i in range(27) if i not in EXCLUDED_JOINTS)
 N_JOINT = len(AMP_JOINTS)
-FEAT_DIM = 1 + 6 + 3 + 3 + N_JOINT + N_JOINT + 3 * len(KEY_BODIES)   # 70 per frame
+FEAT_DIM = 1 + 6 + 3 + 3 + N_JOINT + N_JOINT + 3 * len(KEY_BODIES)  # 70 per frame
 
 
 def quat_to_mat(q: torch.Tensor) -> torch.Tensor:
     """wxyz -> (..., 3, 3) world <- body (same formula as StreetballEnv.quat_to_mat)."""
     w, x, y, z = q.unbind(-1)
-    return torch.stack([
-        torch.stack([1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)], -1),
-        torch.stack([2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)], -1),
-        torch.stack([2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)], -1),
-    ], -2)
+    return torch.stack(
+        [
+            torch.stack([1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)], -1),
+            torch.stack([2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)], -1),
+            torch.stack([2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)], -1),
+        ],
+        -2,
+    )
 
 
 def heading_mat(R: torch.Tensor) -> torch.Tensor:
@@ -48,7 +52,9 @@ def heading_mat(R: torch.Tensor) -> torch.Tensor:
     fwd = R[..., :, 0].clone()
     fwd[..., 2] = 0.0
     n = fwd.norm(dim=-1, keepdim=True)
-    fwd = torch.where(n > 1e-6, fwd / n.clamp_min(1e-6), torch.tensor([1.0, 0.0, 0.0], device=fwd.device, dtype=fwd.dtype))
+    fwd = torch.where(
+        n > 1e-6, fwd / n.clamp_min(1e-6), torch.tensor([1.0, 0.0, 0.0], device=fwd.device, dtype=fwd.dtype)
+    )
     left = torch.stack([-fwd[..., 1], fwd[..., 0], torch.zeros_like(fwd[..., 0])], -1)
     up = torch.zeros_like(fwd)
     up[..., 2] = 1.0
@@ -65,8 +71,8 @@ def amp_features(root_pos, root_quat, v_world, w_local, jpos, jvel, key_world) -
     R = quat_to_mat(root_quat)
     H = heading_mat(R)
     Ht = H.transpose(-1, -2)
-    R_h = Ht @ R                                                  # pelvis orientation relative to its heading
-    tan_norm = torch.cat([R_h[..., :, 0], R_h[..., :, 2]], -1)    # 6: forward and up axes
+    R_h = Ht @ R  # pelvis orientation relative to its heading
+    tan_norm = torch.cat([R_h[..., :, 0], R_h[..., :, 2]], -1)  # 6: forward and up axes
     v_h = torch.einsum("nij,nj->ni", Ht, v_world)
     key_rel = torch.einsum("nij,nkj->nki", Ht, key_world - root_pos[:, None, :]).reshape(root_pos.shape[0], -1)
     sel = list(AMP_JOINTS)
@@ -107,11 +113,22 @@ class FixedNormalizer(nn.Module):
 class AMP:
     """Discriminator, demo data, replay buffer and losses (hyper-parameters from MimicKit amp agent yaml)."""
 
-    def __init__(self, demo_pairs: torch.Tensor, device: torch.device, lr: float = 1e-4, weight_decay: float = 1e-4,
-                 grad_penalty: float = 5.0, logit_reg: float = 0.01, reward_scale: float = 2.0,
-                 replay_size: int = 200_000, replay_samples: int = 1000, epochs: int = 2, batch: int = 8192):
+    def __init__(
+        self,
+        demo_pairs: torch.Tensor,
+        device: torch.device,
+        lr: float = 1e-4,
+        weight_decay: float = 1e-4,
+        grad_penalty: float = 5.0,
+        logit_reg: float = 0.01,
+        reward_scale: float = 2.0,
+        replay_size: int = 200_000,
+        replay_samples: int = 1000,
+        epochs: int = 2,
+        batch: int = 8192,
+    ):
         self.device = device
-        self.demo = demo_pairs.to(device)                         # (M, 2*FEAT_DIM)
+        self.demo = demo_pairs.to(device)  # (M, 2*FEAT_DIM)
         self.norm = FixedNormalizer(self.demo).to(device)
         self.disc = Discriminator(self.demo.shape[1]).to(device)
         self.opt = torch.optim.Adam(self.disc.parameters(), lr=lr, weight_decay=weight_decay)
@@ -137,15 +154,21 @@ class AMP:
     def update(self, agent_pairs: torch.Tensor) -> dict[str, float]:
         """agent_pairs: (B, 2*FEAT_DIM) policy transitions from the last rollout."""
         agent_pairs = agent_pairs.detach()
-        stats = {"amp/disc_loss": 0.0, "amp/grad_penalty": 0.0, "amp/agent_acc": 0.0, "amp/demo_acc": 0.0,
-                 "amp/agent_logit": 0.0, "amp/demo_logit": 0.0}
+        stats = {
+            "amp/disc_loss": 0.0,
+            "amp/grad_penalty": 0.0,
+            "amp/agent_acc": 0.0,
+            "amp/demo_acc": 0.0,
+            "amp/agent_logit": 0.0,
+            "amp/demo_logit": 0.0,
+        }
         B = agent_pairs.shape[0]
         n_batches = max(1, B // self.batch)
         steps = 0
         for _ in range(self.epochs):
             perm = torch.randperm(B, device=self.device)
             for b in range(n_batches):
-                a = agent_pairs[perm[b * self.batch:(b + 1) * self.batch]]
+                a = agent_pairs[perm[b * self.batch : (b + 1) * self.batch]]
                 if self.replay_n > 0:
                     r = self.replay[torch.randint(0, self.replay_n, (a.shape[0],), device=self.device)]
                     a = torch.cat([a, r], 0)
@@ -163,9 +186,12 @@ class AMP:
                 loss.backward()
                 self.opt.step()
                 steps += 1
-                stats["amp/disc_loss"] += float(loss.detach()); stats["amp/grad_penalty"] += float(gp.detach())
-                stats["amp/agent_acc"] += float((la < 0).float().mean()); stats["amp/demo_acc"] += float((ld > 0).float().mean())
-                stats["amp/agent_logit"] += float(la.mean()); stats["amp/demo_logit"] += float(ld.mean())
+                stats["amp/disc_loss"] += float(loss.detach())
+                stats["amp/grad_penalty"] += float(gp.detach())
+                stats["amp/agent_acc"] += float((la < 0).float().mean())
+                stats["amp/demo_acc"] += float((ld > 0).float().mean())
+                stats["amp/agent_logit"] += float(la.mean())
+                stats["amp/demo_logit"] += float(ld.mean())
         self._push_replay(agent_pairs)
         return {k: v / max(1, steps) for k, v in stats.items()}
 

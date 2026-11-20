@@ -3,6 +3,7 @@
 Usage: uv run python tools/bench_warp.py [path/to/model.xml] [--n 4096] [--steps 500]
 Default model is the mujoco_warp test humanoid.
 """
+
 import argparse
 import pathlib
 import time
@@ -19,9 +20,7 @@ def main() -> None:
     ap.add_argument("--steps", type=int, default=500)
     args = ap.parse_args()
 
-    xml = args.xml or str(
-        pathlib.Path(mjw.__file__).parent / "test_data" / "humanoid" / "humanoid.xml"
-    )
+    xml = args.xml or str(pathlib.Path(mjw.__file__).parent / "test_data" / "humanoid" / "humanoid.xml")
     mjm = mujoco.MjModel.from_xml_path(xml)
     mjd = mujoco.MjData(mjm)
     mujoco.mj_forward(mjm, mjd)
@@ -42,8 +41,8 @@ def main() -> None:
     rate = args.n * args.steps / dt
     print(
         f"{xml}\n{args.n} envs x {args.steps} steps in {dt:.2f}s -> "
-        f"{rate/1e6:.2f} M physics steps/s  (nq={mjm.nq}, nv={mjm.nv}, "
-        f"mean active contacts/world={d.nacon.numpy().sum()/args.n:.1f})"
+        f"{rate / 1e6:.2f} M physics steps/s  (nq={mjm.nq}, nv={mjm.nv}, "
+        f"mean active contacts/world={d.nacon.numpy().sum() / args.n:.1f})"
     )
 
 

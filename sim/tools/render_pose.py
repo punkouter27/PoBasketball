@@ -2,6 +2,7 @@
 
 Usage: uv run python tools/render_pose.py [--key stand] [--out ../docs/phase_reports/A3_pose.png]
 """
+
 import argparse
 import pathlib
 
@@ -28,8 +29,12 @@ def main() -> None:
 
     r = mujoco.Renderer(m, height=720, width=1280)
     tiles = []
-    for az, el, dist, look in [(135, -15, 3.2, (0, 0, 0.95)), (90, -10, 3.2, (0, 0, 0.95)),
-                               (180, -10, 3.2, (0, 0, 0.95)), (150, -25, 12.0, (6, 0, 1.5))]:
+    for az, el, dist, look in [
+        (135, -15, 3.2, (0, 0, 0.95)),
+        (90, -10, 3.2, (0, 0, 0.95)),
+        (180, -10, 3.2, (0, 0, 0.95)),
+        (150, -25, 12.0, (6, 0, 1.5)),
+    ]:
         cam = mujoco.MjvCamera()
         cam.type = mujoco.mjtCamera.mjCAMERA_FREE
         cam.azimuth, cam.elevation, cam.distance = az, el, dist

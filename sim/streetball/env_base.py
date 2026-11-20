@@ -8,6 +8,7 @@ in torch from zero-copy views of the Warp arrays, slot-for-slot identical to
 Level-specific behaviour (task block, reward, termination, reset placement) lives
 in `streetball/levels/*.py` behind the `Level` interface in `levels/base.py`.
 """
+
 from __future__ import annotations
 
 import json
@@ -33,14 +34,15 @@ PALM_WINDOW_S = 1.0
 @dataclass
 class RandomizationConfig:
     """Blueprint C.1 domain randomisation. All ranges are multiplicative unless noted."""
+
     enabled: bool = True
     body_mass: tuple[float, float] = (0.9, 1.1)
-    floor_friction: tuple[float, float] = (0.6, 1.1)          # absolute sliding friction
+    floor_friction: tuple[float, float] = (0.6, 1.1)  # absolute sliding friction
     motor_kp: tuple[float, float] = (0.9, 1.1)
     ball_mass: tuple[float, float] = (0.95, 1.05)
-    ball_restitution: tuple[float, float] = (0.9, 1.1)        # scales contact damping (lower = bouncier)
-    action_latency_prob: float = 0.5                          # per episode: one control step of delay
-    push_force: tuple[float, float] = (0.0, 150.0)            # N, horizontal, random direction
+    ball_restitution: tuple[float, float] = (0.9, 1.1)  # scales contact damping (lower = bouncier)
+    action_latency_prob: float = 0.5  # per episode: one control step of delay
+    push_force: tuple[float, float] = (0.0, 150.0)  # N, horizontal, random direction
     push_duration_s: float = 0.2
     push_interval_s: tuple[float, float] = (3.0, 8.0)
 
@@ -78,41 +80,53 @@ class StreetballEnv:
         self.ix = obs_spec.ObsIndex(self.mjm)
         self.dt = float(self.mjm.opt.timestep)
         self.control_dt = self.dt * cfg.substeps
-        self.max_steps = int(round(level.episode_s / self.control_dt)) if level.episode_s else int(round(cfg.episode_s / self.control_dt))
+        self.max_steps = (
+            int(round(level.episode_s / self.control_dt))
+            if level.episode_s
+            else int(round(cfg.episode_s / self.control_dt))
+        )
         spec = json.load(open(SHARED / "humanoid_spec.json", encoding="utf-8"))
         self.nominal_root_z = float(spec["nominal_root_height_m"])
 
         # ---- GPU model (batched fields for randomisation) & data
         N = self.N
-        self.wm = mjw.put_model(self.mjm, batch_sizes={
-            "body_mass": N, "body_inertia": N, "geom_friction": N,
-            "actuator_gainprm": N, "actuator_biasprm": N, "pair_solref": N,
-        })
+        self.wm = mjw.put_model(
+            self.mjm,
+            batch_sizes={
+                "body_mass": N,
+                "body_inertia": N,
+                "geom_friction": N,
+                "actuator_gainprm": N,
+                "actuator_biasprm": N,
+                "pair_solref": N,
+            },
+        )
         # naconmax is a global budget, njmax is PER WORLD (it sizes a dense njmax x njmax block per
         # world, so never pass N * something here).
-        self.wd = mjw.put_data(self.mjm, self.mjd, nworld=N,
-                               naconmax=N * cfg.naconmax_per_world, njmax=cfg.njmax_per_world)
+        self.wd = mjw.put_data(
+            self.mjm, self.mjd, nworld=N, naconmax=N * cfg.naconmax_per_world, njmax=cfg.njmax_per_world
+        )
         self.wm.opt.warn_overflow = 0  # overflow is checked explicitly in step()
 
         # ---- torch views (zero copy)
         t = wp.to_torch
-        self.qpos = t(self.wd.qpos)                 # (N, nq)
-        self.qvel = t(self.wd.qvel)                 # (N, nv)
-        self.ctrl = t(self.wd.ctrl)                 # (N, nu)
-        self.xpos = t(self.wd.xpos)                 # (N, nbody, 3)
-        self.xquat = t(self.wd.xquat)               # (N, nbody, 4) wxyz
-        self.site_xpos = t(self.wd.site_xpos)       # (N, nsite, 3)
-        self.xfrc = t(self.wd.xfrc_applied)         # (N, nbody, 6)
+        self.qpos = t(self.wd.qpos)  # (N, nq)
+        self.qvel = t(self.wd.qvel)  # (N, nv)
+        self.ctrl = t(self.wd.ctrl)  # (N, nu)
+        self.xpos = t(self.wd.xpos)  # (N, nbody, 3)
+        self.xquat = t(self.wd.xquat)  # (N, nbody, 4) wxyz
+        self.site_xpos = t(self.wd.site_xpos)  # (N, nsite, 3)
+        self.xfrc = t(self.wd.xfrc_applied)  # (N, nbody, 6)
         self.actuator_force = t(self.wd.actuator_force)
-        self.con_geom = t(self.wd.contact.geom)     # (naconmax, 2)
-        self.con_world = t(self.wd.contact.worldid) # (naconmax,)
-        self.nacon = t(self.wd.nacon)               # (1,)
-        self.m_body_mass = t(self.wm.body_mass)     # (N, nbody)
+        self.con_geom = t(self.wd.contact.geom)  # (naconmax, 2)
+        self.con_world = t(self.wd.contact.worldid)  # (naconmax,)
+        self.nacon = t(self.wd.nacon)  # (1,)
+        self.m_body_mass = t(self.wm.body_mass)  # (N, nbody)
         self.m_body_inertia = t(self.wm.body_inertia)  # (N, nbody, 3)
         self.m_geom_friction = t(self.wm.geom_friction)  # (N, ngeom, 3)
-        self.m_gainprm = t(self.wm.actuator_gainprm)   # (N, nu, 10)
-        self.m_biasprm = t(self.wm.actuator_biasprm)   # (N, nu, 10)
-        self.m_pair_solref = t(self.wm.pair_solref)    # (N, npair, 2)
+        self.m_gainprm = t(self.wm.actuator_gainprm)  # (N, nu, 10)
+        self.m_biasprm = t(self.wm.actuator_biasprm)  # (N, nu, 10)
+        self.m_pair_solref = t(self.wm.pair_solref)  # (N, npair, 2)
         self.base_body_mass = self.m_body_mass[0].clone()
         self.base_body_inertia = self.m_body_inertia[0].clone()
         self.base_gainprm = self.m_gainprm[0].clone()
@@ -155,9 +169,16 @@ class StreetballEnv:
         self.bad_floor_mask[bad] = True
         self.foot_site_idx = torch.as_tensor(
             [mujoco.mj_name2id(self.mjm, mujoco.mjtObj.mjOBJ_SITE, f"foot_{s}_c{i}") for s in "lr" for i in range(4)],
-            device=dev)
-        self.rim_center = {s: torch.as_tensor(self.mjm.site_pos[mujoco.mj_name2id(self.mjm, mujoco.mjtObj.mjOBJ_SITE, f"rim_center_{s}")],
-                                              device=dev, dtype=torch.float32) for s in "ew"}
+            device=dev,
+        )
+        self.rim_center = {
+            s: torch.as_tensor(
+                self.mjm.site_pos[mujoco.mj_name2id(self.mjm, mujoco.mjtObj.mjOBJ_SITE, f"rim_center_{s}")],
+                device=dev,
+                dtype=torch.float32,
+            )
+            for s in "ew"
+        }
 
         # ---- episode state
         z = lambda *s, **k: torch.zeros(*s, device=dev, **k)
@@ -169,9 +190,9 @@ class StreetballEnv:
         self.episode_count = z(N, dtype=torch.long)
         self.in_control = z(N)
         self.last_palm_contact_t = torch.full((N,), -10.0, device=dev)
-        self.loose_t = torch.full((N,), -1.0, device=dev)     # time the ball became loose (-1: not loose)
+        self.loose_t = torch.full((N,), -1.0, device=dev)  # time the ball became loose (-1: not loose)
         self.countdown_frac = torch.ones(N, device=dev)
-        self.bad_contact_t = z(N)                             # continuous time a non-foot/palm part touches the floor
+        self.bad_contact_t = z(N)  # continuous time a non-foot/palm part touches the floor
         self.time = z(N)
         self.foot_contact = z(N, 2)
         self.palm_ball_contact = z(N, 2)
@@ -181,7 +202,7 @@ class StreetballEnv:
         self.push_force = z(N, 3)
         self.push_t_end = z(N)
         self.push_t_next = z(N)
-        self.push_scale = 1.0                                 # curriculum knob (0..1)
+        self.push_scale = 1.0  # curriculum knob (0..1)
         self.init_foot_xy = z(N, 2, 2)
         self.ep_return = z(N)
         self.ep_len = z(N)
@@ -217,11 +238,14 @@ class StreetballEnv:
     @staticmethod
     def quat_to_mat(q: torch.Tensor) -> torch.Tensor:
         w, x, y, z = q.unbind(-1)
-        return torch.stack([
-            torch.stack([1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)], -1),
-            torch.stack([2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)], -1),
-            torch.stack([2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)], -1),
-        ], -2)
+        return torch.stack(
+            [
+                torch.stack([1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)], -1),
+                torch.stack([2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)], -1),
+                torch.stack([2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)], -1),
+            ],
+            -2,
+        )
 
     @staticmethod
     def heading_mat(R: torch.Tensor) -> torch.Tensor:
@@ -230,7 +254,8 @@ class StreetballEnv:
         n = fwd.norm(dim=-1, keepdim=True)
         fwd = torch.where(n > 1e-6, fwd / n.clamp_min(1e-6), torch.tensor([1.0, 0.0, 0.0], device=fwd.device))
         left = torch.stack([-fwd[..., 1], fwd[..., 0], torch.zeros_like(fwd[..., 0])], -1)
-        up = torch.zeros_like(fwd); up[..., 2] = 1.0
+        up = torch.zeros_like(fwd)
+        up[..., 2] = 1.0
         return torch.stack([fwd, left, up], -1)
 
     @staticmethod
@@ -268,37 +293,38 @@ class StreetballEnv:
     def compute_obs(self):
         """Torch mirror of obs.compute_obs (see obs.py for the slot table)."""
         qpos, qvel = self.qpos, self.qvel
-        rq = self.root_q; rv = self.root_v
-        q = qpos[:, rq + 3:rq + 7]
-        R = self.quat_to_mat(q)                        # (N,3,3) world <- pelvis
-        H = self.heading_mat(R)                        # (N,3,3) world <- heading
-        p_pelvis = qpos[:, rq:rq + 3]
-        v_pelvis = qvel[:, rv:rv + 3]
-        w_pelvis = qvel[:, rv + 3:rv + 6]
+        rq = self.root_q
+        rv = self.root_v
+        q = qpos[:, rq + 3 : rq + 7]
+        R = self.quat_to_mat(q)  # (N,3,3) world <- pelvis
+        H = self.heading_mat(R)  # (N,3,3) world <- heading
+        p_pelvis = qpos[:, rq : rq + 3]
+        v_pelvis = qvel[:, rv : rv + 3]
+        w_pelvis = qvel[:, rv + 3 : rv + 6]
         o = self.obs
         g = torch.tensor([0.0, 0.0, -1.0], device=self.device)
         o[:, 0:3] = torch.einsum("nji,j->ni", R, g)
         o[:, 3:6] = torch.einsum("nji,nj->ni", R, v_pelvis)
         o[:, 6:9] = 0.25 * w_pelvis
-        o[:, obs_spec._S_JPOS:obs_spec._S_JVEL] = qpos[:, self.qadr] - self.nominal
-        o[:, obs_spec._S_JVEL:obs_spec._S_ACT] = 0.1 * qvel[:, self.vadr]
-        o[:, obs_spec._S_ACT:obs_spec._S_BALL] = self.prev_action
+        o[:, obs_spec._S_JPOS : obs_spec._S_JVEL] = qpos[:, self.qadr] - self.nominal
+        o[:, obs_spec._S_JVEL : obs_spec._S_ACT] = 0.1 * qvel[:, self.vadr]
+        o[:, obs_spec._S_ACT : obs_spec._S_BALL] = self.prev_action
         bq, bv = self.ball_q, self.ball_v
-        p_ball = qpos[:, bq:bq + 3]
-        v_ball = qvel[:, bv:bv + 3]
-        w_ball = qvel[:, bv + 3:bv + 6]
+        p_ball = qpos[:, bq : bq + 3]
+        v_ball = qvel[:, bv : bv + 3]
+        w_ball = qvel[:, bv + 3 : bv + 6]
         sb = obs_spec._S_BALL
-        o[:, sb:sb + 3] = torch.einsum("nji,nj->ni", H, p_ball - p_pelvis)
-        o[:, sb + 3:sb + 6] = 0.5 * torch.einsum("nji,nj->ni", H, v_ball - v_pelvis)
+        o[:, sb : sb + 3] = torch.einsum("nji,nj->ni", H, p_ball - p_pelvis)
+        o[:, sb + 3 : sb + 6] = 0.5 * torch.einsum("nji,nj->ni", H, v_ball - v_pelvis)
         o[:, sb + 6] = self.in_control
         o[:, sb + 7] = (self.site_xpos[:, self.palm_l_s] - p_ball).norm(dim=-1)
         o[:, sb + 8] = (self.site_xpos[:, self.palm_r_s] - p_ball).norm(dim=-1)
-        o[:, sb + 9:sb + 11] = self.foot_contact
+        o[:, sb + 9 : sb + 11] = self.foot_contact
         o[:, sb + 11] = p_pelvis[:, 2]
-        o[:, sb + 12:sb + 15] = 0.05 * torch.einsum("nji,nj->ni", H, w_ball)
+        o[:, sb + 12 : sb + 15] = 0.05 * torch.einsum("nji,nj->ni", H, w_ball)
         o[:, sb + 15] = self.countdown_frac
         o[:, sb + 16] = 0.0
-        o[:, obs_spec.N_BASE:obs_spec.N_OBS] = self.task
+        o[:, obs_spec.N_BASE : obs_spec.N_OBS] = self.task
         # cache a few derived quantities for levels
         self.R, self.H = R, H
         self.p_pelvis, self.v_pelvis, self.p_ball, self.v_ball = p_pelvis, v_pelvis, p_ball, v_ball
@@ -315,7 +341,9 @@ class StreetballEnv:
         self.loose_t = torch.where(ctrl, torch.full_like(self.loose_t, -1.0), self.loose_t)
         self.in_control = ctrl.float()
         loose = self.loose_t >= 0
-        self.countdown_frac = torch.where(loose, (1.0 - (self.time - self.loose_t) / 3.0).clamp(0, 1), torch.ones_like(self.countdown_frac))
+        self.countdown_frac = torch.where(
+            loose, (1.0 - (self.time - self.loose_t) / 3.0).clamp(0, 1), torch.ones_like(self.countdown_frac)
+        )
 
     # ------------------------------------------------------------------ randomisation
     def _randomize_model(self, ids: torch.Tensor):
@@ -332,9 +360,12 @@ class StreetballEnv:
         mu = self.rand(k, lo=rc.floor_friction[0], hi=rc.floor_friction[1])
         self.m_geom_friction[ids, self.floor_g, 0] = mu
         fk = self.rand(k, 1, lo=rc.motor_kp[0], hi=rc.motor_kp[1])
-        gp = self.base_gainprm[None].repeat(k, 1, 1); bp = self.base_biasprm[None].repeat(k, 1, 1)
-        gp[..., 0] *= fk; bp[..., 1] *= fk
-        self.m_gainprm[ids] = gp; self.m_biasprm[ids] = bp
+        gp = self.base_gainprm[None].repeat(k, 1, 1)
+        bp = self.base_biasprm[None].repeat(k, 1, 1)
+        gp[..., 0] *= fk
+        bp[..., 1] *= fk
+        self.m_gainprm[ids] = gp
+        self.m_biasprm[ids] = bp
         fr = self.rand(k, lo=rc.ball_restitution[0], hi=rc.ball_restitution[1])
         ps = self.base_pair_solref[None].repeat(k, 1, 1)
         ps[:, 0, 1] *= fr
@@ -343,7 +374,9 @@ class StreetballEnv:
 
     def _schedule_push(self, ids: torch.Tensor):
         rc = self.cfg.randomization
-        self.push_t_next[ids] = self.time[ids] + self.rand(ids.numel(), lo=rc.push_interval_s[0], hi=rc.push_interval_s[1])
+        self.push_t_next[ids] = self.time[ids] + self.rand(
+            ids.numel(), lo=rc.push_interval_s[0], hi=rc.push_interval_s[1]
+        )
         self.push_t_end[ids] = -1.0
         self.push_force[ids] = 0.0
 
@@ -367,7 +400,6 @@ class StreetballEnv:
     def reset(self, ids: torch.Tensor):
         if ids.numel() == 0:
             return
-        k = ids.numel()
         self.qpos[ids] = self.key_qpos[None]
         self.qvel[ids] = 0.0
         self.ctrl[ids] = self.nominal[None]
@@ -386,13 +418,13 @@ class StreetballEnv:
         self.ep_len[ids] = 0.0
         self._randomize_model(ids)
         self._schedule_push(ids)
-        self.level.on_reset(ids)          # may move root / ball, set task state
+        self.level.on_reset(ids)  # may move root / ball, set task state
         self.forward()
         self._scan_contacts()
         self.compute_obs()
         self.init_foot_xy[ids] = self.site_xpos[ids][:, self.foot_site_idx[[0, 4]], :2]
         self.task[ids] = self.level.task_block(ids)
-        self.obs[ids, obs_spec.N_BASE:obs_spec.N_OBS] = self.task[ids]
+        self.obs[ids, obs_spec.N_BASE : obs_spec.N_OBS] = self.task[ids]
 
     def step(self, action: torch.Tensor):
         """action: (N, N_ACT) in [-1, 1]. Returns obs, reward, done, info."""
@@ -411,10 +443,12 @@ class StreetballEnv:
         self.compute_obs()
         self._update_ball_state()
         self.task[:] = self.level.task_block(None)
-        self.obs[:, obs_spec.N_BASE:obs_spec.N_OBS] = self.task
+        self.obs[:, obs_spec.N_BASE : obs_spec.N_OBS] = self.task
 
         # fallen: pelvis low, or non-foot/palm body on the floor for > 0.2 s
-        self.bad_contact_t = torch.where(self._bad_floor, self.bad_contact_t + self.control_dt, torch.zeros_like(self.bad_contact_t))
+        self.bad_contact_t = torch.where(
+            self._bad_floor, self.bad_contact_t + self.control_dt, torch.zeros_like(self.bad_contact_t)
+        )
         self.fallen = (self.p_pelvis[:, 2] < 0.55) | (self.bad_contact_t > 0.2)
         nan = ~torch.isfinite(self.qpos).all(dim=1)
 
@@ -425,11 +459,16 @@ class StreetballEnv:
         self.ep_return += reward
         self.ep_len += 1
         # clone: the auto-reset below clears self.fallen in place before the caller reads info
-        info = {"terminated": term, "truncated": trunc, "fallen": self.fallen.clone(), "nan": nan,
-                "time_outs": trunc & ~term}
+        info = {
+            "terminated": term,
+            "truncated": trunc,
+            "fallen": self.fallen.clone(),
+            "nan": nan,
+            "time_outs": trunc & ~term,
+        }
         info.update(self.level.metrics())
-        info["success"] = done & self.level.episode_success()   # evaluated before the auto-reset
-        if hasattr(self.level, "episode_fail_reasons"):          # diagnostics only (evaluate.py breakdown)
+        info["success"] = done & self.level.episode_success()  # evaluated before the auto-reset
+        if hasattr(self.level, "episode_fail_reasons"):  # diagnostics only (evaluate.py breakdown)
             for k, v in self.level.episode_fail_reasons().items():
                 info[f"fail/{k}"] = done & v
         done_ids = done.nonzero(as_tuple=False).squeeze(-1)
@@ -449,13 +488,13 @@ class StreetballEnv:
 
     def set_root_pose(self, ids: torch.Tensor, xy: torch.Tensor, yaw: torch.Tensor):
         rq = self.root_q
-        self.qpos[ids, rq:rq + 2] = xy
-        self.qpos[ids, rq + 3:rq + 7] = self.yaw_quat(yaw)
+        self.qpos[ids, rq : rq + 2] = xy
+        self.qpos[ids, rq + 3 : rq + 7] = self.yaw_quat(yaw)
 
     def set_ball(self, ids: torch.Tensor, pos: torch.Tensor, vel: torch.Tensor | None = None):
         bq, bv = self.ball_q, self.ball_v
-        self.qpos[ids, bq:bq + 3] = pos
-        self.qpos[ids, bq + 3:bq + 7] = torch.tensor([1.0, 0, 0, 0], device=self.device)
-        self.qvel[ids, bv:bv + 6] = 0.0
+        self.qpos[ids, bq : bq + 3] = pos
+        self.qpos[ids, bq + 3 : bq + 7] = torch.tensor([1.0, 0, 0, 0], device=self.device)
+        self.qvel[ids, bv : bv + 6] = 0.0
         if vel is not None:
-            self.qvel[ids, bv:bv + 3] = vel
+            self.qvel[ids, bv : bv + 3] = vel

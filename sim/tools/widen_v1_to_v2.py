@@ -10,6 +10,7 @@ Result supports `train.py --init <out> --init-actor-only` only.
 
     uv run python tools/widen_v1_to_v2.py ../shared/policies_v1_27dof/balance.onnx --out runs/production/balance_v1w.pt
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,14 +27,16 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 from onnx_to_ckpt import rebuild  # noqa: E402
+
 from streetball import obs as obs_spec  # noqa: E402
 from streetball.ppo import Actor  # noqa: E402
 
 
 def v1_spec() -> dict:
     """The v1 obs contract from git (the commit before humanoid_v2)."""
-    txt = subprocess.run(["git", "show", "7db8307~1:shared/obs_spec.json"], cwd=ROOT.parent,
-                         capture_output=True, text=True, check=True).stdout
+    txt = subprocess.run(
+        ["git", "show", "7db8307~1:shared/obs_spec.json"], cwd=ROOT.parent, capture_output=True, text=True, check=True
+    ).stdout
     return json.loads(txt)
 
 
@@ -45,7 +48,7 @@ def index_maps(v1: dict, v2: dict) -> tuple[list[int | None], list[int | None]]:
     obs_map: list[int | None] = []
     for s in v2["slots"]:
         o = s1[s["name"]]
-        if s["size"] == len(v2["joint_order"]):            # per-joint block
+        if s["size"] == len(v2["joint_order"]):  # per-joint block
             assert o["size"] == len(v1["joint_order"]), s["name"]
             obs_map += [None if j is None else o["start"] + j for j in jmap]
         else:
@@ -118,7 +121,7 @@ def main():
     x2 = np.zeros((1000, v2["n_obs"]), np.float32)
     for i2, i1 in enumerate(obs_map):
         x2[:, i2] = 0.0 if i1 is None else x1[:, i1]
-    ref = np.concatenate([sess.run(["action"], {"obs": x1[i:i + 1]})[0] for i in range(len(x1))], 0)
+    ref = np.concatenate([sess.run(["action"], {"obs": x1[i : i + 1]})[0] for i in range(len(x1))], 0)
     with torch.no_grad():
         got = a2(torch.from_numpy(x2)).numpy()
     toe = [j for j, k in enumerate(jmap) if k is None]
@@ -131,10 +134,16 @@ def main():
 
     side = src.with_suffix(".json")
     meta = json.loads(side.read_text(encoding="utf-8")) if side.exists() else {}
-    sd = {"ac": {f"actor.{k}": v for k, v in a2.state_dict().items()},
-          "actor_only": True, "widened_from_v1_onnx": str(src),
-          "level": meta.get("level"), "interface_sha": None, "physics_sha": None,
-          "steps": meta.get("train_steps"), "nan_grads": meta.get("nan_grads", 0)}
+    sd = {
+        "ac": {f"actor.{k}": v for k, v in a2.state_dict().items()},
+        "actor_only": True,
+        "widened_from_v1_onnx": str(src),
+        "level": meta.get("level"),
+        "interface_sha": None,
+        "physics_sha": None,
+        "steps": meta.get("train_steps"),
+        "nan_grads": meta.get("nan_grads", 0),
+    }
     out = pathlib.Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     torch.save(sd, out)

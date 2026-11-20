@@ -8,6 +8,7 @@ apex ratio. Verified across 10 random drop heights (apex ratio 0.72 +/- 0.03).
 
 Usage: uv run python tools/tune_ball.py
 """
+
 import pathlib
 import subprocess
 import sys
@@ -17,11 +18,11 @@ import numpy as np
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
-TARGET_RATIO = 1.30 / 1.80          # 0.722
+TARGET_RATIO = 1.30 / 1.80  # 0.722
 FIBA_BAND = (1.20 / 1.80, 1.40 / 1.80)  # every drop must rebound inside the FIBA 1.20-1.40 m band
-MEAN_TOL = 0.02                     # mean over random heights within this of the target
+MEAN_TOL = 0.02  # mean over random heights within this of the target
 DT = 0.002
-OMEGA = 157.0        # rad/s -> contact duration pi/omega ~= 20 ms = 10 physics steps
+OMEGA = 157.0  # rad/s -> contact duration pi/omega ~= 20 ms = 10 physics steps
 
 
 def solref(zeta: float) -> tuple[float, float]:
@@ -38,8 +39,8 @@ def drop_apex_ratio(xml: str, h: float) -> float:
     bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "ball")
     qadr = m.jnt_qposadr[m.body_jntadr[bid]]
     r = m.geom_size[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "ball")][0]
-    d.qpos[qadr:qadr + 3] = [0.0, 0.0, h + r]      # drop height measured to ball bottom
-    d.qpos[qadr + 3:qadr + 7] = [1, 0, 0, 0]
+    d.qpos[qadr : qadr + 3] = [0.0, 0.0, h + r]  # drop height measured to ball bottom
+    d.qpos[qadr + 3 : qadr + 7] = [1, 0, 0, 0]
     mujoco.mj_forward(m, d)
     touched = False
     apex = 0.0
@@ -58,9 +59,10 @@ def drop_apex_ratio(xml: str, h: float) -> float:
 
 def court_xml(zeta: float) -> str:
     sys.path.insert(0, str(ROOT / "tools"))
+    import re
+
     import build_court  # noqa: E402
 
-    import re
     # the court alone has no humanoid: drop the ball-palm pairs (they name palm_l / palm_r from humanoid.xml)
     return re.sub(r'\s*<pair name="ball_palm_[lr]"[^>]*/>', "", build_court.build(solref(zeta)))
 
@@ -75,7 +77,7 @@ def main() -> None:
 
     # Impact phase relative to the 2 ms step grid makes single drops vary by a few
     # percent, so bisect on the mean over random heights, not on one drop.
-    lo, hi = 0.005, 0.9          # damping ratio bracket; e falls as zeta rises
+    lo, hi = 0.005, 0.9  # damping ratio bracket; e falls as zeta rises
     for _ in range(20):
         mid = 0.5 * (lo + hi)
         if mean_ratio(mid) > TARGET_RATIO:
@@ -86,7 +88,9 @@ def main() -> None:
     k, b = solref(zeta)
     xml = court_xml(zeta)
     e180 = drop_apex_ratio(xml, 1.80)
-    print(f"omega={OMEGA} zeta={zeta:.4f} -> solref = ({k:.1f}, {b:.3f}); 1.80 m drop rebounds to {e180*1.80:.3f} m (ratio {e180:.3f})")
+    print(
+        f"omega={OMEGA} zeta={zeta:.4f} -> solref = ({k:.1f}, {b:.3f}); 1.80 m drop rebounds to {e180 * 1.80:.3f} m (ratio {e180:.3f})"
+    )
 
     ratios = [drop_apex_ratio(xml, h) for h in heights]
     in_band = all(FIBA_BAND[0] <= r <= FIBA_BAND[1] for r in ratios)
@@ -103,9 +107,9 @@ def main() -> None:
     report.write_text(
         f"# A5 — Ball tuning: {'PASS' if ok else 'FAIL'}\n\n"
         f"Ball-floor `solref = ({k:.1f}, {b:.3f})` (direct spring-damper, omega={OMEGA} rad/s, "
-        f"zeta={zeta:.4f}, contact ~{1000*3.1416/OMEGA:.0f} ms), timestep {DT}.\n\n"
+        f"zeta={zeta:.4f}, contact ~{1000 * 3.1416 / OMEGA:.0f} ms), timestep {DT}.\n\n"
         f"| Test | Result |\n|---|---|\n"
-        f"| 1.80 m drop apex | {e180*1.80:.3f} m (target 1.30 ± 0.05) |\n"
+        f"| 1.80 m drop apex | {e180 * 1.80:.3f} m (target 1.30 ± 0.05) |\n"
         f"| 10 random drops 0.8–2.5 m, apex ratio | mean {np.mean(ratios):.3f}, "
         f"min {np.min(ratios):.3f}, max {np.max(ratios):.3f} (mean target {TARGET_RATIO:.3f} ± {MEAN_TOL}; "
         f"every drop inside FIBA band {FIBA_BAND[0]:.3f}–{FIBA_BAND[1]:.3f}) |\n\n"

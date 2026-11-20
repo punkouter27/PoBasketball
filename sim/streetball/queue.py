@@ -8,8 +8,9 @@ State and logs
   runs/queue/<YYYYMMDD_HHMM>/queue_state.json   machine-readable progress (resumable by inspection)
   runs/queue/<...>/queue_log.md                 human log, one line per event
   runs/production/<family>.onnx + manifest      final production weights (passing stages)
-  DOCS/<YYYYMMDD>/extended_training_report.html final report (tools/final_report.py)
+  docs/<YYYYMMDD>/extended_training_report.html final report (tools/final_report.py)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,7 +25,7 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
 SHARED = ROOT.parent / "shared"
-DOCS = ROOT.parent / "DOCS"
+DOCS_DIR = ROOT.parent / "docs"
 PY = sys.executable
 
 # Priority order = ladder order. minutes = first-pass time box. init = previous stage unless given.
@@ -62,13 +63,20 @@ PLANS = {
         ("l2a_push", "dribble", None, ["--push-max", "80"], "l2a_dribble_r", None),
     ],
 }
-RESERVE_MIN = 25          # kept free at the end for evaluation/report
-MIN_STAGE_MIN = 12        # never start a stage with less than this
+RESERVE_MIN = 25  # kept free at the end for evaluation/report
+MIN_STAGE_MIN = 12  # never start a stage with less than this
 
 
 class Queue:
-    def __init__(self, hours: float, num_envs: int, start_from: str | None, init_ckpt: str | None,
-                 tag: str = "", init_actor_only: bool = False):
+    def __init__(
+        self,
+        hours: float,
+        num_envs: int,
+        start_from: str | None,
+        init_ckpt: str | None,
+        tag: str = "",
+        init_actor_only: bool = False,
+    ):
         self.t0 = time.time()
         self.tag = tag
         self.current_run: str | None = None
@@ -84,7 +92,12 @@ class Queue:
         self.start_from = start_from
         if init_ckpt and start_from and not init_actor_only:
             # same-level checkpoint: resume with the full optimiser state instead of actor-only
-            self.state["stages"][start_from] = {"family": None, "attempts": [], "passed": False, "checkpoint": init_ckpt}
+            self.state["stages"][start_from] = {
+                "family": None,
+                "attempts": [],
+                "passed": False,
+                "checkpoint": init_ckpt,
+            }
             for lv, fam, _, _ in STAGES:
                 if lv == start_from:
                     self.state["stages"][start_from]["family"] = fam
@@ -111,15 +124,38 @@ class Queue:
             return 124
 
     # ------------------------------------------------------------------ one stage attempt
-    def train_stage(self, level: str, family: str | None, minutes: float, extra: list[str], attempt: int,
-                    eval_level: str | None = None, init_override: str | None = None) -> dict:
+    def train_stage(
+        self,
+        level: str,
+        family: str | None,
+        minutes: float,
+        extra: list[str],
+        attempt: int,
+        eval_level: str | None = None,
+        init_override: str | None = None,
+    ) -> dict:
         eval_level = eval_level or level
         run_name = f"{level}_{self.tag}q{attempt}"
         self.current_run = run_name
-        st = self.state["stages"].setdefault(level, {"family": family, "attempts": [], "passed": False, "checkpoint": None})
+        st = self.state["stages"].setdefault(
+            level, {"family": family, "attempts": [], "passed": False, "checkpoint": None}
+        )
         steps = 1e9  # the time budget is the real limit
-        cmd = [PY, "-m", "streetball.train", "--level", level, "--steps", str(steps), "--num-envs", str(self.num_envs),
-               "--run-name", run_name, "--time-budget-min", f"{minutes:.1f}"] + extra
+        cmd = [
+            PY,
+            "-m",
+            "streetball.train",
+            "--level",
+            level,
+            "--steps",
+            str(steps),
+            "--num-envs",
+            str(self.num_envs),
+            "--run-name",
+            run_name,
+            "--time-budget-min",
+            f"{minutes:.1f}",
+        ] + extra
         init = st["checkpoint"] or init_override or self.prev_ckpt
         if init:
             same_level = st["checkpoint"] is not None
@@ -134,13 +170,27 @@ class Queue:
         if ckpt.exists():
             st["checkpoint"] = str(ckpt)
             # evaluation (200 episodes) with a hard cap so a slow level cannot eat the budget
-            rc_eval = self.run([PY, "-m", "streetball.evaluate", "--level", eval_level, "--ckpt", str(ckpt)], timeout_s=1200)
-            ev = DOCS / "phase_reports" / f"eval_{eval_level}.json"
+            rc_eval = self.run(
+                [PY, "-m", "streetball.evaluate", "--level", eval_level, "--ckpt", str(ckpt)], timeout_s=1200
+            )
+            ev = DOCS_DIR / "phase_reports" / f"eval_{eval_level}.json"
             if ev.exists():
                 e = json.loads(ev.read_text(encoding="utf-8"))
-                rec["eval"] = {k: e.get(k) for k in ("success_rate", "passed", "holds_100_straight", "fall_rate", "mean_episode_s", "nan_grads")}
+                rec["eval"] = {
+                    k: e.get(k)
+                    for k in (
+                        "success_rate",
+                        "passed",
+                        "holds_100_straight",
+                        "fall_rate",
+                        "mean_episode_s",
+                        "nan_grads",
+                    )
+                }
                 rec["eval"]["level"] = eval_level
-                rec["eval"]["metrics"] = {k: v for k, v in e.items() if isinstance(v, (int, float)) and k not in rec["eval"]}
+                rec["eval"]["metrics"] = {
+                    k: v for k, v in e.items() if isinstance(v, (int, float)) and k not in rec["eval"]
+                }
                 shutil.copy2(ev, RUNS / run_name / "eval.json")
             rec["passed"] = rc_eval == 0
             st["passed"] = st["passed"] or rec["passed"]
@@ -185,12 +235,15 @@ class Queue:
     # ------------------------------------------------------------------ hourly status (UU_AGENT section 4)
     def hourly_status(self):
         day = time.strftime("%Y%m%d")
-        path = DOCS / day / "hourly_status.md"
+        path = DOCS_DIR / day / "hourly_status.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         while True:
             time.sleep(3600)
-            lines = [f"\n## {time.strftime('%H:%M')} - {self.minutes_left():.0f} min left, current run {self.current_run}\n",
-                     "| Stage | Attempts | Passed | Last eval success |", "|---|---|---|---|"]
+            lines = [
+                f"\n## {time.strftime('%H:%M')} - {self.minutes_left():.0f} min left, current run {self.current_run}\n",
+                "| Stage | Attempts | Passed | Last eval success |",
+                "|---|---|---|---|",
+            ]
             for lv, st in self.state["stages"].items():
                 ev = (st["attempts"][-1].get("eval") or {}) if st["attempts"] else {}
                 lines.append(f"| {lv} | {len(st['attempts'])} | {st['passed']} | {ev.get('success_rate')} |")
@@ -243,8 +296,11 @@ class Queue:
         # retry loop: most urgent (earliest) failed stage first, split the leftover time
         attempt = 2
         while self.minutes_left() - RESERVE_MIN >= MIN_STAGE_MIN and attempt <= 6:
-            failed = [(lv, fam, mins, ex) for lv, fam, mins, ex in STAGES
-                      if lv in self.state["stages"] and not self.state["stages"][lv]["passed"]]
+            failed = [
+                (lv, fam, mins, ex)
+                for lv, fam, mins, ex in STAGES
+                if lv in self.state["stages"] and not self.state["stages"][lv]["passed"]
+            ]
             if not failed:
                 self.log("all attempted stages passed; spending leftover time on the last family")
                 failed = [STAGES[-1]]
@@ -264,11 +320,16 @@ def main():
     ap.add_argument("--num-envs", type=int, default=4096)
     ap.add_argument("--start-from", default=None)
     ap.add_argument("--init", default=None, help="checkpoint to initialise the first stage from")
-    ap.add_argument("--init-actor-only", action="store_true",
-                    help="--init is another level's checkpoint (actor weights only, fresh critic)")
+    ap.add_argument(
+        "--init-actor-only",
+        action="store_true",
+        help="--init is another level's checkpoint (actor weights only, fresh critic)",
+    )
     ap.add_argument("--stage-minutes", default="", help="first-pass overrides, e.g. l2a_dribble_r=240,l4_jump_shot=30")
     ap.add_argument("--tag", default="", help="run-name prefix so a new queue never overwrites older runs, e.g. r2")
-    ap.add_argument("--plan", default=None, choices=sorted(PLANS), help="run a named explicit stage plan instead of the ladder")
+    ap.add_argument(
+        "--plan", default=None, choices=sorted(PLANS), help="run a named explicit stage plan instead of the ladder"
+    )
     args = ap.parse_args()
     if args.plan:
         Queue(args.hours, args.num_envs, None, None, args.tag).run_plan(PLANS[args.plan])

@@ -13,6 +13,7 @@ switches (L2c) of evaluation episodes, within a 45 s episode. 2026-11-19 (user d
 even an ideal dribble cannot fit 50 bounces into (0.66-0.78 s per cycle at e = 0.853); apex band 0.80-1.15 m -> 0.65-1.00 m,
 target 1.0 -> 0.8 m (palm reach floor ~0.85 m standing left a ~15 cm push window). Mirrored in UStreetballDirector.
 """
+
 from __future__ import annotations
 
 import torch
@@ -25,8 +26,7 @@ class L2Dribble(Level):
     name = "l2a_dribble_r"
     prd_tier = 3
     episode_s = 45.0
-    pass_fraction = 0.85
-    mode = "right"               # right | left | crossover
+    mode = "right"  # right | left | crossover
     target_bounces = 50
     apex_band = (0.65, 1.00)
     apex_target = 0.8
@@ -37,27 +37,27 @@ class L2Dribble(Level):
     reach_hold = 0.0
     # min ball-centre z for the touch shaping (first_touch, r_palm); 0 = off. A touch below the band ends the peak low.
     touch_min_z = 0.0
-    drift_w = 0.5                # weight of the pelvis-drift penalty (distance from the start xy)
-    drift_max = 0.75             # pelvis xy distance from the start that ends the episode (2026-11-20: was 0.5, user approved)
+    drift_w = 0.5  # weight of the pelvis-drift penalty (distance from the start xy)
+    drift_max = 0.75  # pelvis xy distance from the start that ends the episode (2026-11-20: was 0.5, user approved)
 
     def setup(self) -> None:
         N, dev = self.N, self.dev
         z = lambda *s, **k: torch.zeros(*s, device=dev, **k)
         self._last_action = z(N, self.env.N_ACT)
         self._prev2_action = z(N, self.env.N_ACT)
-        self.hand = torch.ones(N, device=dev)          # +1 right, -1 left
+        self.hand = torch.ones(N, device=dev)  # +1 right, -1 left
         self.start_xy = z(N, 2)
         self.streak = z(N, dtype=torch.long)
         self.bounces = z(N, dtype=torch.long)
         self.switches = z(N, dtype=torch.long)
         self.until_switch = z(N, dtype=torch.long)
-        self.apex = z(N)                               # highest ball z since the last bounce
-        self.palm_since = z(N, dtype=torch.bool)       # active palm touched ball since the last bounce
+        self.apex = z(N)  # highest ball z since the last bounce
+        self.palm_since = z(N, dtype=torch.bool)  # active palm touched ball since the last bounce
         self.near_since = torch.ones(N, dtype=torch.bool, device=dev)
         self.prev_floor = z(N, dtype=torch.bool)
         self.bounce_event = z(N, dtype=torch.bool)
         self.clean_event = z(N, dtype=torch.bool)
-        self.last_apex = torch.full((N,), 1.0, device=dev)   # apex of the most recent completed flight
+        self.last_apex = torch.full((N,), 1.0, device=dev)  # apex of the most recent completed flight
 
     def _set_hand(self, ids: torch.Tensor):
         env = self.env
@@ -86,7 +86,8 @@ class L2Dribble(Level):
         self._set_hand(ids)
         # ball just below the active hand at a random point of a dribble cycle
         c, s_ = torch.cos(yaw), torch.sin(yaw)
-        fwd = torch.stack([c, s_], -1); left = torch.stack([-s_, c], -1)
+        fwd = torch.stack([c, s_], -1)
+        left = torch.stack([-s_, c], -1)
         spot = xy + self.hand_offset[0] * fwd - self.hand[ids, None] * self.hand_offset[1] * left
         # a point of a dribble cycle with apex = apex_target; capped at 0.75 m so the ball never spawns inside the palm (~0.96 m)
         h = env.rand(k, lo=0.30, hi=0.75)
@@ -101,8 +102,12 @@ class L2Dribble(Level):
         env.in_control[ids] = 1.0
         env.last_palm_contact_t[ids] = env.time[ids]
         self.start_xy[ids] = xy
-        self.streak[ids] = 0; self.bounces[ids] = 0; self.switches[ids] = 0
-        self.apex[ids] = h; self.palm_since[ids] = True; self.near_since[ids] = True
+        self.streak[ids] = 0
+        self.bounces[ids] = 0
+        self.switches[ids] = 0
+        self.apex[ids] = h
+        self.palm_since[ids] = True
+        self.near_since[ids] = True
         self.prev_floor[ids] = False
         self.last_apex[ids] = 1.0
         self._last_action[ids] = 0.0
@@ -124,10 +129,12 @@ class L2Dribble(Level):
         aid = ids[env.rand(ids.numel()) < p]
         if aid.numel() == 0:
             return
-        env.forward()                                   # palm site positions for the new root pose
-        palm = torch.where((self.hand[aid] > 0)[:, None], env.site_xpos[aid, env.palm_r_s], env.site_xpos[aid, env.palm_l_s])
+        env.forward()  # palm site positions for the new root pose
+        palm = torch.where(
+            (self.hand[aid] > 0)[:, None], env.site_xpos[aid, env.palm_r_s], env.site_xpos[aid, env.palm_l_s]
+        )
         # ball in hand: centre one radius (12 cm) under the palm site, rising 0.8 m/s into it
-        z0 = (palm[:, 2] - 0.15).clamp(min=0.15)          # 3 cm gap: spawning in overlap ejects the ball
+        z0 = (palm[:, 2] - 0.15).clamp(min=0.15)  # 3 cm gap: spawning in overlap ejects the ball
         vel = torch.zeros(aid.numel(), 3, device=self.dev)
         vel[:, 2] = 0.8
         env.set_ball(aid, torch.cat([palm[:, :2], z0[:, None]], -1), vel)
@@ -140,7 +147,7 @@ class L2Dribble(Level):
         return tb if ids is None else tb[ids]
 
     def _active_palm_contact(self) -> torch.Tensor:
-        pc = self.env.palm_ball_contact            # (N, 2) = (left, right)
+        pc = self.env.palm_ball_contact  # (N, 2) = (left, right)
         return torch.where(self.hand > 0, pc[:, 1], pc[:, 0]) > 0
 
     def _active_palm_dist(self) -> torch.Tensor:
@@ -158,20 +165,28 @@ class L2Dribble(Level):
         floor = env.ball_floor_contact > 0
         self.bounce_event = floor & ~self.prev_floor
         self.prev_floor = floor
-        apex_before = self.apex.clone()                        # apex of the flight that just ended
+        apex_before = self.apex.clone()  # apex of the flight that just ended
         self.apex = torch.where(self.bounce_event, ball_z, torch.maximum(self.apex, ball_z))
         self.last_apex = torch.where(self.bounce_event, apex_before, self.last_apex)
-        healthy = (self.last_apex >= 0.6).float()              # a real dribble, not a micro-bounce tap
+        healthy = (self.last_apex >= 0.6).float()  # a real dribble, not a micro-bounce tap
         # proportional, not a step: every centimetre of extra height reduces the cost
         p_tap = self.bounce_event.float() * ((0.6 - apex_before) / 0.6).clamp(min=0.0)
         touch = self._active_palm_contact()
-        first_touch = touch & ~self.palm_since                 # first active-palm touch of this bounce cycle
+        first_touch = touch & ~self.palm_since  # first active-palm touch of this bounce cycle
         first_touch_paid = first_touch & (ball_z >= self.touch_min_z)
         self.palm_since |= touch
         self.near_since &= horiz < 0.6
-        clean = self.bounce_event & self.palm_since & self.near_since & (apex_before >= self.apex_band[0]) & (apex_before <= self.apex_band[1])
+        clean = (
+            self.bounce_event
+            & self.palm_since
+            & self.near_since
+            & (apex_before >= self.apex_band[0])
+            & (apex_before <= self.apex_band[1])
+        )
         self.clean_event = clean
-        self.streak = torch.where(clean, self.streak + 1, torch.where(self.bounce_event, torch.zeros_like(self.streak), self.streak))
+        self.streak = torch.where(
+            clean, self.streak + 1, torch.where(self.bounce_event, torch.zeros_like(self.streak), self.streak)
+        )
         self.bounces += self.bounce_event.long()
         if self.mode == "crossover":
             self.until_switch = torch.where(clean, self.until_switch - 1, self.until_switch)
@@ -185,47 +200,51 @@ class L2Dribble(Level):
         self.near_since = torch.where(self.bounce_event, torch.ones_like(self.near_since), self.near_since)
 
         # ---- shaping
-        r_spot = torch.exp(-(spot_d / 0.25) ** 2) * (0.3 + 0.7 * healthy)   # staying near the spot pays mostly for real dribbles
-        r_palm = torch.exp(-(self._active_palm_dist() / 0.25) ** 2) * (ball_z > max(0.5, self.touch_min_z)).float()
+        r_spot = torch.exp(-((spot_d / 0.25) ** 2)) * (
+            0.3 + 0.7 * healthy
+        )  # staying near the spot pays mostly for real dribbles
+        r_palm = torch.exp(-((self._active_palm_dist() / 0.25) ** 2)) * (ball_z > max(0.5, self.touch_min_z)).float()
         # Reach shaping (2026-11-08, queue r3): r_palm is ~0 at the 0.7 m palm-ball gap the policy starts with and
         # the ball rarely rises above 0.5 m, so nothing pulled the hand to the ball (palm touched it in 0.1 % of
         # steps). Wide kernel to a point 12 cm ABOVE the ball (pressing from above, not carrying from below).
-        palm_site = torch.where((self.hand > 0)[:, None], self.env.site_xpos[:, self.env.palm_r_s], self.env.site_xpos[:, self.env.palm_l_s])
+        palm_site = torch.where(
+            (self.hand > 0)[:, None], self.env.site_xpos[:, self.env.palm_r_s], self.env.site_xpos[:, self.env.palm_l_s]
+        )
         above = env.p_ball + torch.tensor([0.0, 0.0, 0.12], device=self.dev)
         if self.reach_hold > 0.0:
             # 2026-11-19: chasing the rising ball made the palm meet it at 0.5-0.65 m (peak < band). While the ball
             # rises, wait at hold height instead; once it falls, follow it down as before.
             hold_z = torch.where(env.v_ball[:, 2] > 0.0, above[:, 2].clamp(min=self.reach_hold), above[:, 2])
             above = torch.cat([above[:, :2], hold_z[:, None]], dim=1)
-        r_reach = torch.exp(-((palm_site - above).norm(dim=-1) / 0.4) ** 2) * (ball_z > 0.25).float()
-        r_apex = torch.exp(-((apex_before - self.apex_target) / 0.25) ** 2) * self.bounce_event.float()
+        r_reach = torch.exp(-(((palm_site - above).norm(dim=-1) / 0.4) ** 2)) * (ball_z > 0.25).float()
+        r_apex = torch.exp(-(((apex_before - self.apex_target) / 0.25) ** 2)) * self.bounce_event.float()
         # Dense shaping (added after the first queue run learned a 20 cm "tap" dribble): while the ball
         # rises, reward the apex it is heading for, apex_pred = z + vz^2 / 2g, against the target.
         vz = env.v_ball[:, 2]
         apex_pred = ball_z + (vz.clamp(min=0.0) ** 2) / (2 * 9.81)
         rising = (vz > 0.2) & (ball_z > 0.13)
         # monotonic up to the target (linear), then a penalty above 1.3 m (carrying / throwing)
-        r_apex_dense = ((apex_pred / self.apex_target).clamp(max=1.0) - 2.0 * (apex_pred - 1.3).clamp(min=0.0)) * rising.float()
-        p_high = (ball_z - 1.25).clamp(min=0.0)                   # carrying / holding
+        r_apex_dense = (
+            (apex_pred / self.apex_target).clamp(max=1.0) - 2.0 * (apex_pred - 1.3).clamp(min=0.0)
+        ) * rising.float()
+        p_high = (ball_z - 1.25).clamp(min=0.0)  # carrying / holding
         p_drift = (env.p_pelvis[:, :2] - self.start_xy).norm(dim=-1)
         r = (
             1.0 * r_spot
             + 0.5 * r_palm
             + 1.0 * r_reach
-            + 2.0 * first_touch_paid.float()                               # one touch bonus per bounce cycle at most
+            + 2.0 * first_touch_paid.float()  # one touch bonus per bounce cycle at most
             + 5.0 * r_apex
             + 2.0 * r_apex_dense
             + 3.0 * clean.float()
-            - 1.0 * p_tap                                             # micro-bounces (< 0.5 m apex) cost
+            - 1.0 * p_tap  # micro-bounces (< 0.5 m apex) cost
             + 0.7 * self.r_torso_upright()
             + 0.3 * self.r_height(width=0.1)
             - 2.0 * p_high
             - self.drift_w * p_drift
-            - 0.05 * self.p_action_rate()
+            + self.penalties()  # torque^2, joint vel^2, action rate^2, foot slip
             - 0.02 * self.p_action_jerk()
-            - 0.001 * self.p_joint_vel()
             - 0.02 * self.p_pose()
-            - 1e-5 * self.p_torque()
             + 0.1
         )
         self._m_touch, self._m_reach = touch.float(), r_reach
@@ -240,11 +259,15 @@ class L2Dribble(Level):
         return lost | drifted | (self.streak >= self.target_bounces)
 
     def metrics(self):
-        return {"m/streak": self.streak.float(), "m/bounces": self.bounces.float(),
-                "m/apex": self.apex, "m/switches": self.switches.float(),
-                "m/in_control": self.env.in_control,
-                "m/palm_touch": getattr(self, "_m_touch", torch.zeros(self.N, device=self.dev)),
-                "m/reach": getattr(self, "_m_reach", torch.zeros(self.N, device=self.dev))}
+        return {
+            "m/streak": self.streak.float(),
+            "m/bounces": self.bounces.float(),
+            "m/apex": self.apex,
+            "m/switches": self.switches.float(),
+            "m/in_control": self.env.in_control,
+            "m/palm_touch": getattr(self, "_m_touch", torch.zeros(self.N, device=self.dev)),
+            "m/reach": getattr(self, "_m_reach", torch.zeros(self.N, device=self.dev)),
+        }
 
     def episode_fail_reasons(self) -> dict[str, torch.Tensor]:
         """Why an episode ended without success (not exclusive); diagnostics for evaluate.py."""
@@ -273,7 +296,6 @@ class L2DribbleLeft(L2Dribble):
 class L2Crossover(L2Dribble):
     name = "l2c_crossover"
     mode = "crossover"
-    pass_fraction = 0.80
 
 
 class L2DribbleCycles(L2Dribble):
@@ -286,14 +308,15 @@ class L2DribbleCycles(L2Dribble):
     Success: the active palm touched the ball during the cycle, the new peak is in the apex band, and the ball is
     within 0.3 m of the dribble spot. Episode ends after K cycles (success = all K clean) or on the usual loss rules.
     Same obs/action interface and task block as L2Dribble; graduation is still judged on l2a_dribble_r."""
+
     name = "l2a_cycles"
     k_max = 16
-    promote_at = 0.6           # rolling success rate of finished episodes that doubles K
+    promote_at = 0.6  # rolling success rate of finished episodes that doubles K
 
     def setup(self) -> None:
         super().setup()
         N, dev = self.N, self.dev
-        self.armed = torch.zeros(N, dtype=torch.bool, device=dev)      # ball has bounced and is rising again
+        self.armed = torch.zeros(N, dtype=torch.bool, device=dev)  # ball has bounced and is rising again
         self.touch_cycle = torch.zeros(N, dtype=torch.bool, device=dev)
         self.peak = torch.zeros(N, device=dev)
         self.cycles = torch.zeros(N, dtype=torch.long, device=dev)
@@ -315,7 +338,7 @@ class L2DribbleCycles(L2Dribble):
     def on_reset(self, ids: torch.Tensor) -> None:
         if self.train_steps != float("inf") and hasattr(self, "cycles"):
             # env.reset() zeroes step_count BEFORE calling on_reset, so use the level's own per-episode step count
-            ran = self.ep_steps[ids] > 0             # skip the initial reset of all envs
+            ran = self.ep_steps[ids] > 0  # skip the initial reset of all envs
             if ran.any():
                 ok = (self.cycles_ok[ids][ran] >= self.k).float().mean().item()
                 n = int(ran.sum())
@@ -326,8 +349,12 @@ class L2DribbleCycles(L2Dribble):
                     self.succ_ema = 0.0
                     print(f"[l2a_cycles] success > {self.promote_at:.0%}: K -> {self.k} cycles per episode", flush=True)
         super().on_reset(ids)
-        self.armed[ids] = False; self.touch_cycle[ids] = False; self.peak[ids] = 0.0
-        self.cycles[ids] = 0; self.cycles_ok[ids] = 0; self.ep_steps[ids] = 0
+        self.armed[ids] = False
+        self.touch_cycle[ids] = False
+        self.peak[ids] = 0.0
+        self.cycles[ids] = 0
+        self.cycles_ok[ids] = 0
+        self.ep_steps[ids] = 0
 
     def reward(self) -> torch.Tensor:
         r = super().reward()
@@ -342,7 +369,9 @@ class L2DribbleCycles(L2Dribble):
         near = (env.p_ball[:, :2] - self._spot()).norm(dim=-1) < 0.3
         in_band = (self.peak >= self.apex_band[0]) & (self.peak <= self.apex_band[1])
         ok = ev & self.touch_cycle & in_band & near
-        r_peak = (6.0 * torch.exp(-((self.peak - self.apex_target) / 0.2) ** 2) + 2.0 * near.float()) * (ev & self.touch_cycle).float()
+        r_peak = (6.0 * torch.exp(-(((self.peak - self.apex_target) / 0.2) ** 2)) + 2.0 * near.float()) * (
+            ev & self.touch_cycle
+        ).float()
         self.cycles += ev.long()
         self.cycles_ok += ok.long()
         self.peak_event = ev
@@ -372,10 +401,11 @@ class L2DribblePush(L2DribbleCycles):
       - rebound apex: r + e2 * (vz^2 / 2g + (z - r)), e2 = 0.72 = FIBA apex ratio the ball is tuned to (A5)
       - landing point: p_xy + v_xy * t_floor, t_floor from z - r + vz t - g t^2 / 2 = 0
     Paid once per bounce cycle (first release), so palm spam earns nothing extra. Same interface as L2Dribble."""
+
     name = "l2a_push"
-    reach_hold = 0.0             # OFF 11-20 01:00 (hold2-4 regressed); was 0.92: apex target 0.8 + ball radius: meet the rising ball at the top of the band, not low
-    drift_w = 2.0                # 11-20 04:10: gate episodes end by pelvis drift > 0.5 m (84-99 %) after 2-4 s; was 0.5
-    touch_min_z = 0.0            # OFF 11-20 01:00 (hold4 collapsed to 4 %); was 0.65: = apex_band[0]: touching the rising ball lower ends its peak below the band (49 % of cycles, 11-20)
+    reach_hold = 0.0  # OFF 11-20 01:00 (hold2-4 regressed); was 0.92: apex target 0.8 + ball radius: meet the rising ball at the top of the band, not low
+    drift_w = 2.0  # 11-20 04:10: gate episodes end by pelvis drift > 0.5 m (84-99 %) after 2-4 s; was 0.5
+    touch_min_z = 0.0  # OFF 11-20 01:00 (hold4 collapsed to 4 %); was 0.65: = apex_band[0]: touching the rising ball lower ends its peak below the band (49 % of cycles, 11-20)
     e2 = 0.72
     ball_r = 0.1205
 
@@ -392,7 +422,7 @@ class L2DribblePush(L2DribbleCycles):
         self.paid_cycle[ids] = False
 
     def reward(self) -> torch.Tensor:
-        r = super().reward()                 # also updates bounce_event for this step
+        r = super().reward()  # also updates bounce_event for this step
         env = self.env
         g = 9.81
         touch = self._active_palm_contact()
@@ -401,15 +431,18 @@ class L2DribblePush(L2DribbleCycles):
         self.prev_touch = touch
         z = env.p_ball[:, 2] - self.ball_r
         vz = env.v_ball[:, 2]
-        apex_pred = self.ball_r + self.e2 * (vz ** 2 / (2 * g) + z.clamp(min=0.0))
-        t_floor = (vz + torch.sqrt(vz ** 2 + 2 * g * z.clamp(min=0.0))) / g
+        apex_pred = self.ball_r + self.e2 * (vz**2 / (2 * g) + z.clamp(min=0.0))
+        t_floor = (vz + torch.sqrt(vz**2 + 2 * g * z.clamp(min=0.0))) / g
         land = env.p_ball[:, :2] + env.v_ball[:, :2] * t_floor[:, None]
         land_d = (land - self._spot()).norm(dim=-1)
-        pushed_down = (vz < -0.5).float()     # a push, not a lift or a carry
-        r_push = (4.0 * torch.exp(-((apex_pred - self.apex_target) / 0.2) ** 2)
-                  + 2.0 * torch.exp(-(land_d / 0.2) ** 2)) * pushed_down * release.float()
+        pushed_down = (vz < -0.5).float()  # a push, not a lift or a carry
+        r_push = (
+            (4.0 * torch.exp(-(((apex_pred - self.apex_target) / 0.2) ** 2)) + 2.0 * torch.exp(-((land_d / 0.2) ** 2)))
+            * pushed_down
+            * release.float()
+        )
         self.paid_cycle |= release
-        self.paid_cycle &= ~self.bounce_event       # one paid push per bounce cycle
+        self.paid_cycle &= ~self.bounce_event  # one paid push per bounce cycle
         self._m_push = r_push
         return r + r_push
 
@@ -426,6 +459,7 @@ class L2DribbleTime(L2DribblePush):
     Horizon T: 5 s, x1.5 when 60 % of finished episodes succeed, capped at 45 s (= the gate). Reaching T is a time-out
     (bootstrapped, env.max_steps), not a terminal. Success = reached T with >= clean_frac of floor bounces clean (or the gate's
     50-bounce streak). Evaluation (train_steps = inf) keeps the full 45 s episode."""
+
     name = "l2a_time"
     horizon0, horizon_max, grow = 5.0, 45.0, 1.5
     # share of floor bounces that must be clean for success. 0 = survival only (11-20: policies reach ~14 % clean, so 0.8 never
@@ -434,7 +468,7 @@ class L2DribbleTime(L2DribblePush):
 
     def setup(self) -> None:
         super().setup()
-        self.k = self.k_max = 10 ** 9            # K-cycle termination/promotion off
+        self.k = self.k_max = 10**9  # K-cycle termination/promotion off
         self.horizon = self.horizon0
         self.time_ema = 0.0
         self.clean_n = torch.zeros(self.N, dtype=torch.long, device=self.dev)
@@ -461,13 +495,13 @@ class L2DribbleTime(L2DribblePush):
 
     def reward(self) -> torch.Tensor:
         if self.train_steps != float("inf"):
-            self.env.max_steps = self._horizon_steps()     # also before each env's first reset
+            self.env.max_steps = self._horizon_steps()  # also before each env's first reset
         r = super().reward()
         self.clean_n += self.clean_event.long()
         return r
 
     def terminated(self) -> torch.Tensor:
-        return L2Dribble.terminated(self)        # gate loss rules only; the horizon is a time-out
+        return L2Dribble.terminated(self)  # gate loss rules only; the horizon is a time-out
 
     def episode_success(self) -> torch.Tensor:
         reached = self.ep_steps >= self.env.max_steps

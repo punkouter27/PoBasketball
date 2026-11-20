@@ -15,6 +15,7 @@ Pipeline per line (all offline, no GPU, no network at runtime):
 
 Run:  uv run tools/voice_bake/bake.py [--only make_01,miss_02] [--a2f-csv DIR] [--voice NAME]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,27 +44,62 @@ HOP_HZ = 120  # analysis rate; smoothed then decimated to FPS
 
 # Ordered morph list written into voice_bank.json (column order of every frame row).
 MORPHS = [
-    "V_Open", "V_Explosive", "V_Dental_Lip", "V_Tight-O", "V_Tight", "V_Wide", "V_Affricate", "V_Lip_Open",
+    "V_Open",
+    "V_Explosive",
+    "V_Dental_Lip",
+    "V_Tight-O",
+    "V_Tight",
+    "V_Wide",
+    "V_Affricate",
+    "V_Lip_Open",
     "Jaw_Open",
-    "Mouth_Smile_L", "Mouth_Smile_R", "Mouth_Frown_L", "Mouth_Frown_R", "Mouth_Pucker",
-    "Mouth_Press_L", "Mouth_Press_R", "Mouth_Stretch_L", "Mouth_Stretch_R",
-    "Brow_Raise_Inner_L", "Brow_Raise_Inner_R", "Brow_Raise_Outer_L", "Brow_Raise_Outer_R",
-    "Brow_Drop_L", "Brow_Drop_R", "Cheek_Raise_L", "Cheek_Raise_R",
-    "Eye_Squint_L", "Eye_Squint_R", "Eye_Blink_L", "Eye_Blink_R", "Nose_Sneer_L", "Nose_Sneer_R",
+    "Mouth_Smile_L",
+    "Mouth_Smile_R",
+    "Mouth_Frown_L",
+    "Mouth_Frown_R",
+    "Mouth_Pucker",
+    "Mouth_Press_L",
+    "Mouth_Press_R",
+    "Mouth_Stretch_L",
+    "Mouth_Stretch_R",
+    "Brow_Raise_Inner_L",
+    "Brow_Raise_Inner_R",
+    "Brow_Raise_Outer_L",
+    "Brow_Raise_Outer_R",
+    "Brow_Drop_L",
+    "Brow_Drop_R",
+    "Cheek_Raise_L",
+    "Cheek_Raise_R",
+    "Eye_Squint_L",
+    "Eye_Squint_R",
+    "Eye_Blink_L",
+    "Eye_Blink_R",
+    "Nose_Sneer_L",
+    "Nose_Sneer_R",
 ]
 MI = {n: i for i, n in enumerate(MORPHS)}
-LIPSYNC_MORPHS = ["V_Open", "V_Explosive", "V_Dental_Lip", "V_Tight-O", "V_Tight", "V_Wide",
-                  "V_Affricate", "V_Lip_Open", "Jaw_Open", "Mouth_Pucker"]
+LIPSYNC_MORPHS = [
+    "V_Open",
+    "V_Explosive",
+    "V_Dental_Lip",
+    "V_Tight-O",
+    "V_Tight",
+    "V_Wide",
+    "V_Affricate",
+    "V_Lip_Open",
+    "Jaw_Open",
+    "Mouth_Pucker",
+]
 
 # ---------------------------------------------------------------------------------------------
 # Voice settings
 # ---------------------------------------------------------------------------------------------
 DEFAULT_VOICE = "Microsoft Zira Desktop"
-SSML_RATE = "-8%"        # SAPI prosody rate (the ffmpeg pitch drop slows a further ~7 %)
-SSML_PITCH = "-2st"      # SAPI honours this loosely; the real drop is the asetrate step below
-PITCH_FACTOR = 0.93      # asetrate factor: ~-1.25 semitones and ~7 % slower -> older, heavier
-VIBRATO_HZ, VIBRATO_CENTS = 5.2, 18.0   # shallow pitch wobble
-TREMOLO_HZ, TREMOLO_DEPTH = 5.2, 0.07   # shallow amplitude wobble
+SSML_RATE = "-8%"  # SAPI prosody rate (the ffmpeg pitch drop slows a further ~7 %)
+SSML_PITCH = "-2st"  # SAPI honours this loosely; the real drop is the asetrate step below
+PITCH_FACTOR = 0.93  # asetrate factor: ~-1.25 semitones and ~7 % slower -> older, heavier
+VIBRATO_HZ, VIBRATO_CENTS = 5.2, 18.0  # shallow pitch wobble
+TREMOLO_HZ, TREMOLO_DEPTH = 5.2, 0.07  # shallow amplitude wobble
 HIGHPASS_HZ, LOWPASS_HZ = 90.0, 6800.0  # warmer, slightly duller timbre
 # Timbre/pitch are done in numpy/scipy (ffmpeg 9's vibrato -> biquad chain intermittently
 # latched to a full-scale DC rail on some lines). ffmpeg is used only for loudness.
@@ -80,17 +116,23 @@ def powershell_exe() -> str:
 
 
 def list_voices() -> list[str]:
-    out = subprocess.run([powershell_exe(), "-NoProfile", "-File", str(HERE / "sapi_tts.ps1"),
-                          "-Jobs", "-", "-ListVoices"], capture_output=True, text=True, check=True)
-    return [l.strip() for l in out.stdout.splitlines() if l.strip()]
+    out = subprocess.run(
+        [powershell_exe(), "-NoProfile", "-File", str(HERE / "sapi_tts.ps1"), "-Jobs", "-", "-ListVoices"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
 
 
 def ssml_for(text: str, voice: str, mood: str) -> str:
     # Small per-mood nudges keep lines from sounding identical.
     rate = {"surprised": "-2%", "determined": "-5%", "annoyed": "-10%"}.get(mood, SSML_RATE)
-    return ('<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">'
-            f'<voice name="{escape(voice)}"><prosody rate="{rate}" pitch="{SSML_PITCH}">'
-            f'{escape(text)}</prosody></voice></speak>')
+    return (
+        '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">'
+        f'<voice name="{escape(voice)}"><prosody rate="{rate}" pitch="{SSML_PITCH}">'
+        f"{escape(text)}</prosody></voice></speak>"
+    )
 
 
 def synthesize(lines: list[dict], voice: str, tmp: Path) -> dict[str, Path]:
@@ -101,8 +143,12 @@ def synthesize(lines: list[dict], voice: str, tmp: Path) -> dict[str, Path]:
         jobs.append({"ssml": ssml_for(ln["text"], voice, ln["mood"]), "out": str(p)})
     jf = tmp / "jobs.json"
     jf.write_text(json.dumps(jobs), encoding="utf-8")
-    subprocess.run([powershell_exe(), "-NoProfile", "-File", str(HERE / "sapi_tts.ps1"), "-Jobs", str(jf)],
-                   check=True, capture_output=True, text=True)
+    subprocess.run(
+        [powershell_exe(), "-NoProfile", "-File", str(HERE / "sapi_tts.ps1"), "-Jobs", str(jf)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     return raw
 
 
@@ -119,7 +165,7 @@ def trim_silence(x: np.ndarray, thresh_db: float = -45.0, pad_s: float = 0.06) -
     if idx.size == 0:
         return x
     pad = int(pad_s * SR)
-    return x[max(0, idx[0] * win - pad): min(len(x), (idx[-1] + 1) * win + pad)]
+    return x[max(0, idx[0] * win - pad) : min(len(x), (idx[-1] + 1) * win + pad)]
 
 
 def postprocess(raw: Path, out: Path) -> None:
@@ -134,12 +180,30 @@ def postprocess(raw: Path, out: Path) -> None:
     x = older_voice(x)
     trimmed = out.with_suffix(".trim.wav")
     wavfile.write(trimmed, SR, (np.clip(x, -1, 1) * 32767).astype(np.int16))
-    subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(trimmed),
-                    "-af", FFMPEG_FILTER, "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", str(out)],
-                   check=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(trimmed),
+            "-af",
+            FFMPEG_FILTER,
+            "-ac",
+            "1",
+            "-ar",
+            str(SR),
+            "-c:a",
+            "pcm_s16le",
+            str(out),
+        ],
+        check=True,
+    )
     trimmed.unlink(missing_ok=True)
     y = read_wav(out)
-    rms = float(np.sqrt(np.mean(y ** 2)))
+    rms = float(np.sqrt(np.mean(y**2)))
     if not (0.02 < rms < 0.4) or abs(float(np.mean(y))) > 0.05:
         raise RuntimeError(f"{out.name}: implausible output level rms={rms:.3f} dc={np.mean(y):.3f}")
 
@@ -157,8 +221,9 @@ def older_voice(x: np.ndarray) -> np.ndarray:
     pos = np.arange(n) - depth * (1 + np.sin(2 * np.pi * VIBRATO_HZ * t))
     x = np.interp(np.clip(pos, 0, n - 1), np.arange(n), x)
     x *= 1 - TREMOLO_DEPTH * (0.5 + 0.5 * np.sin(2 * np.pi * TREMOLO_HZ * t + 1.3))
-    sos = np.vstack([butter(2, HIGHPASS_HZ, "highpass", fs=SR, output="sos"),
-                     butter(4, LOWPASS_HZ, "lowpass", fs=SR, output="sos")])
+    sos = np.vstack(
+        [butter(2, HIGHPASS_HZ, "highpass", fs=SR, output="sos"), butter(4, LOWPASS_HZ, "lowpass", fs=SR, output="sos")]
+    )
     y = sosfiltfilt(sos, x)
     warm = sosfiltfilt(butter(2, [160, 400], "bandpass", fs=SR, output="sos"), y)
     y = y + 0.35 * warm  # ~+2.5 dB around 250 Hz
@@ -199,10 +264,14 @@ def audio_features(x: np.ndarray):
     xp = np.pad(x, (win // 2, win + hop))
     w = np.hanning(win).astype(np.float32)
     freqs = np.fft.rfftfreq(win, 1 / SR)
-    rms = np.zeros(n); cen = np.zeros(n); zcr = np.zeros(n); hf = np.zeros(n); lo = np.zeros(n)
+    rms = np.zeros(n)
+    cen = np.zeros(n)
+    zcr = np.zeros(n)
+    hf = np.zeros(n)
+    lo = np.zeros(n)
     for i in range(n):
-        seg = xp[i * hop: i * hop + win]
-        rms[i] = math.sqrt(float(np.mean(seg ** 2)) + 1e-12)
+        seg = xp[i * hop : i * hop + win]
+        rms[i] = math.sqrt(float(np.mean(seg**2)) + 1e-12)
         zcr[i] = np.mean(np.abs(np.diff(np.signbit(seg).astype(np.int8)))) * SR / 2
         spec = np.abs(np.fft.rfft(seg * w)) ** 2
         tot = spec[(freqs > 80) & (freqs < 10000)].sum() + 1e-12
@@ -224,9 +293,11 @@ def builtin_lipsync(x: np.ndarray, n_out: int) -> dict[str, np.ndarray]:
     # voice/timbre). Blend of spectral centroid and low-band share; top third -> spread lips
     # (V_Wide, "ee/eh"), bottom third -> rounded (V_Tight-O + pucker, "oo/oh"), middle -> V_Open.
     vmask = voiced if voiced.sum() >= 5 else np.ones_like(voiced)
+
     def rel(v):
         lo_p, hi_p = np.percentile(v[vmask], [15, 85])
         return np.clip((v - lo_p) / max(hi_p - lo_p, 1e-6), 0, 1)
+
     colour = 0.6 * rel(cen) + 0.4 * (1 - rel(lo))
     bright = np.clip((colour - 0.6) / 0.35, 0, 1)
     rounded = np.clip((0.35 - colour) / 0.3, 0, 1)
@@ -252,7 +323,7 @@ def builtin_lipsync(x: np.ndarray, n_out: int) -> dict[str, np.ndarray]:
     # Plosives: sharp onset after >= ~50 ms of silence -> lips closed just before the burst.
     hist = int(0.05 * HOP_HZ)
     for i in range(hist, n):
-        if voiced[i] and not voiced[i - hist:i].any() and loud[i] - loud[i - 1] > 0.25:
+        if voiced[i] and not voiced[i - hist : i].any() and loud[i] - loud[i - 1] > 0.25:
             for k, wgt in ((i - 4, 0.6), (i - 3, 0.9), (i - 2, 1.0), (i - 1, 0.9), (i, 0.4)):
                 if 0 <= k < n:
                     raw["V_Explosive"][k] = max(raw["V_Explosive"][k], wgt)
@@ -371,16 +442,53 @@ def a2f_curves(path: Path, n_out: int) -> np.ndarray:
 # Mood layer + blinks
 # ---------------------------------------------------------------------------------------------
 MOOD_SHAPES: dict[str, dict[str, float]] = {
-    "happy": {"Mouth_Smile_L": 0.55, "Mouth_Smile_R": 0.55, "Cheek_Raise_L": 0.45, "Cheek_Raise_R": 0.45,
-              "Eye_Squint_L": 0.15, "Eye_Squint_R": 0.15, "Brow_Raise_Inner_L": 0.15, "Brow_Raise_Inner_R": 0.15},
-    "smug": {"Mouth_Smile_L": 0.55, "Mouth_Smile_R": 0.12, "Cheek_Raise_L": 0.3, "Brow_Raise_Outer_L": 0.5,
-             "Brow_Drop_R": 0.2, "Eye_Squint_R": 0.2, "Eye_Squint_L": 0.1},
-    "annoyed": {"Brow_Drop_L": 0.5, "Brow_Drop_R": 0.5, "Nose_Sneer_L": 0.22, "Nose_Sneer_R": 0.22,
-                "Mouth_Press_L": 0.3, "Mouth_Press_R": 0.3, "Mouth_Frown_L": 0.25, "Mouth_Frown_R": 0.25},
-    "determined": {"Brow_Drop_L": 0.45, "Brow_Drop_R": 0.45, "Eye_Squint_L": 0.4, "Eye_Squint_R": 0.4,
-                   "Mouth_Press_L": 0.15, "Mouth_Press_R": 0.15, "Mouth_Stretch_L": 0.12, "Mouth_Stretch_R": 0.12},
-    "surprised": {"Brow_Raise_Inner_L": 0.6, "Brow_Raise_Inner_R": 0.6, "Brow_Raise_Outer_L": 0.55,
-                  "Brow_Raise_Outer_R": 0.55, "V_Open": 0.12, "Jaw_Open": 0.08},
+    "happy": {
+        "Mouth_Smile_L": 0.55,
+        "Mouth_Smile_R": 0.55,
+        "Cheek_Raise_L": 0.45,
+        "Cheek_Raise_R": 0.45,
+        "Eye_Squint_L": 0.15,
+        "Eye_Squint_R": 0.15,
+        "Brow_Raise_Inner_L": 0.15,
+        "Brow_Raise_Inner_R": 0.15,
+    },
+    "smug": {
+        "Mouth_Smile_L": 0.55,
+        "Mouth_Smile_R": 0.12,
+        "Cheek_Raise_L": 0.3,
+        "Brow_Raise_Outer_L": 0.5,
+        "Brow_Drop_R": 0.2,
+        "Eye_Squint_R": 0.2,
+        "Eye_Squint_L": 0.1,
+    },
+    "annoyed": {
+        "Brow_Drop_L": 0.5,
+        "Brow_Drop_R": 0.5,
+        "Nose_Sneer_L": 0.22,
+        "Nose_Sneer_R": 0.22,
+        "Mouth_Press_L": 0.3,
+        "Mouth_Press_R": 0.3,
+        "Mouth_Frown_L": 0.25,
+        "Mouth_Frown_R": 0.25,
+    },
+    "determined": {
+        "Brow_Drop_L": 0.45,
+        "Brow_Drop_R": 0.45,
+        "Eye_Squint_L": 0.4,
+        "Eye_Squint_R": 0.4,
+        "Mouth_Press_L": 0.15,
+        "Mouth_Press_R": 0.15,
+        "Mouth_Stretch_L": 0.12,
+        "Mouth_Stretch_R": 0.12,
+    },
+    "surprised": {
+        "Brow_Raise_Inner_L": 0.6,
+        "Brow_Raise_Inner_R": 0.6,
+        "Brow_Raise_Outer_L": 0.55,
+        "Brow_Raise_Outer_R": 0.55,
+        "V_Open": 0.12,
+        "Jaw_Open": 0.08,
+    },
 }
 
 
@@ -453,15 +561,18 @@ def build_frames(line: dict, wav: Path, duration: float, a2f_dir: Path | None) -
 def plot_preview(bank: dict, ids: list[str], path: Path) -> None:
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
         print("matplotlib missing; skipping preview")
         return
-    lines = [l for l in bank["lines"] if l["id"] in ids]
+    lines = [ln for ln in bank["lines"] if ln["id"] in ids]
     fig, axes = plt.subplots(len(lines), 2, figsize=(14, 3.6 * len(lines)), squeeze=False)
-    groups = [["Jaw_Open", "V_Open", "V_Wide", "V_Tight-O", "V_Explosive", "V_Dental_Lip", "V_Affricate", "V_Tight"],
-              None]
+    groups = [
+        ["Jaw_Open", "V_Open", "V_Wide", "V_Tight-O", "V_Explosive", "V_Dental_Lip", "V_Affricate", "V_Tight"],
+        None,
+    ]
     for r, ln in enumerate(lines):
         fr = np.array(ln["frames"])
         t = np.arange(len(fr)) / FPS
@@ -471,14 +582,16 @@ def plot_preview(bank: dict, ids: list[str], path: Path) -> None:
         ax.plot(tx, x / 32768.0 * 0.5 - 0.15, color="0.8", lw=0.5, label="audio")
         for m in groups[0]:
             ax.plot(t, fr[:, MI[m]], lw=1.4, label=m)
-        ax.set_title(f"{ln['id']} [{ln['mood']}] lips: \"{ln['text']}\"", fontsize=9)
-        ax.set_ylim(-0.3, 1); ax.legend(fontsize=7, ncol=3, loc="upper right")
+        ax.set_title(f'{ln["id"]} [{ln["mood"]}] lips: "{ln["text"]}"', fontsize=9)
+        ax.set_ylim(-0.3, 1)
+        ax.legend(fontsize=7, ncol=3, loc="upper right")
         ax = axes[r][1]
         active = [m for m in MORPHS if m not in groups[0] and fr[:, MI[m]].max() > 0.02]
         for m in active:
             ax.plot(t, fr[:, MI[m]], lw=1.2, label=m)
         ax.set_title(f"{ln['id']} expression + blinks", fontsize=9)
-        ax.set_ylim(0, 1); ax.legend(fontsize=7, ncol=2, loc="upper right")
+        ax.set_ylim(0, 1)
+        ax.legend(fontsize=7, ncol=2, loc="upper right")
     for ax in axes.flat:
         ax.set_xlabel("s")
     fig.tight_layout()
@@ -492,8 +605,12 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--voice", default=DEFAULT_VOICE, help="SAPI voice name (see --list-voices)")
     ap.add_argument("--list-voices", action="store_true")
-    ap.add_argument("--a2f-csv", type=Path, default=None,
-                    help="folder of Audio2Face-3D ARKit tracks named <id>.csv or <id>.json; overrides built-in lip-sync")
+    ap.add_argument(
+        "--a2f-csv",
+        type=Path,
+        default=None,
+        help="folder of Audio2Face-3D ARKit tracks named <id>.csv or <id>.json; overrides built-in lip-sync",
+    )
     ap.add_argument("--curves-only", action="store_true", help="reuse existing WAVs, recompute curves only")
     ap.add_argument("--only", default="", help="comma-separated ids to (re)bake; others kept from existing bank")
     ap.add_argument("--preview", default="swish_01,fall_02", help="ids to plot into curves_preview.png ('' = skip)")
@@ -510,12 +627,12 @@ def main() -> int:
     for ln in lines:
         assert ln["mood"] in MOODS, ln
     only = {s for s in args.only.split(",") if s}
-    todo = [l for l in lines if not only or l["id"] in only]
+    todo = [ln for ln in lines if not only or ln["id"] in only]
     args.out.mkdir(parents=True, exist_ok=True)
     bank_path = args.out / "voice_bank.json"
     old = {}
     if bank_path.exists() and only:
-        old = {l["id"]: l for l in json.loads(bank_path.read_text(encoding="utf-8"))["lines"]}
+        old = {ln["id"]: ln for ln in json.loads(bank_path.read_text(encoding="utf-8"))["lines"]}
 
     if not args.curves_only:
         voices = [v.split("|")[0] for v in list_voices()]
@@ -530,15 +647,25 @@ def main() -> int:
     out_lines, srcs = [], {}
     for ln in lines:
         if ln not in todo and ln["id"] in old:
-            out_lines.append(old[ln["id"]]); continue
+            out_lines.append(old[ln["id"]])
+            continue
         wav = args.out / f"{ln['id']}.wav"
         x = read_wav(wav)
         dur = len(x) / SR
         frames, src = build_frames(ln, wav, dur, args.a2f_csv)
         srcs[src] = srcs.get(src, 0) + 1
-        out_lines.append({"id": ln["id"], "event": ln["event"], "text": ln["text"], "mood": ln["mood"],
-                          "wav": wav.name, "duration_s": round(dur, 3), "curve_source": src,
-                          "frames": [[round(float(v), 3) for v in row] for row in frames]})
+        out_lines.append(
+            {
+                "id": ln["id"],
+                "event": ln["event"],
+                "text": ln["text"],
+                "mood": ln["mood"],
+                "wav": wav.name,
+                "duration_s": round(dur, 3),
+                "curve_source": src,
+                "frames": [[round(float(v), 3) for v in row] for row in frames],
+            }
+        )
     bank = {"version": 1, "fps": FPS, "sample_rate": SR, "voice": args.voice, "morphs": MORPHS, "lines": out_lines}
     bank_path.write_text(json.dumps(bank, separators=(",", ":")), encoding="utf-8")
     print(f"bank -> {bank_path} ({len(out_lines)} lines, curve sources {srcs})")
@@ -554,7 +681,9 @@ def verify(bank: dict, out: Path) -> bool:
     for ln in bank["lines"]:
         wav = out / ln["wav"]
         if not wav.exists():
-            print(f"FAIL {ln['id']}: missing wav"); ok = False; continue
+            print(f"FAIL {ln['id']}: missing wav")
+            ok = False
+            continue
         sr, x = wavfile.read(wav)
         dur = len(x) / sr
         total += dur
@@ -563,7 +692,7 @@ def verify(bank: dict, out: Path) -> bool:
         if sr != SR or x.dtype != np.int16 or x.ndim != 1:
             problems.append(f"format sr={sr} dtype={x.dtype} ndim={x.ndim}")
         xr = x.astype(np.float64) / 32768.0
-        rms = float(np.sqrt(np.mean(xr ** 2)))
+        rms = float(np.sqrt(np.mean(xr**2)))
         if not (0.02 < rms < 0.4) or abs(float(np.mean(xr))) > 0.05:
             problems.append(f"audio level rms={rms:.3f} dc={np.mean(xr):.3f}")
         if abs(len(fr) - dur * FPS) > 1:
@@ -585,8 +714,10 @@ def verify(bank: dict, out: Path) -> bool:
     by_event: dict[str, int] = {}
     for ln in bank["lines"]:
         by_event[ln["event"]] = by_event.get(ln["event"], 0) + 1
-    allpk = np.concatenate([np.array(l["frames"]) for l in bank["lines"]]).max(axis=0)
-    print(f"verify: {'OK' if ok else 'ISSUES'}  lines={len(bank['lines'])} total_audio={total:.1f}s by_event={by_event}")
+    allpk = np.concatenate([np.array(ln["frames"]) for ln in bank["lines"]]).max(axis=0)
+    print(
+        f"verify: {'OK' if ok else 'ISSUES'}  lines={len(bank['lines'])} total_audio={total:.1f}s by_event={by_event}"
+    )
     print("peak per morph: " + ", ".join(f"{m}={p:.2f}" for m, p in zip(bank["morphs"], allpk)))
     return ok
 

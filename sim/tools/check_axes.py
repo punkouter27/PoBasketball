@@ -17,6 +17,7 @@ Checks
 
 Usage: uv run python tools/check_axes.py
 """
+
 import json
 import pathlib
 import sys
@@ -33,12 +34,14 @@ SHARED = ROOT.parent / "shared"
 def q_mul(a, b):
     ax, ay, az, aw = a
     bx, by, bz, bw = b
-    return np.array([
-        aw * bx + ax * bw + ay * bz - az * by,
-        aw * by - ax * bz + ay * bw + az * bx,
-        aw * bz + ax * by - ay * bx + az * bw,
-        aw * bw - ax * bx - ay * by - az * bz,
-    ])
+    return np.array(
+        [
+            aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw,
+            aw * bw - ax * bx - ay * by - az * bz,
+        ]
+    )
 
 
 def q_inv(q):
@@ -92,7 +95,7 @@ def main() -> int:
     # yaw of +90 deg takes +X to +Y. We fold this into the offset capture, which is why
     # the plugin never needs it explicitly, but we need it to compare against bind data.)
     yaw = yaw_quat_ue(90.0)
-    yaw_mat = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], float)   # +90 deg about Z (left-handed UE basis)
+    yaw_mat = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], float)  # +90 deg about Z (left-handed UE basis)
 
     # ---- offsets at the reference pose
     offsets = {}
@@ -112,10 +115,10 @@ def main() -> int:
         p = yaw_mat @ to_ue_pos(d.xpos[body_ids[body]])
         # pelvis bind sits at (0, 2.28, 95.9); sim pelvis is at the same place by construction
         perr = np.linalg.norm(p - bind_p[bone])
-        if perr > 0.1:   # cm
+        if perr > 0.1:  # cm
             bad.append(f"position mismatch {body}->{bone}: {perr:.3f} cm")
     print(f"[1] reference pose: max bone orientation error {worst:.4f} deg", "PASS" if worst < 0.1 else "FAIL")
-    print(f"[3] reference pose: body positions within 1 mm of bind bones", "PASS" if not bad else "FAIL")
+    print("[3] reference pose: body positions within 1 mm of bind bones", "PASS" if not bad else "FAIL")
     for line in bad:
         print("    ", line)
 
@@ -132,20 +135,29 @@ def main() -> int:
         return q_rot(q, local) / np.linalg.norm(bind_dir)
 
     ok2 = True
-    anat = spec["joints"]
-    hip_offset = 0.0
     v = bone_child_dir_after("hip_flex_l", 90.0, "thigh_l", "thigh_l", "calf_l")
-    fwd = v[1] > 0.95 and abs(v[2]) < 0.2    # mesh forward is +Y, horizontal
+    fwd = v[1] > 0.95 and abs(v[2]) < 0.2  # mesh forward is +Y, horizontal
     ok2 &= fwd
-    print(f"[2] hip_flex_l = 90 deg -> UE thigh direction (mesh space) = {np.round(v, 3)}  expect ~(0, +1, 0)", "PASS" if fwd else "FAIL")
-    v = bone_child_dir_after("knee_l", 90.0 - spec["reference_pose_info"]["knee_flexion_in_ref_pose_deg"]["l"], "calf_l", "calf_l", "foot_l")
+    print(
+        f"[2] hip_flex_l = 90 deg -> UE thigh direction (mesh space) = {np.round(v, 3)}  expect ~(0, +1, 0)",
+        "PASS" if fwd else "FAIL",
+    )
+    v = bone_child_dir_after(
+        "knee_l", 90.0 - spec["reference_pose_info"]["knee_flexion_in_ref_pose_deg"]["l"], "calf_l", "calf_l", "foot_l"
+    )
     back = v[1] < -0.9
     ok2 &= back
-    print(f"[2] knee_l = 90 deg anatomical -> UE calf direction = {np.round(v, 3)}  expect ~(0, -1, 0) (heel kicks back)", "PASS" if back else "FAIL")
+    print(
+        f"[2] knee_l = 90 deg anatomical -> UE calf direction = {np.round(v, 3)}  expect ~(0, -1, 0) (heel kicks back)",
+        "PASS" if back else "FAIL",
+    )
     v = bone_child_dir_after("shoulder_pitch_l", 90.0, "upperarm_l", "upperarm_l", "lowerarm_l")
     fwd = v[1] > 0.6 and v[2] > -0.4
     ok2 &= fwd
-    print(f"[2] shoulder_pitch_l = 90 deg -> UE upper arm direction = {np.round(v, 3)}  expect forward (+Y) and roughly level", "PASS" if fwd else "FAIL")
+    print(
+        f"[2] shoulder_pitch_l = 90 deg -> UE upper arm direction = {np.round(v, 3)}  expect forward (+Y) and roughly level",
+        "PASS" if fwd else "FAIL",
+    )
 
     passed = worst < 0.1 and not bad and ok2
     report = ROOT.parent / "docs" / "phase_reports" / "A6_axis_check.md"

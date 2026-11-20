@@ -1,5 +1,3 @@
-import sys, pathlib
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 """A3 acceptance tests for the generated humanoid model.
 
 A joint-level PD alone cannot balance an 80 kg, 1 m-high centre of mass:
@@ -8,6 +6,7 @@ gravity's destabilising stiffness m*g*h is about 800 N*m/rad versus the
 tests check what PD *can* guarantee: the model is well-formed, joints track
 their targets, and the feet carry the body weight without any solver blow-up.
 """
+
 import pathlib
 
 import mujoco
@@ -47,8 +46,11 @@ def test_feet_on_floor_at_keyframe():
     m, d = _load()
     mujoco.mj_resetDataKeyframe(m, d, 0)
     mujoco.mj_forward(m, d)
-    zs = [d.site_xpos[i][2] for i in range(m.nsite)
-          if (mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_SITE, i) or "").startswith("foot_")]
+    zs = [
+        d.site_xpos[i][2]
+        for i in range(m.nsite)
+        if (mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_SITE, i) or "").startswith("foot_")
+    ]
     assert len(zs) == 8
     assert abs(min(zs)) < 2e-3
 
@@ -75,7 +77,7 @@ def test_feet_carry_weight():
     fz = []
     for i in range(int(0.5 / m.opt.timestep)):
         mujoco.mj_step(m, d)
-        if i > 50:                       # after the initial settling transient
+        if i > 50:  # after the initial settling transient
             total = 0.0
             for c in range(d.ncon):
                 con = d.contact[c]
@@ -83,7 +85,7 @@ def test_feet_carry_weight():
                 g2 = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, con.geom2)
                 if "foot" in (g1 or "") or "foot" in (g2 or ""):
                     mujoco.mj_contactForce(m, d, c, f)
-                    total += f[0]        # normal force in contact frame
+                    total += f[0]  # normal force in contact frame
             fz.append(total)
     fz = np.array(fz)
     assert np.all(np.isfinite(d.qpos))

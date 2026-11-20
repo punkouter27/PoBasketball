@@ -7,6 +7,7 @@ Layout (all int32 header, then float64 arrays, row-major):
 
 Usage: uv run python tools/export_obs_golden_bin.py
 """
+
 import pathlib
 import struct
 

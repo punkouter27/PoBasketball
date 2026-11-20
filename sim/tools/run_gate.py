@@ -12,10 +12,10 @@ Steps
 
 Exit code 0 only if every stage passes.
 """
+
 from __future__ import annotations
 
 import argparse
-import json
 import pathlib
 import subprocess
 import sys
@@ -44,7 +44,19 @@ def main() -> int:
     ok = True
 
     if not args.skip_eval:
-        rc = run([py, "-m", "streetball.evaluate", "--level", args.level, "--ckpt", args.ckpt, "--episodes", str(args.episodes)])
+        rc = run(
+            [
+                py,
+                "-m",
+                "streetball.evaluate",
+                "--level",
+                args.level,
+                "--ckpt",
+                args.ckpt,
+                "--episodes",
+                str(args.episodes),
+            ]
+        )
         ok &= rc == 0
         print(f"[1] evaluation {'PASS' if rc == 0 else 'FAIL'}")
 
@@ -68,10 +80,23 @@ def main() -> int:
     ok &= rc == 0
     runner = UE / "Scripts" / "run_headless.ps1"
     log = UE / "Saved" / "Logs" / f"gate_{args.level}.log"
-    rc = run(["pwsh", "-NoProfile", "-File", runner, "-TimeoutSec", "420", "-LogFile", log,
-              # paths relative to shared/ (absolute Windows paths get truncated at the drive colon by the UE arg parser)
-              f"-GateReplay={replay.relative_to(SHARED).as_posix()}", f"-GatePolicy={onnx.relative_to(SHARED).as_posix()}",
-              "-ExecCmds=Automation RunTests Streetball.Gate; Quit"], cwd=UE)
+    rc = run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-File",
+            runner,
+            "-TimeoutSec",
+            "420",
+            "-LogFile",
+            log,
+            # paths relative to shared/ (absolute Windows paths get truncated at the drive colon by the UE arg parser)
+            f"-GateReplay={replay.relative_to(SHARED).as_posix()}",
+            f"-GatePolicy={onnx.relative_to(SHARED).as_posix()}",
+            "-ExecCmds=Automation RunTests Streetball.Gate; Quit",
+        ],
+        cwd=UE,
+    )
     print(f"[5] unreal gate runner exit code {rc}")
     rep = REPORTS / "Step4_gate_unreal.md"
     if rep.exists():

@@ -5,6 +5,7 @@ float32 (tanh), opset 17, no dynamic axes, sidecar <name>.json with the obs_spec
 
 Usage: uv run python tools/make_dummy_policy.py [out.onnx]
 """
+
 import hashlib
 import json
 import pathlib
@@ -26,14 +27,19 @@ def main() -> None:
     out = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else SHARED / "dummy_policy.onnx"
     torch.manual_seed(0)
     net = torch.nn.Sequential(
-        torch.nn.Linear(N_OBS, 512), torch.nn.ELU(),
-        torch.nn.Linear(512, 256), torch.nn.ELU(),
-        torch.nn.Linear(256, 128), torch.nn.ELU(),
-        torch.nn.Linear(128, N_ACT), torch.nn.Tanh(),
+        torch.nn.Linear(N_OBS, 512),
+        torch.nn.ELU(),
+        torch.nn.Linear(512, 256),
+        torch.nn.ELU(),
+        torch.nn.Linear(256, 128),
+        torch.nn.ELU(),
+        torch.nn.Linear(128, N_ACT),
+        torch.nn.Tanh(),
     ).eval()
     dummy = torch.zeros(1, N_OBS)
-    torch.onnx.export(net, dummy, str(out), input_names=["obs"], output_names=["action"],
-                      opset_version=17, dynamo=False)
+    torch.onnx.export(
+        net, dummy, str(out), input_names=["obs"], output_names=["action"], opset_version=17, dynamo=False
+    )
     # parity check and golden I/O pair for the C++ test
     sess = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
     rng = np.random.default_rng(0)
@@ -43,9 +49,16 @@ def main() -> None:
         y_t = net(torch.from_numpy(x)).numpy()
     diff = float(np.abs(y_ort - y_t).max())
     spec_hash = hashlib.sha256((SHARED / "obs_spec.json").read_bytes()).hexdigest()
-    side = {"n_obs": N_OBS, "n_action": N_ACT, "opset": 17, "obs_spec_sha256": spec_hash,
-            "torch_vs_ort_max_abs_diff": diff, "dummy": True,
-            "check_input": x[0].tolist(), "check_output": y_ort[0].tolist()}
+    side = {
+        "n_obs": N_OBS,
+        "n_action": N_ACT,
+        "opset": 17,
+        "obs_spec_sha256": spec_hash,
+        "torch_vs_ort_max_abs_diff": diff,
+        "dummy": True,
+        "check_input": x[0].tolist(),
+        "check_output": y_ort[0].tolist(),
+    }
     out.with_suffix(".json").write_text(json.dumps(side, indent=2), encoding="utf-8")
     print(f"wrote {out} and sidecar; torch vs onnxruntime max abs diff {diff:.2e}")
 

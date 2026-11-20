@@ -7,6 +7,7 @@ the pelvis moves at < 5 cm/s on average with < 2 cm jitter around its 1 s runnin
 The original "mean sway < 3 cm from the start point" conflated the permanent offset left
 by each shove with actual swaying; quiet-period speed/jitter measure the swaying itself.
 """
+
 from __future__ import annotations
 
 import torch
@@ -18,13 +19,12 @@ class L0Stand(Level):
     name = "l0_stand"
     prd_tier = 1
     episode_s = 60.0
-    pass_fraction = 0.95
-    foot_move_limit = 0.35       # m; termination. Success still requires staying within 0.20 m (PRD stance rule)
-    # Posture curriculum (DOCS/20261118): (start_step, ramp_steps) blends the v1 posture term (pelvis upright) into the
+    foot_move_limit = 0.35  # m; termination. Success still requires staying within 0.20 m (PRD stance rule)
+    # Posture curriculum (docs/20261118): (start_step, ramp_steps) blends the v1 posture term (pelvis upright) into the
     # v2 one (pelvis + torso upright). None = full v2 reward, as before. Set by train.py --posture-ramp-steps.
     posture_ramp: tuple[float, float] | None = None
-    v2_penalties = True          # action-jerk + toe-flat terms added with humanoid_v2 (train.py --no-v2-penalties)
-    quiet_posture = False        # True: torso-upright term only in quiet periods, pelvis-upright during push recoveries
+    v2_penalties = True  # action-jerk + toe-flat terms added with humanoid_v2 (train.py --no-v2-penalties)
+    quiet_posture = False  # True: torso-upright term only in quiet periods, pelvis-upright during push recoveries
 
     def posture_alpha(self) -> float:
         if self.posture_ramp is None:
@@ -52,8 +52,11 @@ class L0Stand(Level):
         env.set_root_pose(ids, xy, yaw)
         # small joint perturbation so the policy sees varied starts
         env.qpos[ids[:, None], env.qadr[None, :]] += env.randn(k, env.N_ACT) * 0.03
-        env.set_ball(ids, xy.new_tensor([[0.0, 0.0, 0.1205]]).repeat(k, 1) + torch.stack(
-            [xy[:, 0] + 3.0, xy[:, 1], torch.zeros(k, device=self.dev)], -1))
+        env.set_ball(
+            ids,
+            xy.new_tensor([[0.0, 0.0, 0.1205]]).repeat(k, 1)
+            + torch.stack([xy[:, 0] + 3.0, xy[:, 1], torch.zeros(k, device=self.dev)], -1),
+        )
         self.start_xy[ids] = xy
         self.sway_acc[ids] = 0.0
         self.quiet_steps[ids] = 0.0
@@ -66,7 +69,7 @@ class L0Stand(Level):
     def _foot_drift(self) -> torch.Tensor:
         env = self.env
         cur = env.site_xpos[:, env.foot_site_idx[[0, 4]], :2]
-        return (cur - env.init_foot_xy).norm(dim=-1)          # (N, 2)
+        return (cur - env.init_foot_xy).norm(dim=-1)  # (N, 2)
 
     def reward(self) -> torch.Tensor:
         env = self.env
@@ -78,7 +81,7 @@ class L0Stand(Level):
         self.sway_acc += torch.where(quiet, sway, torch.zeros_like(sway))
         self.quiet_steps += quiet.float()
         xy = env.p_pelvis[:, :2]
-        self.ema_xy = 0.98 * self.ema_xy + 0.02 * xy                      # ~1 s running mean at 50 Hz
+        self.ema_xy = 0.98 * self.ema_xy + 0.02 * xy  # ~1 s running mean at 50 Hz
         speed = env.v_pelvis[:, :2].norm(dim=-1)
         jitter = (xy - self.ema_xy).norm(dim=-1)
         self.speed_acc += torch.where(quiet, speed, torch.zeros_like(speed))
@@ -86,20 +89,19 @@ class L0Stand(Level):
         alpha = self.posture_alpha()
         v2 = 1.0 if self.v2_penalties else 0.0
         v2_post = 1.5 * self.r_torso_upright()
-        if self.quiet_posture:      # let the hip strategy absorb shoves; straighten up once quiet
+        if self.quiet_posture:  # let the hip strategy absorb shoves; straighten up once quiet
             v2_post = torch.where(quiet, v2_post, 1.0 * self.r_upright())
         r = (
-            (1.0 - alpha) * 1.0 * self.r_upright() + alpha * v2_post
+            (1.0 - alpha) * 1.0 * self.r_upright()
+            + alpha * v2_post
             + 0.5 * self.r_height()
-            + 0.5 * torch.exp(-(sway / 0.05) ** 2)
+            + 0.5 * torch.exp(-((sway / 0.05) ** 2))
             - 2.0 * drift
-            - 0.05 * self.p_action_rate()
+            + self.penalties()  # torque^2, joint vel^2, action rate^2, foot slip
             - v2 * 0.02 * self.p_action_jerk()
             - v2 * 0.05 * self.p_toe_stand()
-            - 0.002 * self.p_joint_vel()
             - 0.1 * self.p_pose()
-            - 1e-5 * self.p_torque()
-            + 0.2                                                    # alive bonus
+            + 0.2  # alive bonus
         )
         self.track_action()
         return r

@@ -1,7 +1,8 @@
 """Render a strip of frames of a retargeted clip on the Streetball humanoid (visual check of the retargeting).
 
-    uv run python tools/render_mocap.py data/mocap/default_walk_seg0_qpos.npz --start 10 --frames 8 --step 6 --out walk.png
+uv run python tools/render_mocap.py data/mocap/default_walk_seg0_qpos.npz --start 10 --frames 8 --step 6 --out walk.png
 """
+
 from __future__ import annotations
 
 import argparse
@@ -36,7 +37,7 @@ def main():
         cam.lookat[:] = [d.qpos[root], d.qpos[root + 1], 0.9]
         cam.distance, cam.elevation = 3.0, -8.0
         # side view relative to the athlete's heading
-        w, x, y, z = d.qpos[root + 3:root + 7]
+        w, x, y, z = d.qpos[root + 3 : root + 7]
         yaw = np.degrees(np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
         cam.azimuth = yaw + 90.0
         r.update_scene(d, cam)

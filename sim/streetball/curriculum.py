@@ -7,6 +7,7 @@ evaluate with the C5 harness, export ONNX to shared/policies/<level>.onnx, and s
 ladder if the level fails its pass target. Progress is recorded in runs/curriculum.json so a
 re-run skips levels already marked passed.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,8 +25,13 @@ POLICIES = ROOT.parent / "shared" / "policies"
 # UU_AGENT section 3: a few policies, one per skill family; variants are command inputs. The stages
 # of one family share the task-block layout and are trained in sequence into the SAME policy; only
 # the last stage of a family is exported.
-FAMILIES = {"balance": "l0_stand", "locomotion": "l1_traverse", "dribble": "l3a_moving_dribble",
-            "scramble": "l3b_scramble", "shot": "l4_jump_shot"}
+FAMILIES = {
+    "balance": "l0_stand",
+    "locomotion": "l1_traverse",
+    "dribble": "l3a_moving_dribble",
+    "scramble": "l3b_scramble",
+    "shot": "l4_jump_shot",
+}
 LADDER: list[tuple[str, float, list[str], str | None]] = [
     ("l0_stand", 150e6, ["--push-curriculum", "--push-max", "100", "--init-std", "0.3"], "balance"),
     ("l1_traverse", 300e6, ["--push-curriculum"], "locomotion"),
@@ -65,12 +71,26 @@ def main() -> None:
             prev_ckpt = state[name]["checkpoint"]
             continue
         run_name = f"{name}_cur"
-        cmd = py + ["streetball.train", "--level", name, "--steps", str(steps * args.steps_scale),
-                    "--num-envs", str(args.num_envs), "--run-name", run_name] + extra
+        cmd = (
+            py
+            + [
+                "streetball.train",
+                "--level",
+                name,
+                "--steps",
+                str(steps * args.steps_scale),
+                "--num-envs",
+                str(args.num_envs),
+                "--run-name",
+                run_name,
+            ]
+            + extra
+        )
         if prev_ckpt:
             cmd += ["--init", prev_ckpt, "--init-actor-only"]
         if run(cmd) != 0:
-            print(f"[{name}] training failed"); sys.exit(1)
+            print(f"[{name}] training failed")
+            sys.exit(1)
         ckpt = str(RUNS / run_name / "model.pt")
         ok = run(py + ["streetball.evaluate", "--level", name, "--ckpt", ckpt]) == 0
         onnx = None

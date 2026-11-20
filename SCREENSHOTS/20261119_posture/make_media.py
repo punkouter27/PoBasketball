@@ -6,6 +6,7 @@ Captured with (one run per brain, seed 7, 1600x900, -game):
 
     sim/.venv/Scripts/python.exe SCREENSHOTS/20261119_posture/make_media.py
 """
+
 import glob
 import os
 import shutil
@@ -17,9 +18,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "..", "unreal", "StreetballGym", "Saved", "Screenshots")
 ACCENT = (255, 196, 48)
 INK = (16, 20, 26)
-BRAINS = [("v1w", "Old brain (v1w)", "99.0 % balance - torso 0.875"),
-          ("pos", "Posture brain (this morning)", "81.5 % balance - torso 0.978"),
-          ("qp", "Quiet-posture brain (NEW)", "97.0 % balance - torso 0.903")]
+BRAINS = [
+    ("v1w", "Old brain (v1w)", "99.0 % balance - torso 0.875"),
+    ("pos", "Posture brain (this morning)", "81.5 % balance - torso 0.978"),
+    ("qp", "Quiet-posture brain (NEW)", "97.0 % balance - torso 0.903"),
+]
 
 
 def font(size):
@@ -59,7 +62,11 @@ def callout(im, box, n, label, at):
 
 def stand_triptych():
     # full-body stills at 2.5 s (quiet stand, no push yet); crop around the character
-    notes = {"v1w": ("chest folds forward", 1), "pos": ("chest stacked over hips", 2), "qp": ("a little straighter than old", 3)}
+    notes = {
+        "v1w": ("chest folds forward", 1),
+        "pos": ("chest stacked over hips", 2),
+        "qp": ("a little straighter than old", 3),
+    }
     tiles = []
     for key, title, sub in BRAINS:
         im = Image.open(frames(f"{key}_stand")[0]).convert("RGB").crop((420, 40, 1100, 880))
@@ -85,11 +92,13 @@ def gameplay_still():
 
 
 def ffmpeg_gif(frame_paths, out, fps, width):
-    if shutil.which("ffmpeg") is None:          # Pillow fallback: one shared adaptive palette, no dithering noise
+    if shutil.which("ffmpeg") is None:  # Pillow fallback: one shared adaptive palette, no dithering noise
         ims = [im.resize((width, round(im.height * width / im.width)), Image.LANCZOS) for im in frame_paths]
         pal = ims[len(ims) // 2].quantize(colors=200, method=Image.Quantize.MEDIANCUT)
         q = [im.quantize(palette=pal, dither=Image.Dither.NONE) for im in ims]
-        q[0].save(os.path.join(HERE, out), save_all=True, append_images=q[1:], duration=int(1000 / fps), loop=0, optimize=True)
+        q[0].save(
+            os.path.join(HERE, out), save_all=True, append_images=q[1:], duration=int(1000 / fps), loop=0, optimize=True
+        )
         print(f"{out}: {len(ims)} frames, {os.path.getsize(os.path.join(HERE, out)) / 1e6:.2f} MB")
         return
     tmp = os.path.join(HERE, "_frames")
@@ -98,8 +107,24 @@ def ffmpeg_gif(frame_paths, out, fps, width):
     for i, im in enumerate(frame_paths):
         im.save(os.path.join(tmp, f"f_{i:03d}.png"))
     vf = f"fps={fps},scale={width}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=160[p];[b][p]paletteuse=dither=bayer:bayer_scale=4"
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(fps), "-i", os.path.join(tmp, "f_%03d.png"),
-                    "-vf", vf, "-loop", "0", os.path.join(HERE, out)], check=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-framerate",
+            str(fps),
+            "-i",
+            os.path.join(tmp, "f_%03d.png"),
+            "-vf",
+            vf,
+            "-loop",
+            "0",
+            os.path.join(HERE, out),
+        ],
+        check=True,
+    )
     shutil.rmtree(tmp)
     print(f"{out}: {len(frame_paths)} frames, {os.path.getsize(os.path.join(HERE, out)) / 1e6:.2f} MB")
 
