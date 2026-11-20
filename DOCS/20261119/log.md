@@ -209,3 +209,12 @@ User: "train as needed until 9am".
   at tiny LR, so the policy barely moves. Kept, not deleted.
 - `train.py`: new `--reset-std` (after --init, set every action's exploration std). No effect unless passed.
 - `dribble_hold3`: init `runs/dribble_hold2/model.pt`, `--reset-std 0.2 --kl-target 0.02 --assist-anneal-steps 1`, budget to 08:10.
+
+## 00:05 (11-20) dribble_hold3 -> dribble_hold4: stop paying for low touches
+- `dribble_hold3` (std 0.2, KL 0.02, ~80M): LR recovered (~1e-4) but 1-cycle success 46 % -> **37 %**. `ckpt_50M`: palm-ended low
+  catches 32 % -> **49 %** (peak 0.61 m), free peaks overshoot (mean 0.97 m, 21 % > 1.0 m). Pelvis upright (0.93 m), palm 0.94 m on
+  average, but **0.73 m on low catches: she drops the hand to slap the rising ball early.** Kept, not deleted.
+- Cause: `first_touch` (+2), `r_palm` (ball > 0.5 m) and `r_push` (at release) pay for a touch at any height; catching low collects them sooner.
+- Change (training level `l2a_push` only; base defaults keep other levels unchanged): `L2Dribble.touch_min_z` (default 0);
+  `L2DribblePush.touch_min_z = 0.65`: first_touch / r_palm only when ball z >= 0.65; `r_push` only if the cycle peak >= 0.65.
+- `dribble_hold4`: init `runs/dribble_hold2/model.pt` (peaks 0.82 m, success ~50 %), `--reset-std 0.2 --kl-target 0.02 --assist-anneal-steps 1`, to 08:10.

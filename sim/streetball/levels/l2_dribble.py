@@ -35,6 +35,8 @@ class L2Dribble(Level):
     hand_offset = (0.45, 0.30)
     # reach shaping floor (m) for the palm target while the ball rises; 0 = off (target always 12 cm above the ball)
     reach_hold = 0.0
+    # min ball-centre z for the touch shaping (first_touch, r_palm); 0 = off. A touch below the band ends the peak low.
+    touch_min_z = 0.0
 
     def setup(self) -> None:
         N, dev = self.N, self.dev
@@ -162,6 +164,7 @@ class L2Dribble(Level):
         p_tap = self.bounce_event.float() * ((0.6 - apex_before) / 0.6).clamp(min=0.0)
         touch = self._active_palm_contact()
         first_touch = touch & ~self.palm_since                 # first active-palm touch of this bounce cycle
+        first_touch_paid = first_touch & (ball_z >= self.touch_min_z)
         self.palm_since |= touch
         self.near_since &= horiz < 0.6
         clean = self.bounce_event & self.palm_since & self.near_since & (apex_before >= self.apex_band[0]) & (apex_before <= self.apex_band[1])
@@ -181,7 +184,7 @@ class L2Dribble(Level):
 
         # ---- shaping
         r_spot = torch.exp(-(spot_d / 0.25) ** 2) * (0.3 + 0.7 * healthy)   # staying near the spot pays mostly for real dribbles
-        r_palm = torch.exp(-(self._active_palm_dist() / 0.25) ** 2) * (ball_z > 0.5).float()
+        r_palm = torch.exp(-(self._active_palm_dist() / 0.25) ** 2) * (ball_z > max(0.5, self.touch_min_z)).float()
         # Reach shaping (2026-11-08, queue r3): r_palm is ~0 at the 0.7 m palm-ball gap the policy starts with and
         # the ball rarely rises above 0.5 m, so nothing pulled the hand to the ball (palm touched it in 0.1 % of
         # steps). Wide kernel to a point 12 cm ABOVE the ball (pressing from above, not carrying from below).
@@ -207,7 +210,7 @@ class L2Dribble(Level):
             1.0 * r_spot
             + 0.5 * r_palm
             + 1.0 * r_reach
-            + 2.0 * first_touch.float()                               # one touch bonus per bounce cycle at most
+            + 2.0 * first_touch_paid.float()                               # one touch bonus per bounce cycle at most
             + 5.0 * r_apex
             + 2.0 * r_apex_dense
             + 3.0 * clean.float()
@@ -369,6 +372,7 @@ class L2DribblePush(L2DribbleCycles):
     Paid once per bounce cycle (first release), so palm spam earns nothing extra. Same interface as L2Dribble."""
     name = "l2a_push"
     reach_hold = 0.92            # apex target 0.8 + ball radius: meet the rising ball at the top of the band, not low
+    touch_min_z = 0.65           # = apex_band[0]: touching the rising ball lower ends its peak below the band (49 % of cycles, 11-20)
     e2 = 0.72
     ball_r = 0.1205
 
@@ -389,7 +393,8 @@ class L2DribblePush(L2DribbleCycles):
         env = self.env
         g = 9.81
         touch = self._active_palm_contact()
-        release = self.prev_touch & ~touch & ~self.paid_cycle
+        # a push after a catch below the band is not paid: the cycle's peak (contact height) already failed
+        release = self.prev_touch & ~touch & ~self.paid_cycle & (self.peak >= self.apex_band[0])
         self.prev_touch = touch
         z = env.p_ball[:, 2] - self.ball_r
         vz = env.v_ball[:, 2]
