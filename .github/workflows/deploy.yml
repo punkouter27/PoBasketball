@@ -1,9 +1,9 @@
-name: Test & Deploy Web Viewer
+name: Test & Deploy
 
-# Push to master -> GitHub-hosted runner: CPU sim tests, bake the golden replays into the web viewer
-# (web/build.py), deploy it to the Azure Static Web App `pobasketball` (rg PoBasketball), check the live page.
-# Pull requests get the tests and the build, never a deploy. No self-hosted runner: the Unreal project is
-# not built here (GitHub's runners have no Unreal Engine); test_env / test_determinism need CUDA and stay local.
+# The one workflow. Every push / pull request: Python checks (ruff, pytest on CPU), then bake the golden replays into
+# the web viewer (web/build.py). Push to master only: deploy web/dist to the Azure Static Web App, then check the live
+# page and /diag. The Unreal project is built locally (GitHub's runners have no Unreal Engine); the GPU tests
+# (test_env, test_determinism) skip here with a message and run locally in sim/.venv.
 #
 # Repo secret: AZURE_STATIC_WEB_APPS_API_TOKEN (the Static Web App's deployment token).
 on:
@@ -25,27 +25,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      # pinned to commit SHAs: the deploy token goes to these actions, so a moved tag must not change what runs
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
-      # mujoco pinned to sim/uv.lock; the CPU tests need nothing else.
-      - name: Install CPU dependencies
-        run: python -m pip install "mujoco==4.0.0" numpy pytest
+      # mujoco pinned to sim/uv.lock (4.0.0); the CPU tests and the web build need nothing else.
+      - name: Install Python tools
+        run: python -m pip install "mujoco==4.0.0" numpy pytest "ruff==0.17.6"
 
-      - name: Sim tests (CPU)
-        working-directory: sim
-        run: python -m pytest -q tests/test_stand.py tests/test_penetration.py
+      - name: Lint
+        run: ruff check .
+
+      - name: Format
+        run: ruff format --check .
+
+      - name: Tests (CPU; GPU tests skip)
+        run: python -m pytest -q -rs
 
       - name: Build the web viewer
-        run: python web/build.py
+        id: build
+        run: |
+          python web/build.py | tee build.log
+          echo "version=$(sed -n 's/^version v//p' build.log)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to Azure Static Web Apps
         id: deploy
         if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
-        uses: Azure/static-web-apps-deploy@v1
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           action: upload
@@ -53,13 +62,19 @@ jobs:
           skip_app_build: true
           skip_api_build: true
 
-      - name: Check the live page
+      - name: Check the live page and /diag
         if: steps.deploy.outcome == 'success'
         env:
           URL: ${{ steps.deploy.outputs.static_web_app_url }}
+          VERSION: ${{ steps.build.outputs.version }}
         run: |
           for i in $(seq 1 20); do
-            if curl -fsS --max-time 30 "$URL/data/replays.json" | grep -q '"frames"'; then echo "Live: $URL"; exit 0; fi
+            if curl -fsS --max-time 30 "$URL/" | grep -q "content=\"$VERSION\"" \
+              && curl -fsS --max-time 30 "$URL/diag" | grep -q "<title>System status</title>" \
+              && curl -fsS --max-time 30 "$URL/diag_checks.json" | grep -q '"checks"' \
+              && curl -fsS --max-time 30 "$URL/data/replays.json" | grep -q '"frames"'; then
+              echo "Live: $URL (v$VERSION), /diag OK"; exit 0
+            fi
             sleep 15
           done
-          echo "$URL did not serve the viewer"; exit 1
+          echo "$URL did not serve v$VERSION and /diag"; exit 1

@@ -83,7 +83,7 @@ async function load(name) {
   const moving = bodyIds.filter((id, i) => frames.some((f) => [0, 1, 2].some((k) => Math.abs(f[i * 7 + k] - frames[0][i * 7 + k]) > 1e-3)));
   focusBody = moving.length ? moving.reduce((a, b) => (spec(b) > spec(a) ? b : a)) : null;
   $("scrub").max = frames.length - 1;
-  $("title").textContent = `${rep.name} · ${rep.mode}`;
+  $("now").textContent = `${rep.name} · ${rep.level || rep.mode}`;
   frame = 0; clock = 0; apply();
 }
 const spec = (body) => models[rep.xml].geoms.filter((g) => g.body === body).length;
@@ -108,11 +108,12 @@ $("follow").onclick = () => { follow = !follow; $("follow").setAttribute("aria-p
 $("scrub").oninput = (e) => { frame = +e.target.value; clock = frame * rep.frameTime; apply(); };
 addEventListener("keydown", (e) => { if (e.code === "Space") { e.preventDefault(); $("play").click(); } });
 
+// The canvas fills the viewport area between the page's top bar and footer (any aspect, landscape or portrait).
 function resize() {
-  const w = innerWidth, h = innerHeight;
+  const v = $("view"), w = Math.max(1, v.clientWidth), h = Math.max(1, v.clientHeight);
   renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
 }
-addEventListener("resize", resize); resize();
+new ResizeObserver(resize).observe($("view")); resize();
 
 await load(replays[0].name);
 let last = performance.now();

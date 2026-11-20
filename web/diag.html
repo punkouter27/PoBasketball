@@ -2,74 +2,146 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Diagnostics · PoBasketball</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="po-version" content="{{VERSION}}">
+<title>System status</title>
 <style>
-  :root { --bg: #14161a; --panel: #1c2026; --text: #e8e6e1; --muted: #9a978f; --accent: #f08a24; --ok: #3fb950; --bad: #f85149; }
+  :root {
+    --bg: #0b0f17; --surface: #121826; --surface-2: #1a2233; --border: #2a3349;
+    --text: #e6e9f2; --muted: #9aa3b5; --accent: #6366f1;
+    --ok: #4ade80; --ok-soft: rgba(74, 222, 128, .14); --warn: #fbbf24; --warn-soft: rgba(251, 191, 36, .14);
+    --bad: #f87171; --bad-soft: rgba(248, 113, 113, .14);
+  }
   * { box-sizing: border-box; }
-  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #2b3038; }
-  header a.title { color: var(--text); text-decoration: none; font-weight: 600; font-size: 16px; }
-  main { max-width: 720px; margin: 24px auto; padding: 0 16px 48px; display: grid; gap: 16px; }
-  .card { background: var(--panel); border: 1px solid #2b3038; border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #262a31; }
-  .badge.ok { background: rgba(63, 185, 80, 0.18); color: var(--ok); }
-  .badge.bad { background: rgba(248, 81, 73, 0.18); color: var(--bad); }
-  .muted { color: var(--muted); font-size: 13px; margin: 0; }
-  .stamp { position: fixed; right: 12px; bottom: 6px; color: var(--muted); font-size: 11px; pointer-events: none; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: grid; grid-template-rows: 44px 1fr 20px; min-height: 100dvh; }
+  .po-bar { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: var(--surface);
+    border-bottom: 1px solid var(--border); }
+  .po-bar a { color: var(--text); text-decoration: none; font-weight: 600; font-size: 16px; }
+  .po-bar a.back { color: #a5b4fc; font-weight: 400; font-size: 13px; }
+  main { width: 100%; max-width: 760px; margin: 0 auto; padding: 20px 16px 32px; display: grid; gap: 16px; align-content: start; }
+  h1 { margin: 0; font-size: 22px; }
+  .banner { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); font-weight: 600; }
+  .banner.ok { background: var(--ok-soft); } .banner.warn { background: var(--warn-soft); } .banner.bad { background: var(--bad-soft); }
+  .meta { color: var(--muted); font-size: 12px; margin: 0; }
+  #g-api, #g-data, #g-service { display: grid; gap: 8px; margin-top: 8px; }
+  h2 { margin: 8px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+  .row .label { font-weight: 600; }
+  .row .purpose, .row .detail { grid-column: 1 / -1; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .row .detail.problem { color: var(--text); }
+  .pill { justify-self: end; align-self: start; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    background: var(--surface-2); color: var(--text); white-space: nowrap; }
+  .pill.Healthy { background: var(--ok-soft); color: var(--ok); }
+  .pill.Degraded { background: var(--warn-soft); color: var(--warn); }
+  .pill.Unhealthy { background: var(--bad-soft); color: var(--bad); }
+  .po-foot { display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; background: var(--surface);
+    border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
-<header>
-  <a class="title" href="/">PoBasketball</a>
-  <a class="title" href="/" style="font-size:13px;color:var(--accent)">← Back to viewer</a>
+<header class="po-bar">
+  <a href="/">PoBasketball</a>
+  <a class="back" href="/">← Viewer</a>
 </header>
 <main>
   <h1>System status</h1>
-  <div class="card">
-    <div class="row"><strong>Replay bundle (/data/replays.json)</strong><span id="rep-badge" class="badge">Checking…</span></div>
-    <p id="rep-desc" class="muted">Golden MuJoCo rollouts baked for the web viewer.</p>
-  </div>
-  <div class="card">
-    <div class="row"><strong>Scene geometry (/data/model.json)</strong><span id="mod-badge" class="badge">Checking…</span></div>
-    <p id="mod-desc" class="muted">Forward-kinematics body and geom definitions.</p>
-  </div>
-  <div class="card">
-    <div class="row"><strong>3D renderer (WebGL2)</strong><span id="gl-badge" class="badge">Checking…</span></div>
-    <p id="gl-desc" class="muted">Browser WebGL2 context required by Three.js.</p>
-  </div>
-  <div class="card">
-    <div class="row"><strong>Build version</strong><span class="badge ok">v<span id="ver">dev</span></span></div>
-  </div>
+  <div id="banner" class="banner" role="status">Checking…</div>
+  <p id="meta" class="meta"></p>
+  <section><h2>API</h2><div id="g-api"></div></section>
+  <section><h2>Data</h2><div id="g-data"></div></section>
+  <section><h2>Services</h2><div id="g-service"></div></section>
 </main>
-<div class="stamp">dev</div>
+<footer class="po-foot"><span>v{{VERSION}}</span></footer>
 <script type="module">
-  const stamp = document.querySelector('.stamp')?.textContent || 'dev';
-  document.getElementById('ver').textContent = stamp;
-  async function probe(url, badgeId, descId, summarize) {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const SLOW_MS = 3000;
+
+  async function timed(url, as) {
     const t0 = performance.now();
-    try {
-      const r = await fetch(url, { cache: 'no-store' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const data = await r.json();
-      const ms = Math.round(performance.now() - t0);
-      const b = document.getElementById(badgeId);
-      b.textContent = 'Healthy · ' + ms + ' ms';
-      b.className = 'badge ok';
-      document.getElementById(descId).textContent = summarize(data);
-    } catch (e) {
-      const b = document.getElementById(badgeId);
-      b.textContent = 'Unreachable';
-      b.className = 'badge bad';
-    }
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+    const body = as === 'json' ? await r.json() : await r.text();
+    return { body, ms: performance.now() - t0 };
   }
-  probe('/data/replays.json', 'rep-badge', 'rep-desc', d => Array.isArray(d) ? `${d.length} golden replays available.` : 'Loaded.');
-  probe('/data/model.json', 'mod-badge', 'mod-desc', d => `${Object.keys(d || {}).length} MuJoCo scene(s) baked.`);
-  const gl = document.createElement('canvas').getContext('webgl2');
-  const glb = document.getElementById('gl-badge');
-  glb.textContent = gl ? 'Healthy' : 'Unavailable';
-  glb.className = 'badge ' + (gl ? 'ok' : 'bad');
+
+  const runners = {
+    async text(c) {
+      const { body, ms } = await timed(c.url, 'text');
+      if (c.expect && !body.includes(c.expect)) throw new Error(`${c.url} does not contain "${c.expect}"`);
+      return { ms, detail: `${(body.length / 1024).toFixed(1)} KB` };
+    },
+    async json(c) {
+      const { body, ms } = await timed(c.url, 'json');
+      if (c.expect && !(c.expect in body)) throw new Error(`${c.url} has no "${c.expect}"`);
+      const n = c.expect ? (body[c.expect].geoms || []).length : Object.keys(body).length;
+      return { ms, detail: c.expect ? `${n} geoms in ${c.expect}` : `${n} keys` };
+    },
+    async replays(c) {
+      const list = await timed(c.url, 'json');
+      if (!Array.isArray(list.body) || !list.body.length) throw new Error('no replays listed');
+      let ms = list.ms; const bad = [];
+      await Promise.all(list.body.map(async (rp) => {
+        try {
+          const r = await timed(`data/${rp.name}.json`, 'json');
+          ms = Math.max(ms, list.ms + r.ms);
+          if (!Array.isArray(r.body.frames) || r.body.frames.length !== rp.frames) bad.push(`${rp.name} (frames)`);
+        } catch (e) { bad.push(rp.name); }
+      }));
+      if (bad.length === list.body.length) throw new Error(`every replay failed: ${bad.join(', ')}`);
+      return { ms, detail: `${list.body.length - bad.length}/${list.body.length} replays load`,
+               degraded: bad.length ? `failed: ${bad.join(', ')}` : null };
+    },
+    async webgl2() {
+      const t0 = performance.now();
+      const gl = document.createElement('canvas').getContext('webgl2');
+      if (!gl) throw new Error('this browser has no WebGL2 context');
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      const who = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+      return { ms: performance.now() - t0, detail: String(who) };
+    },
+  };
+
+  function row(c, status, ms, detail, problem) {
+    const el = document.createElement('div');
+    el.className = 'row';
+    el.innerHTML = `<span class="label">${esc(c.label)}</span>` +
+      `<span class="pill ${status}">${status}${ms != null ? ` · ${Math.round(ms)} ms` : ''}</span>` +
+      `<span class="purpose">${esc(c.purpose || '')}</span>` +
+      `<span class="detail${problem ? ' problem' : ''}">${esc(problem || detail || '')}</span>`;
+    return el;
+  }
+
+  const t0 = performance.now();
+  let checks = [];
+  try { checks = (await timed('diag_checks.json', 'json')).body.checks; }
+  catch (e) { checks = []; $('banner').textContent = 'Not working: the check list (diag_checks.json) did not load'; $('banner').className = 'banner bad'; }
+
+  const results = await Promise.all(checks.map(async (c) => {
+    try {
+      const r = await runners[c.kind](c);
+      const status = r.degraded || r.ms > SLOW_MS ? 'Degraded' : 'Healthy';
+      return { c, status, ms: r.ms, detail: r.detail, problem: r.degraded || (r.ms > SLOW_MS ? `slow (> ${SLOW_MS} ms)` : null) };
+    } catch (e) {
+      return { c, status: 'Unhealthy', ms: null, problem: e.message };
+    }
+  }));
+  for (const r of results) $(`g-${r.c.group}`)?.appendChild(row(r.c, r.status, r.ms, r.detail, r.problem));
+
+  if (checks.length) {
+    const down = results.filter((r) => r.status === 'Unhealthy');
+    const slow = results.filter((r) => r.status === 'Degraded');
+    const b = $('banner');
+    if (down.length) { b.textContent = `Not working: ${down.map((r) => r.c.label).join(', ')}`; b.className = 'banner bad'; }
+    else if (slow.length) { b.textContent = `Working, with ${slow.length} thing${slow.length > 1 ? 's' : ''} degraded`; b.className = 'banner warn'; }
+    else { b.textContent = 'Everything is working'; b.className = 'banner ok'; }
+  }
+  const ver = document.querySelector('meta[name="po-version"]').content;
+  $('meta').textContent = `Version v${ver} · checked ${new Date().toISOString().replace('T', ' ').slice(0, 19)} UTC in ${Math.round(performance.now() - t0)} ms · ${checks.length} checks`;
+  document.body.dataset.diagDone = '1';
 </script>
 </body>
 </html>

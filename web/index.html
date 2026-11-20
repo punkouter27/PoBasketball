@@ -2,34 +2,54 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PoBasketball Replays</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%23e07a2e%22/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="po-version" content="{{VERSION}}">
+<title>PoBasketball</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%236366f1%22/%3E%3C/svg%3E">
 <style>
-  :root { --bg: #14161a; --panel: rgba(20, 22, 26, 0.86); --text: #e8e6e1; --muted: #9a978f; --accent: #f08a24; }
+  :root {
+    --bg: #0b0f17; --surface: #121826; --surface-2: #1a2233; --border: #2a3349;
+    --text: #e6e9f2; --muted: #9aa3b5; --accent: #6366f1;
+    --bar-h: 44px; --foot-h: 20px;
+  }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
-  #view { position: fixed; inset: 0; }
-  .bar { position: fixed; left: 16px; right: 16px; bottom: 26px; display: flex; flex-wrap: wrap; gap: 10px;
-    align-items: center; padding: 10px 12px; background: var(--panel); border-radius: 10px; }
-  .bar select, .bar button { background: #262a31; color: var(--text); border: 1px solid #3a3f48; border-radius: 6px;
-    padding: 6px 10px; font: inherit; cursor: pointer; }
-  .bar button:hover, .bar select:hover { border-color: var(--accent); }
-  #scrub { flex: 1 1 160px; accent-color: var(--accent); }
-  #info { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 9em; }
-  h1 { position: fixed; top: 12px; left: 16px; margin: 0; font-size: 16px; font-weight: 600; letter-spacing: .02em; }
-  h1 span { color: var(--muted); font-weight: 400; }
-  .tr-actions { position: fixed; top: 10px; right: 16px; display: flex; align-items: center; gap: 8px; z-index: 5; }
-  .gear-btn { width: 36px; height: 36px; display: inline-grid; place-items: center; background: var(--panel);
-    color: var(--text); border: 1px solid #3a3f48; border-radius: 8px; text-decoration: none; cursor: pointer; }
-  .gear-btn:hover { border-color: var(--accent); }
-  .settings-sheet { position: fixed; top: 52px; right: 16px; width: 240px; padding: 12px; background: var(--panel);
-    border: 1px solid #3a3f48; border-radius: 10px; z-index: 6; display: none; gap: 8px; }
+    font: 14px/1.4 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  /* Page chrome, drawn once and outside the canvas: top bar, viewport, footer strip. */
+  body { display: grid; grid-template-rows: var(--bar-h) minmax(0, 1fr) var(--foot-h); height: 100dvh; }
+  .po-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px;
+    background: var(--surface); border-bottom: 1px solid var(--border); position: relative; z-index: 5; }
+  .po-bar__title { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: .02em; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; color: var(--text); text-decoration: none; }
+  .po-bar__actions { display: flex; gap: 6px; }
+  .icon-btn { width: 36px; height: 36px; display: inline-grid; place-items: center; background: var(--surface-2);
+    color: var(--text); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font: inherit; font-size: 16px; }
+  .icon-btn:hover, .icon-btn:focus-visible { border-color: var(--accent); outline: none; }
+  .settings-sheet { position: absolute; top: calc(var(--bar-h) - 2px); right: 8px; width: min(260px, calc(100vw - 16px));
+    padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; display: none; gap: 8px; }
   .settings-sheet.open { display: grid; }
-  .settings-sheet a { color: var(--accent); text-decoration: none; font-size: 13px; }
-  .stamp { position: fixed; right: 12px; bottom: 6px; color: var(--muted); font-size: 11px; pointer-events: none; z-index: 10; }
-  #err { position: fixed; inset: 0; display: none; place-items: center; padding: 16px; text-align: center; }
+  .settings-sheet a { color: #a5b4fc; text-decoration: none; }
+  .settings-sheet p { margin: 0; color: var(--muted); font-size: 12px; }
+  #stage { position: relative; min-height: 0; overflow: hidden; }
+  #view { position: absolute; inset: 0; }
+  #view canvas { display: block; width: 100%; height: 100%; }
+  /* Viewer controls (the in-view HUD): docked at the bottom of the viewport area. */
+  .controls { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px;
+    align-items: center; padding: 8px 10px; background: rgba(18, 24, 38, .92); border: 1px solid var(--border); border-radius: 10px; }
+  .controls select, .controls button { background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; min-height: 32px; }
+  .controls select { max-width: 100%; }
+  .controls button:hover, .controls select:hover { border-color: var(--accent); }
+  #scrub { flex: 1 1 140px; accent-color: var(--accent); min-width: 120px; }
+  #info { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 8.5em; }
+  #now { position: absolute; top: 10px; left: 12px; color: var(--muted); font-size: 13px; pointer-events: none; }
+  .po-foot { display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; background: var(--surface);
+    border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  #err { position: absolute; inset: 0; display: none; place-items: center; padding: 16px; text-align: center; background: var(--bg); }
+  @media (max-width: 520px) {
+    #replay { flex: 1 1 100%; }
+    .controls { left: 8px; right: 8px; bottom: 8px; }
+  }
 </style>
 <script type="importmap">
 { "imports": {
@@ -39,28 +59,43 @@
 </script>
 </head>
 <body>
-<div id="view"></div>
-<h1>PoBasketball <span id="title">replays</span></h1>
-<div class="tr-actions">
-  <button type="button" class="gear-btn" id="gear" aria-label="Settings" title="Settings" onclick="document.getElementById('settingsSheet').classList.toggle('open')">⚙</button>
-</div>
-<div class="settings-sheet" id="settingsSheet" role="dialog" aria-label="Viewer settings">
-  <strong>Viewer settings</strong>
-  <span style="color:var(--muted);font-size:12px">Theme follows your device setting.</span>
-  <a href="/diag">Service status (/diag) →</a>
-</div>
-<div class="bar">
-  <select id="replay" aria-label="Replay"></select>
-  <button id="play" aria-label="Play or pause">Pause</button>
-  <select id="speed" aria-label="Speed">
-    <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option>
-  </select>
-  <button id="follow" aria-pressed="true">Follow</button>
-  <input id="scrub" type="range" min="0" max="0" value="0" aria-label="Frame">
-  <span id="info"></span>
-</div>
-<div id="err"></div>
-<div class="stamp">dev</div>
+<header class="po-bar">
+  <a class="po-bar__title" href="/">PoBasketball</a>
+  <div class="po-bar__actions">
+    <button type="button" class="icon-btn" id="fullscreen" aria-label="Fullscreen" title="Fullscreen">⛶</button>
+    <button type="button" class="icon-btn" id="gear" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="settingsSheet">⚙</button>
+  </div>
+  <div class="settings-sheet" id="settingsSheet" role="dialog" aria-label="Viewer settings">
+    <strong>Settings</strong>
+    <p>Space plays or pauses. Drag to orbit, scroll to zoom.</p>
+    <a href="/diag">System status →</a>
+  </div>
+</header>
+<main id="stage">
+  <div id="view"></div>
+  <div id="now" aria-live="polite"></div>
+  <div class="controls">
+    <select id="replay" aria-label="Replay"></select>
+    <button id="play" aria-label="Play or pause">Pause</button>
+    <select id="speed" aria-label="Speed">
+      <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option>
+    </select>
+    <button id="follow" aria-pressed="true">Follow</button>
+    <input id="scrub" type="range" min="0" max="0" value="0" aria-label="Frame">
+    <span id="info"></span>
+  </div>
+  <div id="err" role="alert"></div>
+</main>
+<footer class="po-foot"><span id="version">v{{VERSION}}</span></footer>
+<script>
+  document.getElementById('gear').onclick = (e) => {
+    const s = document.getElementById('settingsSheet'); const open = s.classList.toggle('open');
+    e.currentTarget.setAttribute('aria-expanded', open);
+  };
+  document.getElementById('fullscreen').onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.();
+  };
+</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
