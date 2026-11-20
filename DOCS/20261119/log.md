@@ -241,3 +241,14 @@ User: "train as needed until 9am".
 - Training episodes (K <= 4, <= 2.6 s) end before a slow drift reaches 0.5 m, so the -0.5 x drift term barely matters.
 - Change (training level `l2a_push` only): `L2Dribble.drift_w` (default 0.5 = unchanged); `L2DribblePush.drift_w = 2.0`.
 - `dribble_drift`: init `runs/dribble_resume/ckpt_50M.pt`, `--assist-anneal-steps 20e6`, to 08:10, gate report ~08:25.
+
+## 08:20 night summary (user: "train as needed until 9am")
+- `dribble_drift` (drift_w 2.0, 245 min): gate `l2a_dribble_r` 0 % on all 7 checkpoints (`DOCS/20261120/dribble_drift.md`).
+  Longest gate episodes so far: **ckpt_250M 10.2 s, 7.5 bounces/episode** (was <= 4.4 s with drift_w 0.5); still ends by drift (98 %);
+  falls 0-10 %. Streaks stay short (clean-bounce streak ~0-2): she keeps the ball but rarely chains in-band bounces.
+- Tonight's runs (all kept): dribble_overnight, dribble_hold, dribble_hold2/3/4, dribble_resume, dribble_drift. Gate 0 % everywhere.
+- Findings: (1) gate blocker = pelvis drift (84-99 % of gate episodes), training episodes (<= 2.6 s) too short to feel it;
+  (2) ~half the cycles peak < 0.65 m because the palm meets the returning ball at ~0.73 m (follow-through not recovered);
+  (3) reward edits for (2) regressed (hold2-4, switched off); stronger drift penalty helped modestly (4.4 -> 10.2 s).
+- Proposed next (needs user decisions): train with long episodes (K curriculum on time, not cycles, or a drift-terminating 10 s
+  horizon) and/or behaviour cloning from a scripted dribble teacher.
