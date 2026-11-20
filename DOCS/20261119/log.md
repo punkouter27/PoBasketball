@@ -218,3 +218,14 @@ User: "train as needed until 9am".
 - Change (training level `l2a_push` only; base defaults keep other levels unchanged): `L2Dribble.touch_min_z` (default 0);
   `L2DribblePush.touch_min_z = 0.65`: first_touch / r_palm only when ball z >= 0.65; `r_push` only if the cycle peak >= 0.65.
 - `dribble_hold4`: init `runs/dribble_hold2/model.pt` (peaks 0.82 m, success ~50 %), `--reset-std 0.2 --kl-target 0.02 --assist-anneal-steps 1`, to 08:10.
+
+## 01:00 dribble_hold4 collapsed; shaping changes switched off; resume the original overnight setup
+- `dribble_hold4` (touch/push paid only in band): 1-cycle success 46 % -> **4 %** at 61M. `ckpt_50M`: cycle ok 20 %; low catches
+  still 39 % (peak 0.61 m, palm 0.74 m) although they now earn no touch/push reward; free peaks overshoot (28 % > 1.0 m).
+  Revised reading: the low "catch" is most likely the hand still at the bottom of its push follow-through when a hard-pushed ball
+  returns, not a deliberate early slap; touch-reward gating cannot fix that. Kept, not deleted.
+- Three reward edits tonight (hold2, hold3, hold4) each regressed -> stop editing rewards overnight. `L2DribblePush.reach_hold`
+  and `touch_min_z` set to 0 (code kept, defaults off) = the reward `dribble_overnight` trained with. `--reset-std` stays (unused).
+- `dribble_resume`: init `runs/dribble_overnight/model.pt` (46 % two-bounce, K = 2 at stop), original settings
+  (`--assist-anneal-steps 20e6`, default KL/std), budget to 08:10, gate `l2a_dribble_r`, report ~08:30.
+- Next (needs user decisions, > 100 lines): behaviour cloning from a scripted teacher, or a hand-recovery term after the push.

@@ -371,8 +371,8 @@ class L2DribblePush(L2DribbleCycles):
       - landing point: p_xy + v_xy * t_floor, t_floor from z - r + vz t - g t^2 / 2 = 0
     Paid once per bounce cycle (first release), so palm spam earns nothing extra. Same interface as L2Dribble."""
     name = "l2a_push"
-    reach_hold = 0.92            # apex target 0.8 + ball radius: meet the rising ball at the top of the band, not low
-    touch_min_z = 0.65           # = apex_band[0]: touching the rising ball lower ends its peak below the band (49 % of cycles, 11-20)
+    reach_hold = 0.0             # OFF 11-20 01:00 (hold2-4 regressed); was 0.92: apex target 0.8 + ball radius: meet the rising ball at the top of the band, not low
+    touch_min_z = 0.0            # OFF 11-20 01:00 (hold4 collapsed to 4 %); was 0.65: = apex_band[0]: touching the rising ball lower ends its peak below the band (49 % of cycles, 11-20)
     e2 = 0.72
     ball_r = 0.1205
 
