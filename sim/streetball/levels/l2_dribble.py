@@ -37,6 +37,7 @@ class L2Dribble(Level):
     reach_hold = 0.0
     # min ball-centre z for the touch shaping (first_touch, r_palm); 0 = off. A touch below the band ends the peak low.
     touch_min_z = 0.0
+    drift_w = 0.5                # weight of the pelvis-drift penalty (distance from the start xy)
 
     def setup(self) -> None:
         N, dev = self.N, self.dev
@@ -218,7 +219,7 @@ class L2Dribble(Level):
             + 0.7 * self.r_torso_upright()
             + 0.3 * self.r_height(width=0.1)
             - 2.0 * p_high
-            - 0.5 * p_drift
+            - self.drift_w * p_drift
             - 0.05 * self.p_action_rate()
             - 0.02 * self.p_action_jerk()
             - 0.001 * self.p_joint_vel()
@@ -372,6 +373,7 @@ class L2DribblePush(L2DribbleCycles):
     Paid once per bounce cycle (first release), so palm spam earns nothing extra. Same interface as L2Dribble."""
     name = "l2a_push"
     reach_hold = 0.0             # OFF 11-20 01:00 (hold2-4 regressed); was 0.92: apex target 0.8 + ball radius: meet the rising ball at the top of the band, not low
+    drift_w = 2.0                # 11-20 04:10: gate episodes end by pelvis drift > 0.5 m (84-99 %) after 2-4 s; was 0.5
     touch_min_z = 0.0            # OFF 11-20 01:00 (hold4 collapsed to 4 %); was 0.65: = apex_band[0]: touching the rising ball lower ends its peak below the band (49 % of cycles, 11-20)
     e2 = 0.72
     ball_r = 0.1205

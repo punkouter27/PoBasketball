@@ -229,3 +229,15 @@ User: "train as needed until 9am".
 - `dribble_resume`: init `runs/dribble_overnight/model.pt` (46 % two-bounce, K = 2 at stop), original settings
   (`--assist-anneal-steps 20e6`, default KL/std), budget to 08:10, gate `l2a_dribble_r`, report ~08:30.
 - Next (needs user decisions, > 100 lines): behaviour cloning from a scripted teacher, or a hand-recovery term after the push.
+
+## 04:00 dribble_resume stopped early (training only); gate evals of tonight's checkpoints
+- dribble_resume: K 1->2->4 in the first minutes (assist-inflated), 4-cycle success 23 % -> 33 % @65M, then a steady slide to **2 % @196M** (no K demotion exists, so no recovery path). Train process stopped; skill_run proceeds to gate every checkpoint (report dribble_resume.md). Then the dribble_overnight checkpoints are gated the same way (not done before because that run was stopped early).
+
+
+## 04:10 gate results for tonight's checkpoints: all 0 %, blocker = pelvis drift; run dribble_drift
+- Gate `l2a_dribble_r` (200 eps, 45 s): **0 % on all 13 checkpoints** (dribble_resume x5 -> `DOCS/20261119/dribble_resume.md`,
+  dribble_overnight x6 -> `dribble_overnight.md`, dribble_hold2 x2 -> `dribble_hold2.md`). Episodes 1.9-4.4 s; ends by
+  **pelvis_drifted_0_5m 84-99 %**, falls 0-4.5 %, ball > 1.5 m 1-15 %. Longest: dribble_resume ckpt_50M (4.4 s).
+- Training episodes (K <= 4, <= 2.6 s) end before a slow drift reaches 0.5 m, so the -0.5 x drift term barely matters.
+- Change (training level `l2a_push` only): `L2Dribble.drift_w` (default 0.5 = unchanged); `L2DribblePush.drift_w = 2.0`.
+- `dribble_drift`: init `runs/dribble_resume/ckpt_50M.pt`, `--assist-anneal-steps 20e6`, to 08:10, gate report ~08:25.
