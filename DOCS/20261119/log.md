@@ -200,3 +200,12 @@ User: "train as needed until 9am".
   `L2Dribble.reach_hold` (default 0 = old behaviour); `L2DribblePush.reach_hold = 0.92` (apex target 0.8 + ball radius): while the
   ball rises the reach target height is max(ball z + 0.12, 0.92). Scoring (band, contact-ended peak) unchanged.
 - Next run `dribble_hold`: init `runs/dribble_overnight/model.pt`, budget to ~08:15, gate `l2a_dribble_r`, report by 9am.
+- 21:47 restarted as **dribble_hold2** with `--assist-anneal-steps 1` (assist off; the default 100M would re-gift 100 % ball-into-palm starts). `dribble_hold` (3 min, assist on) stopped, kept.
+
+## 22:55 dribble_hold2 -> dribble_hold3: re-open exploration (optimizer was frozen)
+- `dribble_hold2` (reach-hold reward, assist off, ~70M steps, 64 min): K reset to 1 (curriculum state is not in the checkpoint);
+  1-cycle success flat at ~49 %. Diagnosis `ckpt_50M`: free-flight peaks rose 0.74 -> **0.82 m** (good), but palm-ended low
+  catches unchanged at 32 % (mean 0.61 m). Adaptive LR pinned at 1.5-3e-5 (floor 1e-5): std 0.13 makes KL ~0.013 per update even
+  at tiny LR, so the policy barely moves. Kept, not deleted.
+- `train.py`: new `--reset-std` (after --init, set every action's exploration std). No effect unless passed.
+- `dribble_hold3`: init `runs/dribble_hold2/model.pt`, `--reset-std 0.2 --kl-target 0.02 --assist-anneal-steps 1`, budget to 08:10.

@@ -64,6 +64,7 @@ def parse():
     ap.add_argument("--kl-target", type=float, default=0.01)
     ap.add_argument("--posture-ramp-steps", type=float, default=0.0, help="l0_stand: blend v1->v2 posture reward over this many steps after the critic warm-up (0 = full v2 reward)")
     ap.add_argument("--toe-std", type=float, default=None, help="initial exploration std for the toe joints only (default: --init-std)")
+    ap.add_argument("--reset-std", type=float, default=None, help="after --init, reset every action's exploration std to this (re-open exploration of a converged actor)")
     ap.add_argument("--no-v2-penalties", action="store_true", help="l0_stand: drop the humanoid_v2 jerk/toe-flat penalty terms")
     ap.add_argument("--assist-anneal-steps", type=float, default=None, help="l2a_cycles/l2a_push: steps over which the ball-into-palm start assist goes 1 -> 0")
     ap.add_argument("--quiet-posture", action="store_true", help="l0_stand: torso-upright reward only in quiet periods")
@@ -103,6 +104,10 @@ def main():
     agent.freeze_norm = args.freeze_norm
     if args.anchor_coef > 0.0:
         agent.set_anchor()        # anchor = the actor as initialised (the --init brain)
+    if args.reset_std is not None:
+        with torch.no_grad():
+            agent.ac.log_std.fill_(math.log(args.reset_std))
+        print(f"exploration std reset to {args.reset_std}")
     if args.toe_std is not None:
         order = json.loads((SHARED / "obs_spec.json").read_text(encoding="utf-8"))["joint_order"]
         toes = [i for i, n in enumerate(order) if n.startswith("toe_")]
