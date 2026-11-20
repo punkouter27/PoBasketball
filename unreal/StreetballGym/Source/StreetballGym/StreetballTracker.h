@@ -78,7 +78,7 @@ public:
 	static bool ControlRule(const FVector3d& Ball, const FVector3d& Pelvis, double Time, double LastPalmContactT)
 	{
 		const double Horiz = FVector2d(Ball.X - Pelvis.X, Ball.Y - Pelvis.Y).Length();
-		return Horiz < 0.75 && Ball.Z < 1.3 && (Time - LastPalmContactT) < 0.6;
+		return Horiz < 0.75 && Ball.Z < 1.3 && (Time - LastPalmContactT) < 1.0;   // 2026-11-20: was 0.6 s, shorter than a dribble cycle (env_base.PALM_WINDOW_S)
 	}
 
 private:

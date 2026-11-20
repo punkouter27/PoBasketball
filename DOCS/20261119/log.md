@@ -273,3 +273,29 @@ Affected policies: dribble (L2a) only. No obs/action/physics change. Unreal tier
   bounces, lost or fell within 0.6-2.6 s. Same as 11-08: a full-body scripted teacher does not work yet (base legs walk
   while the IK arm reaches). BC not started; awaiting user choice of teacher approach.
 - dribble_time: horizon 5 -> 7.5 s within the first minute (survival success > 60 %).
+
+## 10:45 Unreal preview of the dribble policy (user: "play scene in unreal")
+- `dribble_time` stopped at 31M (horizon T reached 16.9 s, episodes 13.7 s) to run the UE editor (UU: no UE during long runs). Kept.
+- Streak measurement (256 gate episodes, drift 0.75 m) for dribble_drift/ckpt_250M: 19.9 s, 28.8 bounces; palm touch 100 %,
+  apex in band 93 % (median 0.81 m), touched-bounce streak median 27 / max 68, but gate "clean" streak max 1: the ball stays
+  < 0.6 m from the pelvis on only 3 % of bounces; the dribble spot itself is 0.54 m from the pelvis (blueprint says < 0.5 m).
+  Gate-rule fix proposed to the user (near = within 0.3 m of the spot), pending.
+- PREVIEW export (gate NOT passed): `dribble_drift/ckpt_250M` -> `shared/policies/dribble.onnx` (+ sidecar), synced to
+  Content/Sim/policies. Launched `-game -windowed -StreetballStartTier=3 -StreetballMaxTier=3`.
+- 10:48 UE preview: director picked left hand ~50 % (policy trained right-only) -> falls every 1-10 s. Relaunched with `-StreetballDribbleHand=right`.
+
+## 11:00 shared rule change (user approved): ball_in_control palm window 0.6 s -> 1.0 s + 1.0 s grace after a reset
+- UE preview (forced right hand): director declared the ball loose right after every reset ("Loose ball!") and on in-cycle
+  flickers, handing the body to the scramble policy -> falls / countdown resets (7 resets in ~60 s). Cause: in_control needs a
+  palm touch within 0.6 s, but a dribble cycle at apex 0.8 m is ~0.55-0.65 s between touches (sim in_control ~91 % even with a
+  palm touch on 100 % of bounces), and the start ball (mid-cycle, h 0.30-0.75 m) often first meets the palm after > 0.6 s.
+- Change: `shared/transition_table.json` physical_rules.ball_in_control: time_since_palm_contact < 1.0 (was 0.6), and after a
+  reset the palm timer starts at 0 (grace). Mirrored in sim env (in_control / loose countdown) and the Unreal director.
+- Affects every policy that observes in_control / countdown (scramble, dribble) and the scramble trigger. Re-run: goldens,
+  CPU tests, scramble gate, Unreal suite.
+- 11:20 applied. env_base.PALM_WINDOW_S = 1.0; replay_recorder; obs.py + shared/obs_spec.json rule text (interface_sha
+  32f5b79d3216e8a3 -> **9879b4bebba21aa3**, text only, no input layout change; existing sidecars warn on sync, Unreal does not
+  check); shared/transition_table.json; Unreal UStreetballTracker::ControlRule. Reset grace already existed on both sides
+  (levels set last_palm_contact_t = time at reset; UStreetballTracker::GrantControl).
+- Verification: CPU tests 10/10; replay_scramble re-recorded; scramble gate (runs/production/scramble.pt) **95.5 % pass**
+  (was 96.5 %), falls 1 %; Unreal build OK; Unreal suite **22/22**.

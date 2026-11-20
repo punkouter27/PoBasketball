@@ -393,7 +393,7 @@ bool FStreetballLoopTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("hand-over prev_action max diff %.3e"), HandoverErr));
 	W->GetDirector()->ForceState(EStreetballState::Stand, W->GetTracker()->State());
 
-	// Jump to tier 3 with the ball at the hand; the dummy policy will not dribble, so control is lost after 0.6 s
+	// Jump to tier 3 with the ball at the hand; the dummy policy will not dribble, so control is lost after 1.0 s
 	// and SCRAMBLE starts. The ball is then moved 8 m away so the 3 s countdown must end in a HARD_RESET.
 	// (2026-11-19: the trained scramble brain now regains a nearby ball, which restarts the countdown every time.)
 	FStreetballResetSpec Spec; Spec.bRequested = true; Spec.Reason = TEXT("test: tier 3");

@@ -25,6 +25,9 @@ from streetball.levels.base import Level
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SHARED = ROOT.parent / "shared"
+# ball_in_control palm window (shared/transition_table.json). 2026-11-20: was 0.6 s, shorter than one dribble cycle at apex
+# 0.8 m (~0.55-0.65 s between touches), so control flickered and the Unreal director handed the body to the scramble policy.
+PALM_WINDOW_S = 1.0
 
 
 @dataclass
@@ -306,7 +309,7 @@ class StreetballEnv:
         touched = self.palm_ball_contact.amax(dim=1) > 0
         self.last_palm_contact_t = torch.where(touched, self.time, self.last_palm_contact_t)
         horiz = (self.p_ball[:, :2] - self.p_pelvis[:, :2]).norm(dim=-1)
-        ctrl = (horiz < 0.75) & (self.p_ball[:, 2] < 1.3) & (self.time - self.last_palm_contact_t < 0.6)
+        ctrl = (horiz < 0.75) & (self.p_ball[:, 2] < 1.3) & (self.time - self.last_palm_contact_t < PALM_WINDOW_S)
         newly_loose = (~ctrl) & (self.in_control > 0.5)
         self.loose_t = torch.where(newly_loose, self.time, self.loose_t)
         self.loose_t = torch.where(ctrl, torch.full_like(self.loose_t, -1.0), self.loose_t)

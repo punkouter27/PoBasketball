@@ -151,7 +151,7 @@ def main() -> None:
             if any((c.geom1 == ball_g and c.geom2 in palm_g) or (c.geom2 == ball_g and c.geom1 in palm_g) for c in d.contact[:d.ncon]):
                 last_palm = now
             horiz = float(np.linalg.norm(d.qpos[ball:ball + 2] - d.qpos[root:root + 2]))
-            ctrl_ok = horiz < 0.75 and d.qpos[ball + 2] < 1.3 and (now - last_palm) < 0.6
+            ctrl_ok = horiz < 0.75 and d.qpos[ball + 2] < 1.3 and (now - last_palm) < 1.0   # = env_base.PALM_WINDOW_S
             if not ctrl_ok and in_ctrl > 0.5:
                 loose_t = now
             if ctrl_ok:

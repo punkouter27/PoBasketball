@@ -193,7 +193,7 @@ def write_spec_and_golden(n_samples: int = 1000, seed: int = 0) -> None:
             "heading": "yaw-only pelvis frame: fwd = R[:,0] with z zeroed and normalised, left = z x fwd",
             "angvel_note": "MuJoCo free-joint qvel[3:6] is already in the body frame; used directly",
         },
-        "ball_in_control_rule": "ball within 0.75 m horizontally of pelvis AND ball z < 1.3 m AND last palm contact < 0.6 s ago",
+        "ball_in_control_rule": "ball within 0.75 m horizontally of pelvis AND ball z < 1.3 m AND last palm contact < 1.0 s ago",
         "foot_contact_rule": "any active contact between geom foot_l/foot_r and geom floor",
     }
     SHARED.mkdir(parents=True, exist_ok=True)
