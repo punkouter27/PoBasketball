@@ -267,3 +267,9 @@ Affected policies: dribble (L2a) only. No obs/action/physics change. Unreal tier
   69 loss terminals, rewards finite. Clean share under gate rules at 5 s: median **14 %** (6.5 bounces) -> success = 0 with
   clean_frac 0.8, so `clean_frac = 0.0` for now (success = survive T: no fall / ball loss / 0.75 m drift); raise later.
 - Run `dribble_time`: `l2a_time`, init `runs/dribble_drift/ckpt_250M.pt`, `--assist-anneal-steps 1`, 180 min, gate l2a_dribble_r (0.75 m).
+- 10:10 teacher re-test (`tools/scripted_dribble.py`, soft palm, legs from dribble_drift/ckpt_250M, 20 s, 2 seeds per setting):
+  spot (0.45, 0.30): lost in 1.5 s; trace: palm stops 8-10 cm short of the ball (IK error 0.09 m, edge of reach), the push
+  hits the back of the ball (+0.8 m/s forward) and it rolls away. Spots (0.35/0.30/0.25 fwd) x hold 0.9/1.0: max 2 touched
+  bounces, lost or fell within 0.6-2.6 s. Same as 11-08: a full-body scripted teacher does not work yet (base legs walk
+  while the IK arm reaches). BC not started; awaiting user choice of teacher approach.
+- dribble_time: horizon 5 -> 7.5 s within the first minute (survival success > 60 %).
