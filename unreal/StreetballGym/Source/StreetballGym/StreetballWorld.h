@@ -241,6 +241,11 @@ private:
 	TArray<FName> PolicyOrder;
 	int32 ForcedPolicyIndex = INDEX_NONE;
 	int32 NanInfCount = 0;
+	// DEBUG ONLY (-StreetballObsDump=<file>): first 150 control steps (qpos, qvel, task, flags, obs, action) as CSV.
+	// Allocates; off unless the switch is given (UU: no allocation in the real-time loop in normal play).
+	FString ObsDumpPath;
+	FString ObsDumpBuf;
+	int32 ObsDumpRows = 0;
 	float EpisodeReward = 0.f;
 	float SmoothedFps = 60.f;
 };

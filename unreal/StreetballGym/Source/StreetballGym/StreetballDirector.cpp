@@ -184,6 +184,7 @@ void UStreetballDirector::ForceState(EStreetballState St, const FTrackedState& S
 
 void UStreetballDirector::EnterState(EStreetballState St, const FTrackedState& S)
 {
+	UE_LOG(LogStreetball, Log, TEXT("Director: %s -> %s at t=%.2f s (in_control %d, loose_t %.2f, ball z %.2f, ball-pelvis %.2f m)"), *StateName(State), *StateName(St), S.Time, S.InControl ? 1 : 0, S.LooseT, S.BallPos.Z, FVector2d(S.BallPos.X - S.PelvisPos.X, S.BallPos.Y - S.PelvisPos.Y).Length());
 	State = St;
 	LastStateChangeT = S.Time;
 }

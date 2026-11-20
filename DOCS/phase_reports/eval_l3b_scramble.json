@@ -4,7 +4,7 @@
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 150.0,
-  "success_rate": 0.9649999737739563,
+  "success_rate": 0.9549999833106995,
   "pass_fraction": 0.8,
   "passed": true,
   "holds_100_straight": true,
@@ -12,11 +12,11 @@
   "interface_sha": "32f5b79d3216e8a3",
   "physics_sha": "319cd05af6f00d17+c1c2207912c56781",
   "fall_rate": 0.009999999776482582,
-  "mean_episode_s": 4.870299816131592,
+  "mean_episode_s": 4.868899822235107,
   "metrics": {
-    "m/regained": 0.6352997422218323,
-    "m/ball_dist": 0.8825803995132446,
-    "m/reach": 0.6096712350845337
+    "m/regained": 0.6356735229492188,
+    "m/ball_dist": 0.8773426413536072,
+    "m/reach": 0.6088705062866211
   },
-  "wall_s": 7.679093400001875
+  "wall_s": 7.68022569999448
 }

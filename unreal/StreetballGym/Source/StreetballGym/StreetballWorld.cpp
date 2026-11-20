@@ -20,6 +20,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 #include "UObject/ConstructorHelpers.h"
 #include "GroomComponent.h"
 #include "UnrealClient.h"
@@ -401,7 +402,8 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	}
 	{
 		FString HandArg;
-		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballDribbleHand="), HandArg))
+		FParse::Value(FCommandLine::Get(), TEXT("StreetballObsDump="), ObsDumpPath);
+	if (FParse::Value(FCommandLine::Get(), TEXT("StreetballDribbleHand="), HandArg))
 		{
 			Director->ForcedHand = HandArg.StartsWith(TEXT("l")) ? -1.0 : HandArg.StartsWith(TEXT("r")) ? 1.0 : 0.0;
 			UE_LOG(LogStreetball, Log, TEXT("Director: dribble hand forced to %s"), Director->ForcedHand > 0 ? TEXT("right") : Director->ForcedHand < 0 ? TEXT("left") : TEXT("table"));
@@ -810,6 +812,22 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 				{
 					++NanInfCount;
 					Val = 0.f;
+				}
+			}
+			if (!ObsDumpPath.IsEmpty() && ObsDumpRows < 150)
+			{
+				FString Row = FString::Printf(TEXT("%.6f"), InSim->GetSimTime());
+				for (double v : InSim->QPos()) Row += FString::Printf(TEXT(",%.9g"), v);
+				for (double v : InSim->QVel()) Row += FString::Printf(TEXT(",%.9g"), v);
+				for (int32 k = 0; k < 12; ++k) Row += FString::Printf(TEXT(",%.6g"), DirOut.Task[k]);
+				Row += FString::Printf(TEXT(",%d,%.6g"), T.InControl ? 1 : 0, T.CountdownFrac);
+				for (float v : Obs) Row += FString::Printf(TEXT(",%.7g"), v);
+				for (float v : Action) Row += FString::Printf(TEXT(",%.7g"), v);
+				ObsDumpBuf += Row + TEXT("\n");
+				if (++ObsDumpRows == 150)
+				{
+					FFileHelper::SaveStringToFile(ObsDumpBuf, *ObsDumpPath);
+					UE_LOG(LogStreetball, Log, TEXT("ObsDump: wrote 150 control steps to %s (policy %s)"), *ObsDumpPath, *ActivePolicyName.ToString());
 				}
 			}
 			ObsBuilder.ActionToCtrl(Action, CtrlBuf);   // pre-sized member: no allocation
