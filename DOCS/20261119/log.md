@@ -187,3 +187,16 @@ Interface (obs/action) unchanged. Unreal loads sim/assets/scene.xml directly, so
   Caveat: the WorldLoop reset reason is "fallen" (4.1 s; scramble chasing a ball 8 m away, outside its training range), not
   "countdown expired"; the assertion accepts any hard reset. Latent director edge case found: a tier-3 reset whose ball starts out
   of reach is never "in control", so it is never declared loose and SCRAMBLE never starts (real tier-3 resets always start at the hand).
+
+## 21:50 dribble_overnight stopped at its plateau; reach-hold reward fix (training-only level `l2a_push`)
+User: "train as needed until 9am".
+- `dribble_overnight` (l2a_push, from dribble_t1, soft palm): 2-bounce success 31 % @74M -> dip to 5 % @147M -> **43 % flat 255-290M**; K stuck at 2.
+  Checkpoints kept (50M..250M, model.pt, best.pt); nothing deleted. Not gate-evaluated (stopped before its 12 h budget).
+- Diagnosis (`ckpt_250M`, 1024 envs, 17.3k cycles, assist off): cycle ok 49 %, palm touched 83 %, near spot 100 %;
+  **51 % of cycle peaks < 0.65 m**, two-thirds of them because the palm meets the RISING ball at 0.50-0.65 m (hunched, hand low).
+  Free-flight peaks average 0.74 m (in band).
+- Cause: `r_reach` pulls the palm to 12 cm above the ball whenever ball z > 0.25 m, also while it rises -> teaches meeting it low.
+- Change (affected policy: dribble only; levels `l2a_push` only, other levels unchanged; no interface/obs/physics change):
+  `L2Dribble.reach_hold` (default 0 = old behaviour); `L2DribblePush.reach_hold = 0.92` (apex target 0.8 + ball radius): while the
+  ball rises the reach target height is max(ball z + 0.12, 0.92). Scoring (band, contact-ended peak) unchanged.
+- Next run `dribble_hold`: init `runs/dribble_overnight/model.pt`, budget to ~08:15, gate `l2a_dribble_r`, report by 9am.

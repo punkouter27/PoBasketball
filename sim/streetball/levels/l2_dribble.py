@@ -33,6 +33,8 @@ class L2Dribble(Level):
     # dribble spot: forward, lateral (toward the active hand). 2026-11-19: was (0.25, 0.35), which sits on top of the toe in the start
     # stance: a falling start ball hit toe_r and a high one spawned inside the palm, so 100 % of gate starts lost the ball (~1 s episodes).
     hand_offset = (0.45, 0.30)
+    # reach shaping floor (m) for the palm target while the ball rises; 0 = off (target always 12 cm above the ball)
+    reach_hold = 0.0
 
     def setup(self) -> None:
         N, dev = self.N, self.dev
@@ -185,6 +187,11 @@ class L2Dribble(Level):
         # steps). Wide kernel to a point 12 cm ABOVE the ball (pressing from above, not carrying from below).
         palm_site = torch.where((self.hand > 0)[:, None], self.env.site_xpos[:, self.env.palm_r_s], self.env.site_xpos[:, self.env.palm_l_s])
         above = env.p_ball + torch.tensor([0.0, 0.0, 0.12], device=self.dev)
+        if self.reach_hold > 0.0:
+            # 2026-11-19: chasing the rising ball made the palm meet it at 0.5-0.65 m (peak < band). While the ball
+            # rises, wait at hold height instead; once it falls, follow it down as before.
+            hold_z = torch.where(env.v_ball[:, 2] > 0.0, above[:, 2].clamp(min=self.reach_hold), above[:, 2])
+            above = torch.cat([above[:, :2], hold_z[:, None]], dim=1)
         r_reach = torch.exp(-((palm_site - above).norm(dim=-1) / 0.4) ** 2) * (ball_z > 0.25).float()
         r_apex = torch.exp(-((apex_before - self.apex_target) / 0.25) ** 2) * self.bounce_event.float()
         # Dense shaping (added after the first queue run learned a 20 cm "tap" dribble): while the ball
@@ -361,6 +368,7 @@ class L2DribblePush(L2DribbleCycles):
       - landing point: p_xy + v_xy * t_floor, t_floor from z - r + vz t - g t^2 / 2 = 0
     Paid once per bounce cycle (first release), so palm spam earns nothing extra. Same interface as L2Dribble."""
     name = "l2a_push"
+    reach_hold = 0.92            # apex target 0.8 + ball radius: meet the rising ball at the top of the band, not low
     e2 = 0.72
     ball_r = 0.1205
 
