@@ -38,6 +38,7 @@ class L2Dribble(Level):
     # min ball-centre z for the touch shaping (first_touch, r_palm); 0 = off. A touch below the band ends the peak low.
     touch_min_z = 0.0
     drift_w = 0.5                # weight of the pelvis-drift penalty (distance from the start xy)
+    drift_max = 0.75             # pelvis xy distance from the start that ends the episode (2026-11-20: was 0.5, user approved)
 
     def setup(self) -> None:
         N, dev = self.N, self.dev
@@ -235,7 +236,7 @@ class L2Dribble(Level):
         env = self.env
         horiz = (env.p_ball[:, :2] - env.p_pelvis[:, :2]).norm(dim=-1)
         lost = (env.countdown_frac <= 0.0) | (horiz > 1.5)
-        drifted = (env.p_pelvis[:, :2] - self.start_xy).norm(dim=-1) > 0.5
+        drifted = (env.p_pelvis[:, :2] - self.start_xy).norm(dim=-1) > self.drift_max
         return lost | drifted | (self.streak >= self.target_bounces)
 
     def metrics(self):
@@ -253,7 +254,7 @@ class L2Dribble(Level):
             "fell": env.fallen.clone(),
             "ball_lost_countdown": env.countdown_frac <= 0.0,
             "ball_over_1_5m": horiz > 1.5,
-            "pelvis_drifted_0_5m": (env.p_pelvis[:, :2] - self.start_xy).norm(dim=-1) > 0.5,
+            "pelvis_drifted": (env.p_pelvis[:, :2] - self.start_xy).norm(dim=-1) > self.drift_max,
             "out_of_time": env.step_count >= env.max_steps,
         }
 
@@ -415,4 +416,67 @@ class L2DribblePush(L2DribbleCycles):
     def metrics(self):
         m = super().metrics()
         m["m/push_reward"] = self._m_push
+        return m
+
+
+class L2DribbleTime(L2DribblePush):
+    """TRAINING-ONLY curriculum for L2a (2026-11-20, user approved): the l2a_push reward, but episodes are a TIME horizon
+    with the gate's own loss rules, instead of K cycles. Why: K-cycle episodes end after <= 2.6 s, before a slow pelvis
+    drift reaches the limit, so every gate episode (45 s) ended by drift (84-99 %) while training never felt it.
+    Horizon T: 5 s, x1.5 when 60 % of finished episodes succeed, capped at 45 s (= the gate). Reaching T is a time-out
+    (bootstrapped, env.max_steps), not a terminal. Success = reached T with >= clean_frac of floor bounces clean (or the gate's
+    50-bounce streak). Evaluation (train_steps = inf) keeps the full 45 s episode."""
+    name = "l2a_time"
+    horizon0, horizon_max, grow = 5.0, 45.0, 1.5
+    # share of floor bounces that must be clean for success. 0 = survival only (11-20: policies reach ~14 % clean, so 0.8 never
+    # promoted); raise once BC/PPO lifts the clean share.
+    clean_frac = 0.0
+
+    def setup(self) -> None:
+        super().setup()
+        self.k = self.k_max = 10 ** 9            # K-cycle termination/promotion off
+        self.horizon = self.horizon0
+        self.time_ema = 0.0
+        self.clean_n = torch.zeros(self.N, dtype=torch.long, device=self.dev)
+
+    def _horizon_steps(self) -> int:
+        return int(round(self.horizon / self.env.control_dt))
+
+    def on_reset(self, ids: torch.Tensor) -> None:
+        training = self.train_steps != float("inf")
+        if training and hasattr(self, "clean_n"):
+            ran = self.ep_steps[ids] > 0
+            if ran.any():
+                ok = self.episode_success()[ids][ran].float().mean().item()
+                a = min(1.0, int(ran.sum()) / 2000.0)
+                self.time_ema = (1 - a) * self.time_ema + a * ok
+                if self.time_ema > self.promote_at and self.horizon < self.horizon_max:
+                    self.horizon = min(self.horizon_max, self.horizon * self.grow)
+                    self.time_ema = 0.0
+                    print(f"[l2a_time] success > {self.promote_at:.0%}: horizon -> {self.horizon:.1f} s", flush=True)
+        super().on_reset(ids)
+        self.clean_n[ids] = 0
+        if training:
+            self.env.max_steps = self._horizon_steps()
+
+    def reward(self) -> torch.Tensor:
+        if self.train_steps != float("inf"):
+            self.env.max_steps = self._horizon_steps()     # also before each env's first reset
+        r = super().reward()
+        self.clean_n += self.clean_event.long()
+        return r
+
+    def terminated(self) -> torch.Tensor:
+        return L2Dribble.terminated(self)        # gate loss rules only; the horizon is a time-out
+
+    def episode_success(self) -> torch.Tensor:
+        reached = self.ep_steps >= self.env.max_steps
+        clean_ok = self.clean_n.float() >= self.clean_frac * self.bounces.float().clamp(min=1.0)
+        return (reached & clean_ok & ~self.env.fallen) | (self.streak >= self.target_bounces)
+
+    def metrics(self):
+        m = super().metrics()
+        m["m/succ_ema"] = torch.full((self.N,), self.time_ema, device=self.dev)
+        m["m/horizon_s"] = torch.full((self.N,), self.horizon, device=self.dev)
+        m["m/clean_n"] = self.clean_n.float()
         return m

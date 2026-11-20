@@ -252,3 +252,18 @@ User: "train as needed until 9am".
   (3) reward edits for (2) regressed (hold2-4, switched off); stronger drift penalty helped modestly (4.4 -> 10.2 s).
 - Proposed next (needs user decisions): train with long episodes (K curriculum on time, not cycles, or a drift-terminating 10 s
   horizon) and/or behaviour cloning from a scripted dribble teacher.
+
+## 08:40 user decisions: (1) time-based episodes YES, (2) behaviour cloning from a scripted teacher YES, (3) looser drift OK
+Affected policies: dribble (L2a) only. No obs/action/physics change. Unreal tier-3 director has no pelvis-drift rule (unchanged).
+- (3) `L2Dribble.drift_max` 0.5 -> **0.75 m** (gate `l2a_dribble_r` termination + fail reason, now `pelvis_drifted`). Gate
+  results before this entry used 0.5 m and are not comparable.
+- (1) new TRAINING level `l2a_time` (L2DribblePush reward): episodes are a time horizon T (5 s, x1.5 when 60 % succeed, up to
+  45 s = the gate) ended as a time-out (bootstrapped), with the gate's loss rules (fall / ball lost / drift 0.75 m).
+  Success = reached T with >= 80 % of floor bounces clean. K-cycle termination not used.
+- (2) re-test `tools/scripted_dribble.py` (11-08: max 2-3 bounces, rigid palm, old spot) on the soft palm + spot (0.45, 0.30)
+  on CPU while (1) trains; if it sustains a dribble, add `tools/bc_dribble.py` (record teacher obs/actions, supervised actor
+  pre-train, then PPO with --init).
+- 08:55 implemented. Smoke test (ckpt dribble_drift/ckpt_250M, 256 envs, 12 s, training mode): 5 s horizon -> 447 time-outs vs
+  69 loss terminals, rewards finite. Clean share under gate rules at 5 s: median **14 %** (6.5 bounces) -> success = 0 with
+  clean_frac 0.8, so `clean_frac = 0.0` for now (success = survive T: no fall / ball loss / 0.75 m drift); raise later.
+- Run `dribble_time`: `l2a_time`, init `runs/dribble_drift/ckpt_250M.pt`, `--assist-anneal-steps 1`, 180 min, gate l2a_dribble_r (0.75 m).
