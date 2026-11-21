@@ -1,0 +1,169 @@
+<title>Streetball Review Nov 21</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one reading column, each section = short claim + evidence (media) + a plain "what it means" line. */
+:root {
+  --bg: #f6f5f2; --card: #ffffff; --ink: #15171b; --ink-2: #4c4f57; --muted: #868a93; --line: #e3e1db;
+  --new: #c98500; --new-soft: #fff4d6; --edit: #1f6fbf; --edit-soft: #e3effc; --warn: #b4441e; --warn-soft: #fbe9e2; --good: #006300;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif; --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111214; --card: #1b1c1f; --ink: #eeedea; --ink-2: #c2c1ba; --muted: #8b8c90; --line: #2d2e31;
+  --new: #f0b43a; --new-soft: #2e2610; --edit: #6fb1f2; --edit-soft: #13263a; --warn: #f08a63; --warn-soft: #34201a; --good: #3cc23c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111214; --card: #1b1c1f; --ink: #eeedea; --ink-2: #c2c1ba; --muted: #8b8c90; --line: #2d2e31;
+  --new: #f0b43a; --new-soft: #2e2610; --edit: #6fb1f2; --edit-soft: #13263a; --warn: #f08a63; --warn-soft: #34201a; --good: #3cc23c; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 15.5px/1.6 var(--font); }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 44px; }
+header { display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-size: clamp(26px, 4.2vw, 36px); line-height: 1.15; text-wrap: balance; }
+h2 { margin: 0; font-size: 21px; line-height: 1.25; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+code { font: 13px var(--mono); }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.item { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pill { align-self: flex-start; font: 600 11.5px/1 var(--font); padding: 4px 9px; border-radius: 999px; }
+.pill.new { background: var(--new-soft); color: var(--new); }
+.pill.edit { background: var(--edit-soft); color: var(--edit); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.item b { font-size: 15px; }
+.item span { font-size: 13.5px; color: var(--ink-2); }
+section { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+figure img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); display: block; background: #000; }
+figcaption { font-size: 13px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.means { border-left: 3px solid var(--new); padding: 4px 0 4px 14px; color: var(--ink); max-width: 72ch; }
+.means.edit { border-color: var(--edit); }
+.means.warn { border-color: var(--warn); }
+.tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--ink-2); font-weight: 600; letter-spacing: .02em; }
+tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; white-space: nowrap; }
+pre { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font: 12.5px/1.5 var(--mono); color: var(--ink-2); }
+ol, ul { margin: 0; padding-left: 20px; color: var(--ink-2); display: flex; flex-direction: column; gap: 6px; max-width: 72ch; }
+footer { font-size: 12.5px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">PoBasketball · Unreal 5.8 + MuJoCo · review of 2026-11-20 → 11-21</div>
+    <h1>The dribble brain now keeps the ball, and the editor can be changed mid-game</h1>
+    <p>Everything below was recorded from the running app: the newest trained brain (<code>dribble.onnx</code>, exported from
+      checkpoint 600M) loaded by Unreal's NNE ONNX runtime in inference mode, at tier 3 (stationary dribble), right hand, random seed 7.
+      All images are rendered by the engine or captured from the Unreal editor window itself.</p>
+  </header>
+
+  <div class="summary">
+    <div class="item"><span class="pill new">New</span><b>Dribble brain: 9 % → 71 % on the gate</b><span>One overnight run (736 M steps). Pass mark is 85 %.</span></div>
+    <div class="item"><span class="pill new">New</span><b>Fairer "clean bounce" rule</b><span>Ball must stay within 0.3 m of the dribble spot (was 0.6 m of the pelvis). Same rule in sim and Unreal.</span></div>
+    <div class="item"><span class="pill edit">Checked</span><b>Editor edits don't break the game</b><span>Actors moved during Simulate-In-Editor; the game's event timeline is identical to an untouched run.</span></div>
+    <div class="item"><span class="pill warn">Tried, not ready</span><b>Dribbling while walking</b><span>New training level built; a 1-hour test showed the dribble brain can't learn to walk on its own.</span></div>
+  </div>
+
+  <section>
+    <h2>1. The new dribble brain in the game</h2>
+    <p>Grandma bounces the ball beside her right foot and keeps it under control. The HUD's "Clean dribbles" counter (top left) counts
+      bounces that pass the new rule: palm touch, apex height 0.65-1.00 m, ball within 0.3 m of the dribble spot.</p>
+    <figure><img src="ann_new_dribble.jpg" alt="Grandma dribbling at centre court in Unreal, HUD showing Clean dribbles 11 and Policy dribble" loading="lazy">
+      <figcaption>Broadcast camera, 12 s into the run. Top right: <code>Policy: dribble</code> at 48 FPS (inference on CPU, about 0.03 ms per step).</figcaption></figure>
+    <figure><img src="gif_new_dribble.gif" alt="Animated close-up of Grandma dribbling the ball with her right hand" loading="lazy">
+      <figcaption>Close-up, 3.4 s of play at real speed (recorded at quarter speed so every frame is captured).</figcaption></figure>
+  </section>
+
+  <section>
+    <h2>2. New brain against the previous one, same seed</h2>
+    <p>Both runs start from the identical situation (seed 7). Left: the new brain. Right: the brain from 2026-11-20 morning.</p>
+    <figure><img src="gif_new_vs_old.gif" alt="Side-by-side animation: new brain dribbling on the left, old brain on the right" loading="lazy">
+      <figcaption>Broadcast camera, same 2.6 s of game time in both.</figcaption></figure>
+    <div class="tablewrap"><table>
+      <thead><tr><th>First 40 s of play</th><th class="num">New brain</th><th class="num">Previous brain</th></tr></thead>
+      <tbody>
+        <tr><td>Hard resets (fall or ball lost for good)</td><td class="num">1</td><td class="num">7</td></tr>
+        <tr><td>Loose balls (director hands over to the scramble brain)</td><td class="num">4</td><td class="num">17</td></tr>
+        <tr><td>Longest dribble before the first loose ball</td><td class="num">22.4 s</td><td class="num">under 3 s</td></tr>
+        <tr><td>Sim gate success (200 episodes of 45 s)</td><td class="num">71 %</td><td class="num">9 %</td></tr>
+      </tbody>
+    </table></div>
+    <div class="grid2">
+      <figure><img src="still_new_32s.jpg" alt="New brain at 32 s" loading="lazy"><figcaption>New brain, 32 s in.</figcaption></figure>
+      <figure><img src="still_old_32s.jpg" alt="Previous brain at 32 s" loading="lazy"><figcaption>Previous brain, 32 s in.</figcaption></figure>
+    </div>
+    <p class="means">What it means: the stationary dribble is now a usable skill in the game. Two weak spots remain. She slowly
+      drifts away from her start spot (it ends 28 % of sim gate episodes), and when the scramble brain hands the ball back, the dribble
+      brain loses it again within 0.1 s, because it was never trained from that hand-over.</p>
+  </section>
+
+  <section>
+    <h2>3. Editing the level while the game runs</h2>
+    <p>The Court level holds only five placed actors: the sun, sky light, sky atmosphere, the procedural neighbourhood (a PCG volume)
+      and <code>StreetballWorld</code>. The athlete, ball, court and hoop are spawned at Play from the physics file
+      <code>sim/assets/scene.xml</code>, and the crowd and props are spawned by the game. The test: start Simulate-In-Editor, select
+      and move things during play, and check the game's behaviour.</p>
+    <div class="grid2">
+      <figure><img src="ed_sie_running.jpg" alt="Unreal editor with the game simulating in the level viewport" loading="lazy"><figcaption>Simulate-In-Editor running: the editor toolbar shows pause and stop, the game HUD is live.</figcaption></figure>
+      <figure><img src="ed_sie_selected.jpg" alt="Spectator mannequin selected with a yellow outline in the editor" loading="lazy"><figcaption>A spectator selected in the viewport while the game keeps running (yellow outline).</figcaption></figure>
+      <figure><img src="ed_sie_sun.jpg" alt="Same view after rotating the sun, shadows have changed direction" loading="lazy"><figcaption>Sun rotated 15° down and 70° around: every shadow moves, play continues.</figcaption></figure>
+      <figure><img src="ed_pie_after_edits.jpg" alt="Play-In-Editor view of the court after the level edits" loading="lazy"><figcaption>Separate session: PCG volume moved 12 m and sun rotated in the editor, then Play-In-Editor starts normally.</figcaption></figure>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Game event (seed 7)</th><th class="num">Untouched game run</th><th class="num">Simulate-In-Editor, actors moved mid-game</th></tr></thead>
+      <tbody>
+        <tr><td>Ball goes loose</td><td class="num">22.44 s</td><td class="num">22.44 s</td></tr>
+        <tr><td>Scramble regains / loses it</td><td class="num">24.16 / 24.28 s</td><td class="num">24.16 / 24.28 s</td></tr>
+        <tr><td>Regained again</td><td class="num">27.06 s</td><td class="num">27.06 s</td></tr>
+        <tr><td>Next two resets</td><td class="num">fallen, countdown</td><td class="num">fallen, countdown</td></tr>
+      </tbody>
+    </table></div>
+    <p class="means edit">What it means: lights, the neighbourhood and spawned props can be moved freely; the physics and the brains don't
+      read their positions, so the game plays out exactly the same. Three limits are worth knowing:</p>
+    <ul>
+      <li><code>StreetballWorld</code> has no transform (no root component), so it has no gizmo; the simulation is anchored at the physics origin by design.</li>
+      <li>The court, hoop, ball and athlete can't be moved in the editor: they come from <code>scene.xml</code> at Play, so changes go there.</li>
+      <li>Spectators re-place themselves every frame: a spectator's location changed by 3 m on paper, but it stayed where the crowd system puts it.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4. Dribbling while walking: first attempt</h2>
+    <p>Goal: dribble toward the basket, then gather and shoot (decided: walk first, a close set shot, keep the tier ladder).
+      A new training level, <code>l3a_walk</code>, sends her to waypoints 2-6 m away, starting at 0.3-0.8 m/s.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Finding</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>The dribble brain fell within 2 s on the first walk command</td><td>Its speed and direction inputs had never been used, so a command arrived thousands of times too large. Fixed with a new tool that zeroes those inputs at the start (252 of 256 test episodes then still dribbling at 12 s).</td></tr>
+        <tr><td>1-hour training test (41 M steps)</td><td>She moved faster (0.29 → 0.57 m/s) but fell more and never reached a waypoint. PPO alone can't invent a gait for this network.</td></tr>
+        <tr><td>Next idea</td><td>Borrow the gait of the trained walking brain: combine its leg actions with the dribble brain's arm, then train the dribble brain to copy that.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="means warn">Nothing from this step is in the game yet: a dribble brain that hasn't trained on walking would fall over at tier 4.</p>
+  </section>
+
+  <section>
+    <h2>Up next</h2>
+    <ol>
+      <li>Fine-tune the stationary dribble on full 45 s episodes with a stronger drift penalty to reach the 85 % pass mark.</li>
+      <li>Train the dribble brain from scramble hand-overs so a recovered ball isn't dropped straight away.</li>
+      <li>Walking dribble via the borrowed gait, then the close set shot.</li>
+      <li>Add the UE5 mannequin as a second dribbling character (requested). The crowd already uses the mannequin mesh.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>How these were recorded</h2>
+<pre>UnrealEditor.exe StreetballGym.uproject -game -windowed -ResX=1600 -ResY=900 -StreetballSeed=7
+  -StreetballStartTier=3 -StreetballMaxTier=3 -StreetballDribbleHand=right -StreetballQuitAfter=40
+  -StreetballCapture=6:4:12:body:n21new_gif+12:0:0:bc:n21new_bc12+...      (old brain: -StreetballPolicy_dribble=policies/dribble_drift250.onnx)
+GIF bursts: same, plus -ExecCmds="slomo 0.25"
+Editor: UnrealEditor.exe StreetballGym.uproject -StreetballStartTier=3 ... -ExecCmds="py gizmo_sie.py"   (level never saved)
+Media: sim/.venv/Scripts/python.exe SCREENSHOTS/20261121_review/make_media.py</pre>
+  </section>
+
+  <footer>Sources: Unreal logs of each run, <code>docs/20261121/dribble_time10d.md</code>, <code>docs/20261121/walk_1h.md</code>, <code>docs/20261121/log.md</code>. Build v261121.</footer>
+</div>

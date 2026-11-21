@@ -58,3 +58,15 @@ Stage 1 changes (affected policy: dribble family; no obs/action/physics change; 
 - Next (proposed): borrow the gait of the production `locomotion` brain (same obs/action layout) instead of discovering one:
   probe a composite teacher (legs + torso from locomotion, arms from dribble) and, if it carries the ball, behaviour-clone it into
   the dribble network before PPO.
+
+## 11:00-12:40 Review page (user: REVIEW) - `SCREENSHOTS/20261121_review/index.html`
+
+- Game captures (engine `-StreetballCapture`, seed 7, tier 3): new dribble brain vs dribble_drift250. First 40 s: new 1 hard reset / 4 loose
+  balls, previous 7 / 17. GIF bursts re-recorded at `slomo 0.25` (12 fps game time).
+- Editor: Court holds 5 placed actors (sun, sky light, sky atmosphere, PCGVolume, StreetballWorld); everything else spawns at Play.
+  StreetballWorld has no root component (no transform, no gizmo). Simulate-In-Editor session (seed 7): spectator moved 3 m and sun rotated
+  mid-game -> director timeline identical to the untouched game run (22.44 / 24.16 / 24.28 / 27.06 s, same resets). Spawned spectators
+  re-place themselves each frame (the move does not stick). PIE after moving the PCGVolume 12 m + rotating the sun: runs normally.
+- Capture lessons: `-ExecutePythonScript` quits the editor after the script (use `-ExecCmds="py <file>"`); editor viewport screenshots
+  only complete on a forced redraw when the editor is in the background; window-only capture (PrintWindow on the editor HWND) works.
+  A desktop screen capture was tried once and grabbed a browser window instead; it was deleted immediately and never published.
