@@ -50,3 +50,11 @@ Stage 1 changes (affected policy: dribble family; no obs/action/physics change; 
   runs/production/dribble_walk_init.pt --init-actor-only --critic-warmup-iters 200 --freeze-norm --init-std 0.05 --kl-target 0.02
   --epochs 2 --lr-max 2e-5 --lr-min 1e-7 --anchor-coef 0.3` (anchor 1.0 -> 0.3: the anchor actor ignores the command, so a strong
   anchor would hold her still). ~12 min critic warm-up, ~36 min learning, ~8 min evals.
+- 10:25 `walk_1h` result (`docs/20261121/walk_1h.md`, 200 episodes at 0.3-0.8 m/s): **no-go for PPO alone.** 0 % success,
+  0.01 waypoints per episode. ckpt_25M / best.pt (~ the start brain): 21 s episodes, falls 66-70 % (within 30 s), ball control 0.99,
+  speed 0.34 m/s, 3 m covered (sway, not walking). model.pt (41 M): falls 95 %, 2.8 s episodes, speed 0.62 m/s. Training after the
+  warm-up: speed 0.29 -> 0.57 m/s while episodes fell 28 -> 3.1 s and the waypoint distance never shrank (3.7 m): PPO pushed the legs
+  to move but the dribble network has no gait to find. Throughput 12.7k fps on l3a_walk (vs 27k on l2a_time).
+- Next (proposed): borrow the gait of the production `locomotion` brain (same obs/action layout) instead of discovering one:
+  probe a composite teacher (legs + torso from locomotion, arms from dribble) and, if it carries the ball, behaviour-clone it into
+  the dribble network before PPO.
