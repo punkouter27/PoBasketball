@@ -6,8 +6,9 @@ the next hand switch (0 when not commanded), commanded speed (m/s, 0 = stationar
 waypoint dir x, dir y (heading frame, 0 when stationary), waypoint distance (m, 0), 5 zeros].
 
 A *bounce* is the rising edge of ball-floor contact. It is *clean* when the apex after
-the previous bounce was within the target band, the ball stayed within 0.6 m of the
-pelvis horizontally, and the active palm touched the ball between the two bounces.
+the previous bounce was within the target band, the ball stayed within 0.3 m (horizontal) of
+the active hand's dribble spot, and the active palm touched the ball between the two bounces.
+2026-11-20 (user decision): was "within 0.6 m of the pelvis", but the tier-3 spot is itself 0.54 m from the pelvis.
 Pass target: 50 consecutive clean bounces in 85 % (L2a/b) or 80 % with >= 10 hand
 switches (L2c) of evaluation episodes, within a 45 s episode. 2026-11-19 (user decision): the episode was 30 s, which
 even an ideal dribble cannot fit 50 bounces into (0.66-0.78 s per cycle at e = 0.853); apex band 0.80-1.15 m -> 0.65-1.00 m,
@@ -33,6 +34,7 @@ class L2Dribble(Level):
     # dribble spot: forward, lateral (toward the active hand). 2026-11-19: was (0.25, 0.35), which sits on top of the toe in the start
     # stance: a falling start ball hit toe_r and a high one spawned inside the palm, so 100 % of gate starts lost the ball (~1 s episodes).
     hand_offset = (0.45, 0.30)
+    near_spot_r = 0.3  # clean bounce: ball within this horizontal distance (m) of the dribble spot all cycle (Unreal: NearSpotR)
     # reach shaping floor (m) for the palm target while the ball rises; 0 = off (target always 12 cm above the ball)
     reach_hold = 0.0
     # min ball-centre z for the touch shaping (first_touch, r_palm); 0 = off. A touch below the band ends the peak low.
@@ -158,7 +160,6 @@ class L2Dribble(Level):
     def reward(self) -> torch.Tensor:
         env = self.env
         ball_z = env.p_ball[:, 2]
-        horiz = (env.p_ball[:, :2] - env.p_pelvis[:, :2]).norm(dim=-1)
         spot_d = (env.p_ball[:, :2] - self._spot()).norm(dim=-1)
 
         # ---- bounce bookkeeping
@@ -175,7 +176,7 @@ class L2Dribble(Level):
         first_touch = touch & ~self.palm_since  # first active-palm touch of this bounce cycle
         first_touch_paid = first_touch & (ball_z >= self.touch_min_z)
         self.palm_since |= touch
-        self.near_since &= horiz < 0.6
+        self.near_since &= spot_d < self.near_spot_r
         clean = (
             self.bounce_event
             & self.palm_since

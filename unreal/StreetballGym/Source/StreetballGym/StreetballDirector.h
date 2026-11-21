@@ -132,6 +132,8 @@ public:
 	static FString StateName(EStreetballState St);
 	static bool StateFromName(const FString& Name, EStreetballState& Out);
 	static int32 TierForState(EStreetballState St);
+	// dribble spot (fwd, side toward the active hand) in the heading frame: tier 3 = sim L2Dribble.hand_offset, else (0.30, 0.35)
+	static FVector2d DribbleSpotOffset(int32 Tier) { return Tier == 3 ? FVector2d(0.45, 0.30) : FVector2d(0.30, 0.35); }
 
 	/** Policy family for a state (table-driven; HARD_RESET maps to the active tier's state). */
 	FName PolicyFor(EStreetballState St) const;
@@ -156,6 +158,7 @@ public:
 	int32 StreakGoal = 50;
 	FVector2d ApexBand = FVector2d(0.65, 1.00);     // 2026-11-19: mirrors sim L2Dribble (was 0.80-1.15, target 1.0)
 	double ApexTarget = 0.8;
+	double NearSpotR = 0.3;                         // 2026-11-20: clean bounce = ball within this of the dribble spot all cycle (sim near_spot_r)
 	double CourseGoal = 100.0;
 	int32 SavesGoal = 3;
 	int32 ShotsGoal = 20;

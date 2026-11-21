@@ -264,8 +264,8 @@ void UStreetballDirector::PrepareReset(int32 Tier, FStreetballResetSpec& Spec)
 	bHandPreset = true;
 	Spec.bDribbleStart = true;
 	Spec.DribbleHand = Hand;
-	Spec.DribbleSpotFwd = Tier == 3 ? 0.45 : 0.30;
-	Spec.DribbleSpotSide = Tier == 3 ? 0.30 : 0.35;
+	Spec.DribbleSpotFwd = DribbleSpotOffset(Tier).X;
+	Spec.DribbleSpotSide = DribbleSpotOffset(Tier).Y;
 	const double H = Rng.FRandRange(DribbleStartHeight.X, DribbleStartHeight.Y);
 	Spec.BallStartZ = H;
 	Spec.BallStartVz = -FMath::Sqrt(2.0 * 9.81 * FMath::Max(0.0, ApexTarget - H)) * (Rng.FRand() < 0.5 ? 1.0 : -1.0);
@@ -367,8 +367,11 @@ void UStreetballDirector::UpdateBounce(const FTrackedState& S, FStreetballDirect
 	bPrevFloor = Floor;
 	const double ApexBefore = Apex;
 	Apex = Bounce ? S.BallPos.Z : FMath::Max(Apex, S.BallPos.Z);
-	const double Horiz = FVector2d(S.BallPos.X - S.PelvisPos.X, S.BallPos.Y - S.PelvisPos.Y).Length();
-	bNearSince = bNearSince && Horiz < 0.6;
+	// sim L2Dribble._spot(): pelvis + heading-frame offset toward the active hand. 2026-11-20: was "ball < 0.6 m from the pelvis".
+	const FVector2d SpotOff = DribbleSpotOffset(TierForState(State));
+	const FVector2d Spot = FVector2d(S.PelvisPos.X, S.PelvisPos.Y) + SpotOff.X * S.HeadingFwd - Hand * SpotOff.Y * S.HeadingLeft;
+	const double SpotDist = (FVector2d(S.BallPos.X, S.BallPos.Y) - Spot).Length();
+	bNearSince = bNearSince && SpotDist < NearSpotR;
 	const bool ActivePalm = Hand > 0 ? S.PalmBall[1] : S.PalmBall[0];
 	bPalmSince = bPalmSince || ActivePalm;
 	const bool Clean = Bounce && bPalmSince && bNearSince && ApexBefore >= ApexBand.X && ApexBefore <= ApexBand.Y;

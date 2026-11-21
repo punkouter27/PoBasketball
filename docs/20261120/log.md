@@ -19,5 +19,22 @@ and none of them are on this PC. The only copy of the best dribble actor is the 
   This checkout: humanoid.xml CRLF (LF = bd7cf5274215544f, the ckpt value), court.xml LF (CRLF = 7e9b5753773f66b7, the ckpt
   value), obs_spec.json LF c766c7d32fb36d2e (CRLF = 9879b4bebba21aa3 = the 11-20 text-only edit). Same physics, same layout.
   ~20k fps on this laptop (530 M-650 M steps expected).
-- Gate caveat (open user decision from 11-20 10:45): a clean bounce needs the ball < 0.6 m from the pelvis all cycle, but the dribble
+- Gate caveat (was an open user decision from 11-20 10:45; decided 23:30, see below): a clean bounce needs the ball < 0.6 m from the pelvis all cycle, but the dribble
   spot is 0.54 m from the pelvis (3 % of bounces qualify), so `l2a_dribble_r` stays 0 % whatever the policy does until that rule changes.
+
+## 23:30 clean-bounce "near" rule: within 0.3 m of the dribble spot (user decision: "near the spot")
+
+Was: the ball stays < 0.6 m (horizontal) from the pelvis for the whole cycle; the tier-3 spot (0.45 fwd, 0.30 side) is itself
+0.54 m from the pelvis, so 3 % of dribble_drift's bounces qualified. Now: the ball stays < 0.3 m from the active hand's dribble spot
+(`L2Dribble._spot()`, pelvis + heading-frame offset) for the whole cycle. Same 0.3 m as `l2a_push`'s `near` peak bonus.
+Affected: gate/metric `clean` + streak in every L2Dribble subclass (l2a/l2b/l2c, l2a_cycles/push/time) and L4JumpShot (inherits
+L2Dribble.step); training reward unchanged (no term uses `near_since`; `l2a_time.clean_frac` = 0). Unreal
+`UStreetballDirector::UpdateBounce` mirrored (spot offsets per tier, shared with `PrepareReset`). No obs/action/physics change.
+Gate results before this entry are not comparable. The running `dribble_time10` trainer keeps the old code in memory (training is
+unaffected); its end-of-run gate evaluations are new subprocesses and use the new rule.
+- Applied: `L2Dribble.near_spot_r = 0.3` (`near_since &= spot_d < near_spot_r`); Unreal `NearSpotR = 0.3`,
+  `UStreetballDirector::DribbleSpotOffset(tier)` used by both `PrepareReset` and `UpdateBounce` (tier from `TierForState(State)`).
+- Verification: UE build OK; Unreal `Streetball.*` **22/22**; CPU tests (stand, penetration, reward_config) 13/13.
+- Re-gate of the start brain `dribble_drift_250M` (100 eps, new rule): **9 % success** (was 0 %), clean streak mean **9.9** (was ~0.05),
+  episode 17.1 s (other machine, old palm window: 10.2 s), apex 0.68, in_control 0.99, falls 2 %. Fails: **pelvis_drifted 88 %**,
+  ball > 1.5 m 2 %. Drift is now the single blocker.
