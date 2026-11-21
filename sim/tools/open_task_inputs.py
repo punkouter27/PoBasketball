@@ -31,6 +31,11 @@ def main() -> None:
     ap.add_argument("ckpt")
     ap.add_argument("--out", required=True)
     ap.add_argument("--slot", action="append", required=True, help="task-block index:std, e.g. 3:1.0 (speed_cmd)")
+    ap.add_argument(
+        "--keep-critic", action="store_true",
+        help="also zero the critic's first-layer columns and keep critic, optimiser and std: a full checkpoint that resumes on "
+        "the same level without a critic warm-up (the critic reads the actor's normalised observation)",
+    )
     args = ap.parse_args()
 
     sd = torch.load(args.ckpt, map_location="cpu", weights_only=False)
@@ -44,6 +49,8 @@ def main() -> None:
         print(f"task[{idx}] (obs {i}): norm std {ac['actor.norm.var'][i].sqrt().item():.2e} -> {float(std)}, "
               f"|w col| {w[:, i].abs().max().item():.3f} -> 0")
         w[:, i] = 0.0
+        if args.keep_critic and "critic.0.weight" in ac:
+            ac["critic.0.weight"][:, i] = 0.0
         ac["actor.norm.mean"][i] = 0.0
         ac["actor.norm.var"][i] = float(std) ** 2
 
@@ -66,6 +73,12 @@ def main() -> None:
     print(f"parity (opened inputs random vs original with them at 0): max abs action diff {d:.2e}")
     if d > 1e-5:
         sys.exit("parity FAILED")
+    if args.keep_critic:
+        out = dict(sd)  # ac (actor + critic + log_std), opt, lr, level, ... unchanged apart from the opened slots
+        out["opened_task_slots"] = args.slot
+        torch.save(out, args.out)
+        print(f"wrote {args.out} (full checkpoint: actor, critic, optimiser, std)")
+        return
     out = {"ac": {k: v for k, v in ac.items() if k.startswith("actor.")}, "actor_only": True, "opened_task_slots": args.slot}
     for k in ("level", "interface_sha", "physics_sha", "steps", "push_max", "nan_grads"):
         if k in sd:

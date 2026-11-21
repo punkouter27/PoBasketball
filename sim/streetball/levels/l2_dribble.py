@@ -34,6 +34,9 @@ class L2Dribble(Level):
     # dribble spot: forward, lateral (toward the active hand). 2026-11-19: was (0.25, 0.35), which sits on top of the toe in the start
     # stance: a falling start ball hit toe_r and a high one spawned inside the palm, so 100 % of gate starts lost the ball (~1 s episodes).
     hand_offset = (0.45, 0.30)
+    # task slots 4-6 carry the way back to the start spot (see task_block). Checkpoints from before 2026-11-21 need
+    # tools/open_task_inputs.py (slots 4-6) first: their weights on these inputs were never trained.
+    anchor_obs = True
     near_spot_r = 0.3  # clean bounce: ball within this horizontal distance (m) of the dribble spot all cycle (Unreal: NearSpotR)
     # reach shaping floor (m) for the palm target while the ball rises; 0 = off (target always 12 cm above the ball)
     reach_hold = 0.0
@@ -146,6 +149,18 @@ class L2Dribble(Level):
         tb[:, 0] = self.hand
         tb[:, 1] = self.apex_target
         tb[:, 2] = self.until_switch.float() if self.mode == "crossover" else 0.0
+        if self.anchor_obs:
+            # 2026-11-21: drift made observable. dir_x / dir_y / distance_m (slots 4-6, the walk waypoint fields) = the vector from
+            # the pelvis back to its anchor (pelvis at reset): "stay at this point". Same encoding as the L1/L3 waypoint: unit
+            # direction in the heading frame (zero when < 1 mm away) and distance in m. speed_cmd (slot 3) stays 0.
+            env = self.env
+            rel = self.start_xy - env.p_pelvis[:, :2]
+            dist = rel.norm(dim=-1)
+            dirw = torch.where(dist[:, None] > 1e-3, rel / dist.clamp_min(1e-3)[:, None], torch.zeros_like(rel))
+            fwd, left = env.H[:, :2, 0], env.H[:, :2, 1]
+            tb[:, 4] = (dirw * fwd).sum(-1)
+            tb[:, 5] = (dirw * left).sum(-1)
+            tb[:, 6] = dist.clamp(max=1.0)  # the gate ends at 0.75 m; the clamp also guards a stale pelvis on a reset step
         return tb if ids is None else tb[ids]
 
     def _active_palm_contact(self) -> torch.Tensor:

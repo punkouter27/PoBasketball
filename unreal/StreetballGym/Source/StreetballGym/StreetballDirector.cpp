@@ -187,6 +187,9 @@ void UStreetballDirector::EnterState(EStreetballState St, const FTrackedState& S
 	UE_LOG(LogStreetball, Log, TEXT("Director: %s -> %s at t=%.2f s (in_control %d, loose_t %.2f, ball z %.2f, ball-pelvis %.2f m)"), *StateName(State), *StateName(St), S.Time, S.InControl ? 1 : 0, S.LooseT, S.BallPos.Z, FVector2d(S.BallPos.X - S.PelvisPos.X, S.BallPos.Y - S.PelvisPos.Y).Length());
 	State = St;
 	LastStateChangeT = S.Time;
+	// 2026-11-21: a stationary dribble (re)starts here (reset or scramble hand-back): anchor the spot she should stay at.
+	// Re-anchoring after a scramble keeps the distance inside what training covers (episodes end at 0.75 m).
+	if (St == EStreetballState::DribbleStationary) DribbleAnchor = FVector2d(S.PelvisPos.X, S.PelvisPos.Y);
 }
 
 void UStreetballDirector::EnterTier(int32 Tier, const FTrackedState& S)
@@ -317,7 +320,18 @@ double UStreetballDirector::TaskField(const FString& F, const FTrackedState& S) 
 	if (F == TEXT("0")) return 0.0;
 	if (F == TEXT("dir_x") || F == TEXT("dir_y") || F == TEXT("distance_m"))
 	{
-		if (!bMoves) return 0.0;                                   // stationary dribble: no waypoint
+		if (!bMoves)
+		{
+			// stationary dribble: the way back to the anchor (sim L2Dribble.task_block, anchor_obs): unit direction in the heading
+			// frame (zero when < 1 mm away) and distance clamped at 1 m
+			if (!bStationaryAnchor || !R || R->Layout != TEXT("dribble")) return 0.0;
+			const FVector2d Back = DribbleAnchor - FVector2d(S.PelvisPos.X, S.PelvisPos.Y);
+			const double D = Back.Length();
+			if (F == TEXT("distance_m")) return FMath::Min(D, 1.0);
+			if (D <= 1e-3) return 0.0;
+			const FVector2d Dir = S.ToHeading(Back / D);
+			return F == TEXT("dir_x") ? Dir.X : Dir.Y;
+		}
 		const FVector2d Rel = Waypoint - FVector2d(S.PelvisPos.X, S.PelvisPos.Y);
 		const double Dist = Rel.Length();
 		if (F == TEXT("distance_m")) return FMath::Min(Dist, 10.0);

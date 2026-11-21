@@ -95,3 +95,22 @@ Affected policy: dribble (stationary) only; nothing exported unless the gate pas
   never "step back to the spot". Proposal (user decision; obs layout unchanged): put the vector to the start spot into the dribble task
   block's existing dir_x / dir_y / distance slots when speed_cmd = 0 (stationary = "stay at this point", the same meaning as the walk
   waypoint), zero-init those inputs with tools/open_task_inputs.py, train; mirror in the Unreal director (tier 3 sends the reset spot).
+
+## 15:00 Make drift visible (user: "make drift visable")
+
+Affected: dribble family (L2 stationary levels + gate l2a_dribble_r; L3 walking keeps its waypoint), Unreal director tier-3 task fields.
+Obs/action LAYOUT unchanged (interface hash unchanged); the meaning of task slots dir_x / dir_y / distance_m is extended: for the
+stationary dribble (speed_cmd 0) they are the vector from the pelvis back to its anchor ("stay at this point" = a waypoint at your own
+spot; same encoding as L1/L3 waypoints: unit direction in the heading frame + distance in m; zero direction when distance < 1 mm).
+- Sim: `L2Dribble.anchor_obs = True` fills them from `start_xy` (pelvis at reset). Old checkpoints (before this entry) have untrained
+  weights on these slots and must go through `tools/open_task_inputs.py --slot 4:.. --slot 5:.. --slot 6:..` before evaluation.
+- Unreal: director anchors the pelvis xy whenever DRIBBLE_STATIONARY starts (reset or scramble hand-back) and sends the same vector.
+- `tools/open_task_inputs.py --keep-critic`: also zeroes the critic's first-layer columns and keeps critic / optimiser / std (resume
+  without warm-up). The in-game preview is re-exported from the opened ckpt_600M (identical actions) so Unreal never feeds the new
+  inputs to a brain with untrained weights.
+- Applied + verified: `runs/production/dribble_anchor_init.pt` (open_task_inputs --keep-critic, slots 4:0.7 5:0.7 6:0.25; parity 0 diff).
+  Gate level task values over 10 s (256 envs): distance mean 0.246 m, max 0.749 m, direction unit or zero. Preview `dribble.onnx`
+  re-exported from it (ORT 2.1e-6) and synced; UE build OK; Unreal `Streetball.*` 22/22; CPU tests 13/13.
+- NOT trained yet (user: finish up). Next run: `skill_run --level l2a_time --gate l2a_dribble_r` with `--init
+  runs/production/dribble_anchor_init.pt --freeze-norm --horizon0 45 --kl-target 0.02 --epochs 2 --lr-max 2e-5 --lr-min 1e-7
+  --anchor-coef 1.0 --assist-anneal-steps 1` (drift_w default 2.0), 2-3 h; compare with ckpt_600M 71 %.

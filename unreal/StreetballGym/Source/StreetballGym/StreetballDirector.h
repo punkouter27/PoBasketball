@@ -158,7 +158,9 @@ public:
 	int32 StreakGoal = 50;
 	FVector2d ApexBand = FVector2d(0.65, 1.00);     // 2026-11-19: mirrors sim L2Dribble (was 0.80-1.15, target 1.0)
 	double ApexTarget = 0.8;
-	double NearSpotR = 0.3;                         // 2026-11-20: clean bounce = ball within this of the dribble spot all cycle (sim near_spot_r)
+	double NearSpotR = 0.3;
+	bool bStationaryAnchor = true;                  // 2026-11-21: stationary dribble sends the way back to its anchor (sim anchor_obs)
+	FVector2d DribbleAnchor = FVector2d::ZeroVector; // pelvis xy when the stationary dribble last (re)started                         // 2026-11-20: clean bounce = ball within this of the dribble spot all cycle (sim near_spot_r)
 	double CourseGoal = 100.0;
 	int32 SavesGoal = 3;
 	int32 ShotsGoal = 20;
