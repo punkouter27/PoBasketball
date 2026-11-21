@@ -26,6 +26,10 @@ class L3MovingDribble(L1Traverse):
     speed_range = (1.5, 2.5)
     course_m = 100.0
     hand_offset = (0.5, 0.35)
+    # 2026-11-21: was a hard-coded 1.0 m; the 11-19 user decision moved the dribble target to 0.8 m (band 0.65-1.00), and the
+    # Unreal director already sends 0.8 in every dribble tier.
+    apex_target = 0.8
+    hand_mode = "random"  # "random" (+1/-1 per episode) or "right"
 
     def setup(self) -> None:
         super().setup()
@@ -42,15 +46,20 @@ class L3MovingDribble(L1Traverse):
         super().on_reset(ids)
         env = self.env
         k = ids.numel()
-        self.hand[ids] = torch.where(env.rand(k) < 0.5, 1.0, -1.0)
+        if self.hand_mode == "right":
+            self.hand[ids] = 1.0
+        else:
+            self.hand[ids] = torch.where(env.rand(k) < 0.5, 1.0, -1.0)
         yaw = torch.atan2(env.qpos[ids, env.root_q + 6], env.qpos[ids, env.root_q + 3]) * 2  # from yaw quat (w,0,0,z)
         c, s_ = torch.cos(yaw), torch.sin(yaw)
         xy = env.qpos[ids, env.root_q : env.root_q + 2]
         fwd = torch.stack([c, s_], -1)
         left = torch.stack([-s_, c], -1)
-        spot = xy + 0.3 * fwd - self.hand[ids, None] * self.hand_offset[1] * left
-        h = env.rand(k, lo=0.4, hi=0.95)
-        vz = -torch.sqrt(2 * 9.81 * (1.0 - h)) * torch.where(env.rand(k) < 0.5, 1.0, -1.0)
+        # 2026-11-21: start ball at the level's own spot, capped at 0.75 m (was 0.3 m forward and up to 0.95 m, inside the palm;
+        # the same start bug L2 fixed on 11-19)
+        spot = xy + self.hand_offset[0] * fwd - self.hand[ids, None] * self.hand_offset[1] * left
+        h = env.rand(k, lo=0.30, hi=0.75)
+        vz = -torch.sqrt(2 * 9.81 * (self.apex_target - h)) * torch.where(env.rand(k) < 0.5, 1.0, -1.0)
         env.set_ball(
             ids, torch.cat([spot, h[:, None]], -1), torch.cat([torch.zeros(k, 2, device=self.dev), vz[:, None]], -1)
         )
@@ -67,7 +76,7 @@ class L3MovingDribble(L1Traverse):
         loco = super().task_block(None)  # [dir_x, dir_y, dist, speed, ...]
         tb = torch.zeros(self.N, obs_spec.N_TASK, device=self.dev)
         tb[:, 0] = self.hand
-        tb[:, 1] = 1.0  # apex target
+        tb[:, 1] = self.apex_target
         tb[:, 2] = 0.0  # no commanded hand switches while moving
         tb[:, 3] = loco[:, 3]  # commanded speed
         tb[:, 4:6] = loco[:, 0:2]  # waypoint direction (heading frame)
@@ -88,7 +97,7 @@ class L3MovingDribble(L1Traverse):
         apex_before = self.apex.clone()
         self.apex = torch.where(bounce, ball_z, torch.maximum(self.apex, ball_z))
         self.bounces += bounce.long()
-        r_apex = torch.exp(-(((apex_before - 1.0) / 0.2) ** 2)) * bounce.float()
+        r_apex = torch.exp(-(((apex_before - self.apex_target) / 0.2) ** 2)) * bounce.float()
         pc = env.palm_ball_contact
         r_palm = torch.where(self.hand > 0, pc[:, 1], pc[:, 0])
         xy = env.p_pelvis[:, :2]
@@ -132,6 +141,93 @@ class L3MovingDribble(L1Traverse):
         lost = env.countdown_frac <= 0.0
         off = (env.p_pelvis[:, 0].abs() > 15.5) | (env.p_pelvis[:, 1].abs() > 9.0)
         return done | lost | off
+
+
+class L3DribbleWalk(L3MovingDribble):
+    """TRAINING-ONLY curriculum for the moving dribble (2026-11-21, user decision "walk first"). The stationary brain
+    (l2a_time, gate 71 %) has never moved with the ball, so the commanded speed starts at a walk and widens toward the PRD's
+    1.5-2.5 m/s. Short legs to nearby waypoints (2-6 m) instead of a 100 m course; right hand only (the stationary brain is
+    right-handed); the stationary brain's dribble spot; no arm-carry/pose style penalties (they pull the dribbling arm to the
+    rest pose). Promotion: 60 % of finished episodes reach all n_waypoints with the ball in control >= 90 % and no fall.
+    Evaluation (train_steps = inf) uses speed stage `eval_stage` (default 0 = walking; the PRD jog is the l3a_moving_dribble gate)."""
+
+    name = "l3a_walk"
+    episode_s = 30.0
+    n_waypoints = 4
+    wp_dist = (2.0, 6.0)
+    hand_offset = (0.45, 0.30)
+    hand_mode = "right"
+    style_penalty_w = 0.0
+    speed_stages = ((0.3, 0.8), (0.5, 1.2), (0.8, 1.6), (1.2, 2.0), (1.5, 2.5))
+    promote_at = 0.6
+    control_min = 0.9
+    eval_stage = 0
+
+    def setup(self) -> None:
+        self.stage = 0
+        self.succ_ema = 0.0
+        super().setup()
+        self.ep_steps = torch.zeros(self.N, dtype=torch.long, device=self.dev)
+
+    def _stage(self) -> int:
+        return self.eval_stage if self.train_steps == float("inf") else self.stage
+
+    def _sample_speed(self, k: int) -> torch.Tensor:
+        """Commanded walking speed (m/s) for k new waypoints, given the curriculum stage self._stage(). 75 % from the current
+        band, 25 % from the slowest speed up to the current top, so a promoted brain keeps its slow walk (needed to stop
+        and shoot later)."""
+        env = self.env
+        lo, hi = self.speed_stages[self._stage()]
+        cur = env.rand(k, lo=lo, hi=hi)
+        slow = env.rand(k, lo=self.speed_stages[0][0], hi=hi)
+        return torch.where(env.rand(k) < 0.25, slow, cur)
+
+    def _new_waypoint(self, ids: torch.Tensor):
+        env = self.env
+        k = ids.numel()
+        ang = env.rand(k, lo=-3.1416, hi=3.1416)
+        d = env.rand(k, lo=self.wp_dist[0], hi=self.wp_dist[1])
+        base = env.qpos[ids, env.root_q : env.root_q + 2]  # current root xy (p_pelvis is stale right after set_root_pose)
+        wp = base + d[:, None] * torch.stack([torch.cos(ang), torch.sin(ang)], -1)
+        wp[:, 0] = wp[:, 0].clamp(-self.court[0], self.court[0])
+        wp[:, 1] = wp[:, 1].clamp(-self.court[1], self.court[1])
+        self.wp[ids] = wp
+        self.speed_cmd[ids] = self._sample_speed(k)
+
+    def on_reset(self, ids: torch.Tensor) -> None:
+        if self.train_steps != float("inf") and hasattr(self, "ep_steps"):
+            ran = self.ep_steps[ids] > 0  # skip the initial reset of all envs
+            if ran.any():
+                ok = self.episode_success()[ids][ran].float().mean().item()
+                a = min(1.0, int(ran.sum()) / 2000.0)
+                self.succ_ema = (1 - a) * self.succ_ema + a * ok
+                if self.succ_ema > self.promote_at and self.stage < len(self.speed_stages) - 1:
+                    self.stage += 1
+                    self.succ_ema = 0.0
+                    print(f"[l3a_walk] success > {self.promote_at:.0%}: speed stage -> {self.speed_stages[self.stage]} m/s", flush=True)
+        super().on_reset(ids)
+        self.ep_steps[ids] = 0
+
+    def reward(self) -> torch.Tensor:
+        self.ep_steps += 1
+        return super().reward()
+
+    def episode_success(self) -> torch.Tensor:
+        ctrl = self.control_steps / self.ep_steps.clamp_min(1).float()
+        return (self.reached >= self.n_waypoints) & (ctrl >= self.control_min) & ~self.env.fallen
+
+    def terminated(self) -> torch.Tensor:
+        env = self.env
+        lost = env.countdown_frac <= 0.0
+        off = (env.p_pelvis[:, 0].abs() > 15.5) | (env.p_pelvis[:, 1].abs() > 9.0)
+        return (self.reached >= self.n_waypoints) | lost | off
+
+    def metrics(self):
+        m = super().metrics()
+        m["m/speed_stage"] = torch.full((self.N,), float(self._stage()), device=self.dev)
+        m["m/speed_cmd"] = self.speed_cmd.clone()
+        m["m/succ_ema"] = torch.full((self.N,), self.succ_ema, device=self.dev)
+        return m
 
 
 class L3Scramble(Level):
