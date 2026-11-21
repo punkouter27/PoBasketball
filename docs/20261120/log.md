@@ -72,3 +72,59 @@ unaffected); its end-of-run gate evaluations are new subprocesses and use the ne
   advantages were mostly critic error. The other machine's dribble_time resumed with its trained critic (not in the ONNX). Kept.
 - `dribble_time10d`: as 10c plus `--critic-warmup-iters 400` (~35 min, until the value loss plateaus) and `--anchor-coef 1.0`
   (penalty toward the start actor, as in the 11-19 l0_quiet_posture fine-tune that passed). `--train-min 450`, training ends ~07:35, gate evals after (~1 h).
+- 00:23 check (10d): driver alive, it 280 / 27.5 M steps, ~27k fps, still in the critic warm-up (actor frozen until it 400).
+  Frozen-actor baseline at horizon 16.9 s: return ~1800, episode ~10.2 s, streak ~6.4. Value loss 908 (it 25) -> 707 (100) -> ~555-590 (it 225-275),
+  levelling off. Nothing abnormal.
+- 00:35 check (10d, it 400-500, first 100 actor iterations): **sliding again, slower than 10c.** Return 1850 -> 1257, episode 10.5 -> 7.5 s,
+  streak 6.5 -> 4.2, in_control 0.99 -> 0.96; KL 0.005-0.022, clip 0.07-0.26, LR at its 2e-5 cap; value loss 650 -> 1226 (rising as the
+  return distribution shifts). Not restarted: this lineage has dipped and recovered before (dribble_overnight 31 % -> 5 % -> 43 %;
+  dribble_drift's gate episodes 4.4 -> 10.2 s over 250 M), and every 50 M checkpoint is gate-evaluated against the 9 % start brain.
+  Reading: PPO's own objective (return) falls, so this is an optimisation problem, not reward hacking: the advantage estimate over
+  ~850-step horizons with a critic that never saw this actor's returns is too noisy for a policy this precise (std 0.05).
+  Options if it has not turned by ~100 M steps (user to choose): (a) restart with a stronger anchor (5.0) + lr_max 5e-6 (safe, slow);
+  (b) shorter credit horizon: cap l2a_time at 7.5 s (where the critic is accurate) and let drift_w do the long-episode work;
+  (c) behaviour cloning from the start brain's own successful gate episodes (filtered BC), then PPO with --init.
+- 01:23 check (10d): driver alive, it 1263 / 124 M steps; ckpt_50M, ckpt_100M saved. **Dip turned:** low point it 600 (59 M: return 1147,
+  episode 7.0 s), now return 1948 / episode 10.9 s (it 1250), above the frozen-actor baseline (~1850 / 10.3 s). Value loss back to ~710
+  (peak 1250). Clean streak 5.1 (baseline 6.4) still below; in_control 0.98. KL 0.009-0.02 at the 2e-5 LR cap; horizon still 16.9 s
+  (no promotion yet: needs > 60 % survival). No restart needed; options (a)-(c) above stay on hold.
+- 02:23 check (10d): driver alive, it 2255 / 221 M steps; ckpts 50-200M saved. **Steady improvement:** return 2064 -> 2734, training
+  episode 11.5 -> 14.5 s (of a 16.9 s horizon), clean streak 5.2 -> 9.2 (start brain 6.4), in_control 1.00, survival EMA 0.24 -> 0.59;
+  **horizon promoted 16.9 -> 25.3 s** at ~it 2250 (first promotion since the warm-up). Value loss 380-830, KL 0.004-0.03 (LR mostly at
+  the 2e-5 cap, briefly cut to 3-9e-6). Nothing abnormal.
+- 03:23 check (10d): driver alive, it 3246 / 320 M steps; ckpts 50-300M saved. At the 25.3 s horizon: training episode 14.6 -> ~19 s,
+  return 2748 -> ~3600 (peak 3861 @275M), clean streak 9.4 -> ~13.5 (peak 14.7), in_control 1.00, survival EMA 0.27-0.45 (promotion to
+  38 s needs > 0.60). Plateau-ish since ~260 M (ep 18-20 s). Value loss 320-660, KL 0.008-0.03. Nothing abnormal.
+- 04:23 check (10d): driver alive, it 4240 / 417 M steps; ckpts 50-400M saved. **Horizon promoted 25.3 -> 38.0 s** at ~it 4110 (~404 M,
+  survival EMA reached 0.58-0.60). At 38 s: training episode 25.2 s, return 4803, clean streak ~19.5-20 (start brain 6.4), in_control 1.00.
+  Before the promotion (it 3220-4060): episode 19.4 -> 21.2 s, return 3678 -> 4071. Value loss 260-470, KL 0.008-0.037. Nothing abnormal.
+- 05:23 check (10d): driver alive, it 5244 / 515 M steps; ckpts 50-500M saved. Plateau at the 38 s horizon: training episode 23-27 s,
+  return 4390-5126, clean streak 15-19.5 (dip to 14.7 @489M, back to 19.1 @509M), in_control 1.00, survival EMA 0.28-0.40 (no promotion
+  to 45 s). Value loss 450-690, KL 0.009-0.041. No collapse; nothing abnormal.
+- 06:23 check (10d): driver alive, it 6255 / 614 M steps; ckpts 50-600M saved. Still on the 38 s plateau, slowly up: training episode
+  25-28 s (peak 27.9 @585M), return 4.8-5.3k, clean streak 16-19 (19.2 @599M), in_control 1.00, survival EMA 0.34-0.45. Value loss
+  410-600, KL 0.009-0.034 (LR cut to 4-9e-6 at times). Training ends ~07:35, then gate evals of 14 checkpoints. Nothing abnormal.
+- 07:23 check (10d): driver alive, it 7260 / 714 M steps (437 of 450 min). Flat on the 38 s plateau since ~550 M: training episode 25-28 s,
+  return 4.8-5.3k, clean streak 17-19, survival EMA 0.34-0.43, std 0.049. Value loss 400-660, KL 0.006-0.028. Training ends ~07:36;
+  the driver then gate-evaluates ~16 checkpoints (200 episodes each). Nothing abnormal.
+
+## 07:54 dribble_time10d result: gate l2a_dribble_r 9 % -> **71 %** (ckpt_600M); not passed (needs 85 % + hold 100)
+
+Full table: `docs/20261121/dribble_time10d.md` (200 episodes per checkpoint, 45 s, new near-the-spot rule).
+| Checkpoint | Success | Falls | Episode s | Clean streak | pelvis_drifted |
+|---|---|---|---|---|---|
+| start brain (dribble_drift_250M, 100 eps) | 9 % | 2 % | 17.1 | 9.9 | 88 % |
+| ckpt_200M | 14 % | 9.5 % | 19.1 | 12.6 | 75.5 % |
+| ckpt_300M | 31.5 % | 1 % | 25.6 | 17.9 | 67.5 % |
+| ckpt_400M | 57 % | 2 % | 29.4 | 21.0 | 39.5 % |
+| **ckpt_600M** | **71 %** | **0 %** | 30.8 | 21.6 | **28.5 %** |
+| ckpt_700M / model.pt | 58.5 % / 54 % | 1 % / 0.5 % | 30.4 / 29.0 | 20.7 / 19.7 | 38.5 % / 43.5 % |
+| best.pt | 64.5 % | 1 % | 30.8 | 21.0 | 29.5 % |
+
+- The gate climbs with the training horizon (16.9 -> 25.3 s at ~220 M, -> 38 s at ~404 M: the 400 M jump), then plateaus at 57-71 %
+  (ckpt_600M looks like the good end of the noise: 650/700 M are back at 58.5 %).
+- **Only blocker left: pelvis drift** (> 0.75 m from the start) ends 28-40 % of gate episodes; falls 0-3 %, ball lost 0-1 %, in_control 1.00.
+- Nothing exported or promoted (UU_AGENT: export only after the gate). `runs/dribble_time10d/ckpt_600M.pt` is the candidate warm start; it
+  carries its own critic + optimiser + std, so a resume needs none of the ONNX-rebuild workarounds above.
+- Proposed next (user decision): resume from ckpt_600M with the horizon at 45 s (= the gate) and a stronger drift term in `l2a_time`
+  (drift_w 2.0 -> 4.0, or a quadratic drift cost near 0.75 m), 3-4 h, gate every 50 M.
