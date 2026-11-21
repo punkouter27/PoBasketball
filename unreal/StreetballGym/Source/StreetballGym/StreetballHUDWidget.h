@@ -30,7 +30,7 @@ public:
 	void SetSubtitle(const FString& Text);
 	FString GetSubtitle() const;
 	bool IsTelemetryVisible() const { return bTelemetryVisible; }
-	/** Compile date as YYMMDD for the UU_AGENT build stamp. */
+	/** Version stamp yyMMdd (UTC date of the HEAD commit, from StreetballGym.Build.cs). */
 	static FString BuildStampYYMMDD();
 	/** Text shown bottom-right ("build YYMMDD"); empty until the widget tree exists. */
 	FString GetBuildStampText() const;

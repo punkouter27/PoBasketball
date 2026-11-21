@@ -26,6 +26,8 @@ public:
 	bool Run(TConstArrayView<float> Obs, TArray<float>& OutAction);
 
 	double LastInferenceMs = 0.0;
+	/** Training level the model was exported from ("level" in its .json sidecar), shown as the curriculum stage. */
+	FString Level;
 	int32 NumObs = 0;
 	int32 NumAction = 0;
 

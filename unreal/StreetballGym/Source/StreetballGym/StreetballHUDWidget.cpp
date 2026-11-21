@@ -106,7 +106,7 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 		Stamp->SetColorAndOpacity(FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.9f)));   // readable over the light floor
 		Stamp->SetShadowOffset(FVector2D(1.f, 1.f));
 		Stamp->SetShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.8f));
-		Stamp->SetText(FText::FromString(FString::Printf(TEXT("build %s"), *BuildStampYYMMDD())));
+		Stamp->SetText(FText::FromString(FString::Printf(TEXT("v%s"), *BuildStampYYMMDD())));
 		StampText = Stamp;
 		UCanvasPanelSlot* StampSlot = Canvas->AddChildToCanvas(Stamp);
 		StampSlot->SetAnchors(FAnchors(1.f, 1.f));
@@ -119,15 +119,8 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 
 FString UStreetballHUDWidget::BuildStampYYMMDD()
 {
-	// __DATE__ is "Mmm dd yyyy" (day space-padded), e.g. "Nov  6 2026" -> "261106"
-	static const TCHAR* Months[] = { TEXT("Jan"), TEXT("Feb"), TEXT("Mar"), TEXT("Apr"), TEXT("May"), TEXT("Jun"),
-	                                 TEXT("Jul"), TEXT("Aug"), TEXT("Sep"), TEXT("Oct"), TEXT("Nov"), TEXT("Dec") };
-	const FString D = TEXT(__DATE__);
-	int32 Month = 0;
-	for (int32 i = 0; i < 12; ++i) if (D.StartsWith(Months[i])) { Month = i + 1; break; }
-	const int32 Day = FCString::Atoi(*D.Mid(4, 2).TrimStart());
-	const int32 Year = FCString::Atoi(*D.Mid(7, 4)) % 100;
-	return FString::Printf(TEXT("%02d%02d%02d"), Year, Month, Day);
+	// One version stamp: UTC yyMMdd of the HEAD commit, computed once in StreetballGym.Build.cs (web/build.py uses the same rule).
+	return TEXT(STREETBALL_BUILD_VERSION);
 }
 
 void UStreetballHUDWidget::UpdateFromProgress(const FStreetballProgress& P, EStreetballState State)

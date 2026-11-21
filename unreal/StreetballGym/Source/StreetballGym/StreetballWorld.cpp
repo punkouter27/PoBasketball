@@ -8,6 +8,10 @@
 #include "SimClock.h"
 #include "MuJoCoBoneMapper.h"
 #include "PolicyRunner.h"
+#include "StreetballShowcase.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "InputCoreTypes.h"
 #include "Misc/CommandLine.h"
 #include "Blueprint/UserWidget.h"
@@ -178,6 +182,37 @@ void AStreetballWorld::BeginPlay()
 		HUD = CreateWidget<UStreetballHUDWidget>(PC, UStreetballHUDWidget::StaticClass());
 		if (HUD) HUD->AddToViewport(10);
 	}
+	if (UStreetballShowcaseSubsystem* Showcase = UStreetballShowcaseSubsystem::Get(this))
+	{
+		Showcase->OnDemoModeChanged.AddUObject(this, &AStreetballWorld::HandleDemoMode);
+		Showcase->OnDemoCamera.AddUObject(this, &AStreetballWorld::HandleDemoCamera);
+	}
+}
+
+void AStreetballWorld::HandleDemoMode(bool bActive)
+{
+	if (bActive)
+	{
+		PreDemoAppMode = AppMode;
+		PreDemoCameraMode = Camera ? static_cast<uint8>(Camera->GetCameraMode()) : 0;
+		AppMode = EStreetballAppMode::Watch;   // the director hands every skill to the trained policies
+		if (HUD) HUD->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	else
+	{
+		AppMode = PreDemoAppMode;
+		if (Camera) Camera->SetCameraMode(static_cast<EStreetballCameraMode>(PreDemoCameraMode));
+		if (HUD) HUD->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	}
+}
+
+void AStreetballWorld::HandleDemoCamera(FName CameraName, int32 Index)
+{
+	if (!Camera) return;
+	if (CameraName == TEXT("Follow")) Camera->SetCameraMode(EStreetballCameraMode::Follow);
+	else if (CameraName == TEXT("Orbit")) Camera->SetCameraMode(EStreetballCameraMode::Orbit);
+	else if (CameraName == TEXT("Free")) Camera->SetCameraMode(EStreetballCameraMode::Free);
+	else Camera->SetCameraMode(EStreetballCameraMode::Broadcast);
 }
 
 bool AStreetballWorld::EnginePrimitiveForGeom(int32 GeomType, const FVector& SizeM, FString& OutMeshPath, FVector& OutScale)
@@ -225,7 +260,14 @@ UPolicyRunner* AStreetballWorld::LoadPolicy(const FString& Family)
 		if (R->LoadOnnx(Path, FObsBuilder::NumObs, FObsBuilder::NumAction))
 		{
 			RealPolicies.Add(Family);
-			UE_LOG(LogStreetball, Log, TEXT("Policy %s: trained model %s"), *Family, *Path);
+			FString Sidecar;
+			TSharedPtr<FJsonObject> Meta;
+			if (FFileHelper::LoadFileToString(Sidecar, *FPaths::ChangeExtension(Path, TEXT("json")))
+				&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Sidecar), Meta) && Meta.IsValid())
+			{
+				Meta->TryGetStringField(TEXT("level"), R->Level);
+			}
+			UE_LOG(LogStreetball, Log, TEXT("Policy %s: trained model %s (level %s)"), *Family, *Path, R->Level.IsEmpty() ? TEXT("?") : *R->Level);
 			return R;
 		}
 		UE_LOG(LogStreetball, Warning, TEXT("Policy %s: %s failed to load, using fallback"), *Family, *Path);
@@ -806,6 +848,11 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 		ObsBuilder.Compute(InSim, PrevAction, TConstArrayView<float>(DirOut.Task, 12), T.InControl ? 1.f : 0.f, T.CountdownFrac, Obs);
 		if (Policy->Run(Obs, Action))
 		{
+			if (UStreetballShowcaseSubsystem* Showcase = UStreetballShowcaseSubsystem::Get(this))
+			{
+				Showcase->ReportInferenceMs(static_cast<float>(Policy->LastInferenceMs));
+				Showcase->SetCurriculumStage(Policy->Level.IsEmpty() ? ActivePolicyName.ToString() : Policy->Level);
+			}
 			for (float& Val : Action)
 			{
 				if (!FMath::IsFinite(Val))
@@ -1095,6 +1142,7 @@ void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 		}
 		const bool bUsingReal = RealPolicies.Contains(LastPolicyName.ToString());
 		const FString PolicyLabel = LastPolicyName.IsNone() ? TEXT("fallback") : LastPolicyName.ToString();
+		if (UStreetballShowcaseSubsystem* Showcase = UStreetballShowcaseSubsystem::Get(this)) Showcase->ReportEpisodeReward(EpisodeReward);
 		HUD->UpdateTelemetry(ModeLabel, CamLabel, PolicyLabel, DirectorSeed, EpisodeReward, NanInfCount, SmoothedFps, bPaused, !bUsingReal,
 			Exertion01, LastPowerW, GetTimeScale());
 		if (AppMode == EStreetballAppMode::Play)
@@ -1103,11 +1151,11 @@ void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 		}
 		else if (AppMode == EStreetballAppMode::Testbed)
 		{
-			HUD->SetModeHint(TEXT("M/F1 Mode  |  IJKL Push 120N  |  [/] Speed  |  1-5 Tier  |  P/F4 Policy  |  T/F3 Telem  |  R Reset"));
+			HUD->SetModeHint(TEXT("M/F1 Mode  |  IJKL Push 120N  |  [/] Speed  |  1-5 Tier  |  P/F4 Policy  |  T/F3 Telem  |  Tab Diag  |  R Reset"));
 		}
 		else
 		{
-			HUD->SetModeHint(TEXT("M/F1 Mode  |  C/F2 Camera  |  T/F3 Telemetry  |  P/F4 Policy  |  Space Pause  |  R Reset"));
+			HUD->SetModeHint(TEXT("M/F1 Mode  |  C/F2 Camera  |  T/F3 Telemetry  |  Tab Diagnostics  |  P/F4 Policy  |  Space Pause  |  R Reset"));
 		}
 	}
 }

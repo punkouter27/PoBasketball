@@ -5,14 +5,14 @@
 #   2. build StreetballGymEditor (AStreetballCharacter::ApplyMainCharacterMesh)
 #   4. dump SK_Grandma's bind joints and compare with shared/mannequin_bones.json (<= 1 cm)
 #   5. run the Streetball automation tests (B5.BoneMapper checks the bind pose against the sim)
-# Results: DOCS/<day>/post_queue_grandma.md
+# Results: docs/<day>/post_queue_grandma.md
 param([string]$Engine = "C:\Program Files\Epic Games\UE_5.8", [switch]$NoWait)
 $ErrorActionPreference = "Continue"
 $proj = Split-Path -Parent $PSScriptRoot
 $repo = Resolve-Path (Join-Path $proj "..\..")
 $uproject = Join-Path $proj "StreetballGym.uproject"
 $headless = Join-Path $PSScriptRoot "run_headless.ps1"
-$out = Join-Path $repo ("DOCS\{0}" -f (Get-Date -Format yyyyMMdd))
+$out = Join-Path $repo ("docs\{0}" -f (Get-Date -Format yyyyMMdd))
 New-Item -ItemType Directory -Force $out | Out-Null
 $md = Join-Path $out "post_queue_grandma.md"
 $logs = Join-Path $proj "Saved\Logs\grandma"

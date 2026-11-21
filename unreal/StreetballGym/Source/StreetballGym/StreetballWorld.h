@@ -178,6 +178,11 @@ private:
 	void UpdateCaptureSchedule();
 	UMaterialInterface* MaterialOverrideFor(const FString& GeomName) const;
 	void UpdateCameraAndHUD(float Dt);
+	/** Idle demo mode (StreetballShowcase): Watch mode, HUD hidden, showcase cameras; restored on input. */
+	void HandleDemoMode(bool bActive);
+	void HandleDemoCamera(FName CameraName, int32 Index);
+	EStreetballAppMode PreDemoAppMode = EStreetballAppMode::Watch;
+	uint8 PreDemoCameraMode = 0;
 	UPolicyRunner* LoadPolicy(const FString& LevelName);
 	static bool EnginePrimitiveForGeom(int32 GeomType, const FVector& SizeM, FString& OutMeshPath, FVector& OutScale);
 

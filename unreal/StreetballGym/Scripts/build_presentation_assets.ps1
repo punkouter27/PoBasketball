@@ -18,7 +18,7 @@ if ($Blender) {
     $g = Join-Path $proj "Content\Art\Exports\Grandma"
     & $blenderExe -b --factory-startup --python (Join-Path $here "make_env_proxies_blender.py")
     & $blenderExe -b --factory-startup --python (Join-Path $here "split_grandma_cloth_blender.py") -- (Join-Path $g "SK_Grandma.fbx") (Join-Path $g "SK_Grandma_Cloth.fbx") $g
-    & $blenderExe -b --factory-startup --python (Join-Path $here "make_grandma_groom_blender.py") -- (Join-Path $g "SK_Grandma.fbx") (Join-Path $g "Groom") (Join-Path $repo "DOCS\20261116\grandma_bones_ue.json")
+    & $blenderExe -b --factory-startup --python (Join-Path $here "make_grandma_groom_blender.py") -- (Join-Path $g "SK_Grandma.fbx") (Join-Path $g "Groom") (Join-Path $repo "docs\20261116\grandma_bones_ue.json")
 }
 if ($VoiceBake) {
     Push-Location $repo

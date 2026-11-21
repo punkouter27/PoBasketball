@@ -921,6 +921,6 @@ void ALAComparisonHUD::DrawHUD()
 		DrawText(It->StatusText(), FLinearColor(0.4f, 0.9f, 1), 24, 24);
 		break;
 	}
-	DrawText(FString::Printf(TEXT("build %s"), *UStreetballHUDWidget::BuildStampYYMMDD()),
+	DrawText(FString::Printf(TEXT("v%s"), *UStreetballHUDWidget::BuildStampYYMMDD()),
 		FLinearColor::White, Canvas->SizeX - 115.f, Canvas->SizeY - 30.f);
 }

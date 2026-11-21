@@ -313,7 +313,7 @@ bool FStreetballHUDTest::RunTest(const FString&)
 	TestTrue(TEXT("stamp month/day in range"), MM >= 1 && MM <= 12 && DD >= 1 && DD <= 31);
 	const FString Today = FDateTime::Now().ToString(TEXT("%y%m%d"));
 	AddInfo(FString::Printf(TEXT("build stamp %s (today %s); HUD text '%s'"), *Stamp, *Today, *HUD->GetBuildStampText()));
-	TestTrue(TEXT("HUD shows the stamp bottom-right"), HUD->GetBuildStampText() == FString::Printf(TEXT("build %s"), *Stamp));
+	TestTrue(TEXT("HUD shows the stamp bottom-right"), HUD->GetBuildStampText() == FString::Printf(TEXT("v%s"), *Stamp));
 	return true;
 }
 

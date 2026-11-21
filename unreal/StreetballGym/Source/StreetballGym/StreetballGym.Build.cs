@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics;
 using UnrealBuildTool;
 
 public class StreetballGym : ModuleRules
@@ -21,7 +23,8 @@ public class StreetballGym : ModuleRules
 			"AudioMixer",
 			"Niagara",
 			"HairStrandsCore",
-			"CinematicCamera"
+			"CinematicCamera",
+			"DeveloperSettings"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
@@ -30,5 +33,19 @@ public class StreetballGym : ModuleRules
 		});
 
 		PublicIncludePaths.Add(ModuleDirectory);
+
+		// One version stamp (Po Game Standard): UTC yyMMdd of the HEAD commit (the web build uses the same rule), else today (UTC).
+		string Stamp = DateTime.UtcNow.ToString("yyMMdd");
+		try
+		{
+			var Git = Process.Start(new ProcessStartInfo("git", "log -1 --format=%ct")
+				{ WorkingDirectory = ModuleDirectory, RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true });
+			string Out = Git.StandardOutput.ReadToEnd().Trim();
+			Git.WaitForExit();
+			long Secs;
+			if (Git.ExitCode == 0 && long.TryParse(Out, out Secs)) Stamp = DateTimeOffset.FromUnixTimeSeconds(Secs).UtcDateTime.ToString("yyMMdd");
+		}
+		catch (Exception) {}
+		PublicDefinitions.Add("STREETBALL_BUILD_VERSION=\"" + Stamp + "\"");
 	}
 }
