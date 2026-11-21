@@ -84,3 +84,14 @@ Affected policy: dribble (stationary) only; nothing exported unless the gate pas
   onnx_to_ckpt) and each iteration adds ~1e5, so the stats re-fitted within a few iterations: means moved up to 5.1 sigma, 25 inputs
   > 0.5 sigma; the shifted inputs broke the actor and its failures skewed the stats further. Kept on disk.
 - `dribble_45b`: identical plus `--freeze-norm`, 90 min training (budget ends ~14:45 with evals).
+- 14:08 check (45b): driver alive, it 502 / 49 M steps, 13.8k fps (45 s episodes; half of 10d's rate, so ~75 M steps by the end).
+  Training (stochastic, 45 s horizon): episode 26-30 s, return 4.2-4.8k, streak 16-19, 41-53 % of episodes reach 45 s; KL 0.003-0.008,
+  value loss 310-570. Flat, no collapse; a small dip at 49 M (episode 25.9 s, streak 15.9). Gate evals of ckpt_25/50/75M after ~14:31.
+- 14:44 `dribble_45b` result (`docs/20261121/dribble_45b.md`, ~70 M steps, gate 200 episodes): **no real gain.** ckpt_25M 72.5 %
+  (drift 24.5 %), ckpt_50M 67.5 % (29 %), best.pt 59.5 %, model.pt 60.5 % (36.5 %); falls 0-1 %. ckpt_600M (71 %, drift 28.5 %) stays
+  the reference: 72.5 % is inside the +-3 % noise of 200 episodes. Doubling drift_w and 45 s episodes did not move drift.
+- Why (new finding): drift is **not observable**. shared/obs_spec.json has no position or start-spot input (gravity, pelvis vel/angvel,
+  joints, ball rel, contacts, height, countdown, task) and the actor is a memoryless MLP, so the drift penalty can only teach "move less",
+  never "step back to the spot". Proposal (user decision; obs layout unchanged): put the vector to the start spot into the dribble task
+  block's existing dir_x / dir_y / distance slots when speed_cmd = 0 (stationary = "stay at this point", the same meaning as the walk
+  waypoint), zero-init those inputs with tools/open_task_inputs.py, train; mirror in the Unreal director (tier 3 sends the reset spot).
