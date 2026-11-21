@@ -1,0 +1,303 @@
+<title>Dribble Gate Climb</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one reading column; summary strip, then three charts (gate, failure causes, training), then tables. */
+:root {
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --s-muted: #c3c2b7; --good: #006300; --target: #52514e;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --s-muted: #52514e; --good: #0ca30c; --target: #c3c2b7; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --s-muted: #52514e; --good: #0ca30c; --target: #c3c2b7; color-scheme: dark }
+body { background: var(--page); color: var(--ink); font: 15px/1.55 var(--font); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 36px; }
+header { display: flex; flex-direction: column; gap: 8px; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-size: clamp(26px, 4vw, 34px); line-height: 1.15; text-wrap: balance; }
+h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+p { margin: 0; max-width: 66ch; color: var(--ink-2); }
+code { font: 13px var(--mono); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.stat .k { font-size: 12px; color: var(--muted); letter-spacing: .02em; }
+.stat .v { font-size: 28px; font-weight: 650; }
+.stat .d { font-size: 13px; color: var(--ink-2); }
+.stat .v .from { font-size: 16px; font-weight: 500; color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.chart { position: relative; background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 8px 4px; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--font); }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ink-2); padding: 0 8px 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.sw.dash { background: repeating-linear-gradient(90deg, var(--target) 0 4px, transparent 4px 7px); height: 2px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--ring);
+  box-shadow: 0 4px 14px rgba(0,0,0,.12); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45; white-space: nowrap; z-index: 2; }
+.tip b { font-weight: 650; }
+.tip .row { display: flex; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+.tip .row span:first-child { color: var(--ink-2); }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 600; color: var(--ink-2); font-size: 12px; letter-spacing: .02em; }
+tr:last-child td { border-bottom: 0; }
+tr.hi td { font-weight: 650; }
+tr.base td { color: var(--ink-2); }
+.runs td:nth-child(2), .runs td:nth-child(4) { text-align: left; white-space: normal; min-width: 180px; }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.pill.ok { color: var(--good); }
+.pill.stop { color: var(--muted); }
+.next { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+footer { font-size: 12.5px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .bar { transition: opacity .15s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">PoBasketball · L2a right-hand dribble · run dribble_time10d</div>
+    <h1>The stationary dribble went from 9 % to 71 % on the gate in one night</h1>
+    <p>Ten hours on the laptop RTX 5070 Ti (2026-11-20 23:12 to 11-21 07:54). Warm start: the 250 M-step dribble brain rebuilt from
+      <code>shared/policies/dribble.onnx</code>. Gate <code>l2a_dribble_r</code>: 50 clean bounces in a row inside a 45 s episode,
+      in at least 85 % of 200 episodes. Nothing was exported: the gate is not passed yet.</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><span class="k">Gate success (best checkpoint)</span><span class="v">71 % <span class="from">from 9 %</span></span><span class="d">ckpt_600M · target 85 %</span></div>
+    <div class="stat"><span class="k">Clean-bounce streak (mean)</span><span class="v">21.6 <span class="from">from 9.9</span></span><span class="d">bounces per gate episode</span></div>
+    <div class="stat"><span class="k">Ended by pelvis drift</span><span class="v">28.5 % <span class="from">from 88 %</span></span><span class="d">the one blocker left</span></div>
+    <div class="stat"><span class="k">Falls</span><span class="v">0 %</span><span class="d">ball kept in control 100 %</span></div>
+  </div>
+
+  <section>
+    <h2>Gate success by checkpoint</h2>
+    <p>Each bar is 200 gate episodes. The big step at 400 M follows the training horizon going from 25 s to 38 s. After that it holds
+      between 57 % and 71 %; ckpt_600M is likely the lucky end of that band.</p>
+    <div class="chart" id="gate"></div>
+  </section>
+
+  <section>
+    <h2>Why gate episodes end</h2>
+    <p>Share of the 200 episodes ended by each rule (an episode can trip more than one). Drift, meaning the pelvis wandering more than
+      0.75 m from where she started, falls with every horizon step. Falls fade out after 250 M.</p>
+    <div class="chart" id="fail"></div>
+  </section>
+
+  <section>
+    <h2>Training: episode length against the horizon</h2>
+    <p>Training episodes end at the horizon (time-out) or at a gate loss rule. The horizon grows ×1.5 once 60 % of episodes reach it.
+      The actor was frozen for the first 39 M steps while the critic learned; the dip after that is PPO settling in, and it recovered by 120 M.</p>
+    <div class="chart" id="train"></div>
+  </section>
+
+  <section>
+    <h2>All checkpoints</h2>
+    <div class="tablewrap"><table id="ckpts">
+      <thead><tr><th>Checkpoint</th><th>Gate success</th><th>Falls</th><th>Episode</th><th>Clean streak</th><th>Bounces</th><th>Pelvis drift</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>How the night went: four launches</h2>
+    <p>The ONNX export carries only the actor, so three training settings had to be rebuilt by hand. Each of the first three launches
+      found one of them wrong within 20 minutes. All four runs are kept on disk.</p>
+    <div class="tablewrap"><table class="runs">
+      <thead><tr><th>Run</th><th>Change</th><th>Steps</th><th>What happened</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td><code>dribble_time10</code></td><td>Exploration std 0.15</td><td>13 M</td><td>Training episodes 3.3 s while the same actor lasts 17 s without noise. A probe put the trained std at 0.05 or less.</td><td><span class="pill stop">stopped</span></td></tr>
+        <tr><td><code>dribble_time10b</code></td><td>std 0.05</td><td>9 M</td><td>Horizon reached 11 s during warm-up, then the first actor update ran at learning rate 3e-4 and broke the actor.</td><td><span class="pill stop">stopped</span></td></tr>
+        <tr><td><code>dribble_time10c</code></td><td>Learning rate capped at 2e-5</td><td>20 M</td><td>Steady slide to 3.3 s episodes: the fresh critic had 60 iterations of warm-up and its value loss was still falling.</td><td><span class="pill stop">stopped</span></td></tr>
+        <tr class="hi"><td><code>dribble_time10d</code></td><td>400-iteration critic warm-up, anchor to the start actor</td><td>736 M</td><td>Dipped for 60 M steps, recovered, then climbed through three horizon steps.</td><td><span class="pill ok">71 % gate</span></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="next">
+    <h2>Proposed next run</h2>
+    <p>Resume from <code>runs/dribble_time10d/ckpt_600M.pt</code> with the training horizon fixed at the full 45 s and a stronger drift
+      penalty (weight 2.0 to 4.0, or a cost that rises steeply near 0.75 m), for 3 to 4 hours with a gate check every 50 M steps.
+      The checkpoint carries its own critic, optimiser and noise level, so none of the rebuild problems above apply.</p>
+  </section>
+
+  <footer>Gate rule in force: a clean bounce needs the ball within 0.3 m of the dribble spot for the whole cycle (changed 2026-11-20; it was 0.6 m from the pelvis, which the spot itself nearly exceeds). Start-brain row: 100 episodes. Sources: <code>docs/20261121/dribble_time10d.md</code>, <code>sim/runs/dribble_time10d/log.csv</code>, <code>docs/20261120/log.md</code>.</footer>
+</div>
+
+<script>
+const GATE = [ // ckpt, success %, falls %, episode s, streak, bounces, drift %
+  ["Start", 9, 2, 17.1, 9.9, 12.4, 88],
+  ["50M", 0, 13, 6.5, 2.68, 4.94, 85], ["100M", 0, 12, 11.1, 4.55, 7.98, 84.5], ["150M", 1, 15, 16.8, 7.66, 11.97, 80.5],
+  ["200M", 14, 9.5, 19.1, 12.56, 14.56, 75.5], ["250M", 23, 1, 23.9, 16.23, 18.07, 76], ["300M", 31.5, 1, 25.6, 17.86, 19.26, 67.5],
+  ["350M", 32.5, 1.5, 25.8, 16.6, 19.31, 62], ["400M", 57, 2, 29.4, 20.98, 22.66, 39.5], ["450M", 59.5, 2.5, 29.7, 20.47, 22.53, 38],
+  ["500M", 59.5, 0.5, 29.9, 21.17, 22.94, 39], ["550M", 59, 3, 29.7, 20.46, 22.54, 37.5], ["600M", 71, 0, 30.8, 21.59, 23.66, 28.5],
+  ["650M", 58.5, 0.5, 30.6, 20.91, 23.08, 40], ["700M", 58.5, 1, 30.4, 20.65, 22.77, 38.5]
+];
+const EXTRA = [["best.pt", 64.5, 1, 30.8, 20.99, 23.34, 29.5], ["model.pt (final)", 54, 0.5, 29.0, 19.68, 21.91, 43.5]];
+// steps (M), training episode s, return, streak, horizon s, value loss
+const TRAIN = [[0.1,0,0,0.06,5,1029],[3.9,6.49,1115,5.24,11.25,877],[7.9,10.62,1881,6.6,16.875,742],[11.8,10.7,1905,6.2,16.875,661],[15.7,10.43,1842,6.39,16.875,617],[19.7,10.43,1847,6.4,16.875,570],[23.6,10.36,1841,6.43,16.875,594],[27.5,10.05,1772,6.42,16.875,587],[31.5,10.08,1784,6.4,16.875,626],[35.4,10.27,1819,6.44,16.875,639],[39.3,10.3,1831,6.4,16.875,662],[43.3,9.86,1734,5.66,16.875,840],[47.2,7.83,1335,4.34,16.875,1120],[51.1,7.44,1263,4.31,16.875,1397],[55.1,7.01,1182,4.27,16.875,1136],[59,7,1147,4.16,16.875,1073],[62.9,7.39,1242,4.45,16.875,1088],[66.8,7.92,1325,4.47,16.875,1010],[70.8,8.4,1432,3.85,16.875,1022],[74.7,8.08,1356,4.49,16.875,834],[78.6,8.03,1370,3.9,16.875,1052],[82.6,8.13,1364,3.88,16.875,962],[86.5,8.14,1377,3.49,16.875,1111],[90.4,7.52,1262,4.24,16.875,854],[94.4,8.21,1386,4.23,16.875,992],[98.3,9.7,1656,4.16,16.875,734],[102.2,9.55,1650,4.52,16.875,779],[106.2,10.21,1762,4.96,16.875,774],[110.1,9.51,1657,4.44,16.875,760],[114,9.67,1696,4.86,16.875,732],[118,10.38,1825,4.87,16.875,725],[121.9,10.69,1905,5.27,16.875,674],[125.8,11.37,2028,5.02,16.875,743],[129.8,10.27,1807,5.56,16.875,827],[133.7,11.31,1997,5.79,16.875,676],[137.6,11.04,1978,5.62,16.875,754],[141.6,11.33,2020,5.23,16.875,637],[145.5,11.46,2065,5.15,16.875,544],[149.4,11.69,2109,4.6,16.875,600],[153.4,12.38,2266,4.77,16.875,558],[157.3,12.02,2194,4.89,16.875,649],[161.2,12.22,2240,5.07,16.875,598],[165.2,12.83,2366,6.29,16.875,450],[169.1,13,2405,7.22,16.875,572],[173,13.32,2482,7.29,16.875,545],[176.9,13.42,2486,7.73,16.875,649],[180.9,13.32,2479,7.62,16.875,574],[184.8,13,2414,7.01,16.875,610],[188.7,12.74,2374,7.01,16.875,526],[192.7,13.23,2467,8.29,16.875,486],[196.6,13.65,2570,8.28,16.875,637],[200.5,13.86,2635,8.57,16.875,659],[204.5,14.04,2662,8.42,16.875,499],[208.4,14.06,2661,9.03,16.875,397],[212.3,14.51,2764,8.94,16.875,462],[216.3,14.56,2758,9.67,16.875,445],[220.2,14.61,2748,9.42,25.3125,404],[224.1,20.33,3822,12.25,25.3125,440],[228.1,18.22,3421,12,25.3125,484],[232,18.2,3416,11.81,25.3125,504],[235.9,18.27,3422,11.67,25.3125,462],[239.9,18.3,3434,11.82,25.3125,554],[243.8,17.98,3360,10.84,25.3125,679],[247.7,17.99,3352,12.86,25.3125,477],[251.7,18.46,3445,13.05,25.3125,435],[255.6,18.7,3503,11.82,25.3125,387],[259.5,19.58,3698,12.73,25.3125,390],[263.5,19.3,3664,12.56,25.3125,434],[267.4,18.8,3543,13.37,25.3125,449],[271.3,19.85,3747,14,25.3125,483],[275.3,20.38,3861,14.74,25.3125,324],[279.2,19.96,3778,13.24,25.3125,424],[283.1,19.51,3698,13.45,25.3125,476],[287,18.57,3486,13.4,25.3125,581],[291,17.98,3355,13.35,25.3125,392],[294.9,19.8,3747,13.49,25.3125,440],[298.8,19.25,3658,14.06,25.3125,459],[302.8,19.08,3619,13.04,25.3125,375],[306.7,19.38,3659,11.96,25.3125,570],[310.6,18.26,3433,13.23,25.3125,502],[314.6,19.54,3681,13.73,25.3125,308],[318.5,19.09,3616,13.78,25.3125,403],[322.4,19.39,3649,13.65,25.3125,486],[326.4,19.53,3650,13.29,25.3125,529],[330.3,19.63,3705,13.67,25.3125,362],[334.2,19.37,3667,13.59,25.3125,406],[338.2,19.55,3702,13.59,25.3125,382],[342.1,20.52,3901,14.14,25.3125,377],[346,19.7,3760,12.29,25.3125,489],[350,18.81,3582,11.77,25.3125,381],[353.9,20.59,3937,12.9,25.3125,475],[357.8,20.32,3883,13.06,25.3125,349],[361.8,20.93,3997,13.6,25.3125,298],[365.7,21,4009,13.38,25.3125,417],[369.6,21.14,4021,14.68,25.3125,381],[373.6,20.86,3990,14.47,25.3125,353],[377.5,20.59,3901,13.78,25.3125,315],[381.4,21.54,4086,14.64,25.3125,352],[385.4,21.16,4017,15.26,25.3125,444],[389.3,20.82,3947,14.78,25.3125,312],[393.2,21.04,4024,14.53,25.3125,225],[397.1,21.74,4167,14.27,25.3125,296],[401.1,21.3,4092,13.88,25.3125,296],[405,21.63,4151,15.87,37.96875,294],[408.9,28.5,5480,19.65,37.96875,618],[412.9,25.15,4803,19.45,37.96875,376],[416.8,26.48,5090,18.42,37.96875,582],[420.7,24.94,4762,17.83,37.96875,497],[424.7,25.42,4808,18.13,37.96875,579],[428.6,26.37,5011,17.95,37.96875,528],[432.5,25.64,4879,17.85,37.96875,437],[436.5,26.66,5069,18.49,37.96875,540],[440.4,25.86,4898,18.45,37.96875,692],[444.3,26.1,4950,18.74,37.96875,453],[448.3,26.38,5032,18.17,37.96875,420],[452.2,25.77,4869,18.28,37.96875,617],[456.1,26.01,4952,18.36,37.96875,510],[460.1,26.43,5062,17.88,37.96875,456],[464,25.82,4972,16.43,37.96875,587],[467.9,25.28,4820,16.43,37.96875,447],[471.9,26.36,5044,18,37.96875,531],[475.8,24.74,4706,18.01,37.96875,547],[479.7,24.49,4620,17.25,37.96875,540],[483.7,24.03,4553,16.8,37.96875,516],[487.6,24.38,4656,16.45,37.96875,692],[491.5,23.76,4508,15.19,37.96875,578],[495.5,25.1,4777,16.04,37.96875,555],[499.4,25.22,4795,18.34,37.96875,522],[503.3,26.73,5140,18.78,37.96875,593],[507.2,26.33,5044,18.35,37.96875,497],[511.2,26.21,4980,18.32,37.96875,687],[515.1,24.56,4651,17.68,37.96875,622],[519,26.08,4956,17.54,37.96875,472],[523,26.46,5021,17,37.96875,484],[526.9,26.56,5073,18.16,37.96875,503],[530.8,26.84,5116,18.38,37.96875,536],[534.8,25.8,4926,17.47,37.96875,592],[538.7,26.45,5048,19.3,37.96875,525],[542.6,26.82,5125,17.67,37.96875,591],[546.6,26.14,4991,17.63,37.96875,523],[550.5,26.26,5006,18.02,37.96875,461],[554.4,25.87,4915,17.71,37.96875,505],[558.4,26.21,4973,18.33,37.96875,526],[562.3,26.45,5025,17.79,37.96875,466],[566.2,25.07,4767,17.74,37.96875,618],[570.2,24.92,4726,18.08,37.96875,675],[574.1,25.69,4871,17.59,37.96875,501],[578,25.82,4902,15.91,37.96875,475],[582,26.87,5130,17.96,37.96875,583],[585.9,26.76,5116,18.49,37.96875,515],[589.8,27.45,5251,18.03,37.96875,534],[593.8,26.83,5137,19.18,37.96875,509],[597.7,27,5203,19.26,37.96875,640],[601.6,27.11,5202,18.35,37.96875,586],[605.6,26.3,5034,17.75,37.96875,530],[609.5,27.14,5168,18.37,37.96875,642],[613.4,26.25,4995,18.28,37.96875,578],[617.3,26.71,5084,18.32,37.96875,483],[621.3,26.76,5086,17.44,37.96875,567],[625.2,26.91,5147,18.59,37.96875,541],[629.1,26.12,4988,17.87,37.96875,515],[633.1,25.75,4883,18.17,37.96875,466],[637,26.49,5024,19.55,37.96875,542],[640.9,26.14,4992,16.38,37.96875,577],[644.9,26.81,5113,18.5,37.96875,555],[648.8,27.1,5174,17.81,37.96875,680],[652.7,26.86,5122,18.47,37.96875,518],[656.7,26.96,5147,18.04,37.96875,413],[660.6,26.79,5105,17.98,37.96875,538],[664.5,26.66,5072,18.72,37.96875,573],[668.5,27.65,5282,18.48,37.96875,420],[672.4,26.36,5033,18.6,37.96875,552],[676.3,27.71,5292,19.21,37.96875,683],[680.3,27.12,5183,18.78,37.96875,547],[684.2,25.74,4864,17.87,37.96875,581],[688.1,26.88,5103,18.57,37.96875,490],[692.1,26.92,5131,17.88,37.96875,452],[696,25.47,4810,16.78,37.96875,580],[699.9,24.68,4657,17.2,37.96875,513],[703.9,25.76,4879,17.78,37.96875,485],[707.8,26.58,5040,18.6,37.96875,442],[711.7,26.45,5019,18.36,37.96875,657],[715.7,26.59,5058,19.05,37.96875,489],[719.6,25.97,4962,17.36,37.96875,447],[723.5,25.26,4788,17.99,37.96875,520],[727.4,26.1,4943,18.58,37.96875,428],[731.4,25.63,4842,18.2,37.96875,518],[735.3,26.71,5086,18.55,37.96875,527]];
+
+const NS = "http://www.w3.org/2000/svg";
+const W = 760, H = 300, M = { l: 44, r: 16, t: 16, b: 36 };
+const pw = W - M.l - M.r, ph = H - M.t - M.b;
+function el(tag, attrs, parent, text) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function frame(host, yMax, yTicks, ySuffix) {
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  host.appendChild(svg);
+  const y = v => M.t + ph - (v / yMax) * ph;
+  for (const t of yTicks) {
+    el("line", { x1: M.l, x2: W - M.r, y1: y(t), y2: y(t), stroke: "var(--grid)", "stroke-width": 1 }, svg);
+    el("text", { x: M.l - 8, y: y(t) + 4, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }, svg, t + ySuffix);
+  }
+  el("line", { x1: M.l, x2: W - M.r, y1: y(0), y2: y(0), stroke: "var(--axis)", "stroke-width": 1 }, svg);
+  return { svg, y };
+}
+function tipFor(host) {
+  const t = document.createElement("div"); t.className = "tip"; t.hidden = true; host.appendChild(t);
+  return {
+    show(html, px, py) {
+      t.innerHTML = html; t.hidden = false;
+      const hb = host.getBoundingClientRect(), tw = t.offsetWidth;
+      let left = px + 14; if (left + tw > hb.width - 4) left = px - tw - 14;
+      t.style.left = Math.max(4, left) + "px"; t.style.top = Math.max(4, py - 20) + "px";
+    },
+    hide() { t.hidden = true; }
+  };
+}
+function svgPoint(svg, ev) {
+  const r = svg.getBoundingClientRect();
+  return { x: (ev.clientX - r.left) * (W / r.width), px: ev.clientX - r.left + 8, py: ev.clientY - r.top + 12 };
+}
+const rows = d => `<b>${d[0] === "Start" ? "Start brain" : "ckpt_" + d[0]}</b>` +
+  `<div class="row"><span>Gate success</span><span>${d[1]} %</span></div>` +
+  `<div class="row"><span>Clean streak</span><span>${d[4]}</span></div>` +
+  `<div class="row"><span>Pelvis drift</span><span>${d[6]} %</span></div>` +
+  `<div class="row"><span>Falls</span><span>${d[2]} %</span></div>`;
+
+// 1. gate success bars
+(function () {
+  const host = document.getElementById("gate");
+  const { svg, y } = frame(host, 100, [0, 25, 50, 75, 100], "%");
+  const n = GATE.length, slot = pw / n, bw = Math.min(30, slot * 0.62);
+  const tip = tipFor(host);
+  GATE.forEach((d, i) => {
+    const cx = M.l + slot * (i + 0.5), top = y(d[1]), base = y(0);
+    const hgt = Math.max(0, base - top);
+    const fill = d[0] === "Start" ? "var(--s-muted)" : "var(--s1)";
+    if (hgt > 0) {
+      const r = Math.min(4, hgt);
+      el("path", { class: "bar", fill, d: `M${cx - bw / 2},${base} V${top + r} Q${cx - bw / 2},${top} ${cx - bw / 2 + r},${top} H${cx + bw / 2 - r} Q${cx + bw / 2},${top} ${cx + bw / 2},${top + r} V${base} Z` }, svg);
+    } else {
+      el("line", { x1: cx - bw / 2, x2: cx + bw / 2, y1: base - 1, y2: base - 1, stroke: "var(--s1)", "stroke-width": 2 }, svg);
+    }
+    el("text", { x: cx, y: H - M.b + 16, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, svg, d[0]);
+    if (["Start", "200M", "400M", "600M", "700M"].includes(d[0]))
+      el("text", { x: cx, y: top - 6, "text-anchor": "middle", "font-size": 11.5, "font-weight": d[0] === "600M" ? 700 : 500, fill: "var(--ink)" }, svg, d[1] + "%");
+    const hit = el("rect", { x: cx - slot / 2, y: M.t, width: slot, height: ph, fill: "transparent" }, svg);
+    hit.addEventListener("pointermove", ev => { const p = svgPoint(svg, ev); tip.show(rows(d), p.px, p.py); });
+    hit.addEventListener("pointerleave", () => tip.hide());
+  });
+  const ty = y(85);
+  el("line", { x1: M.l, x2: W - M.r, y1: ty, y2: ty, stroke: "var(--target)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, svg);
+  el("text", { x: W - M.r, y: ty - 6, "text-anchor": "end", "font-size": 11.5, fill: "var(--ink-2)" }, svg, "Pass mark 85 %");
+  el("text", { x: M.l + 4, y: H - 2, "font-size": 11, fill: "var(--muted)" }, svg, "Training steps at checkpoint (Start = the warm-start brain)");
+})();
+
+// 2. failure causes (two lines over checkpoints)
+(function () {
+  const host = document.getElementById("fail");
+  const lg = document.createElement("div"); lg.className = "legend";
+  lg.innerHTML = '<span><i class="sw" style="background:var(--s2)"></i>Pelvis drifted &gt; 0.75 m</span><span><i class="sw" style="background:var(--s1)"></i>Fell</span>';
+  host.appendChild(lg);
+  const { svg, y } = frame(host, 100, [0, 25, 50, 75, 100], "%");
+  const n = GATE.length, slot = pw / n, x = i => M.l + slot * (i + 0.5);
+  const series = [{ k: 6, c: "var(--s2)", name: "Pelvis drift" }, { k: 2, c: "var(--s1)", name: "Fell" }];
+  for (const s of series) {
+    el("polyline", { points: GATE.map((d, i) => `${x(i)},${y(d[s.k])}`).join(" "), fill: "none", stroke: s.c, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+    GATE.forEach((d, i) => el("circle", { cx: x(i), cy: y(d[s.k]), r: 4, fill: s.c, stroke: "var(--surface)", "stroke-width": 2 }, svg));
+  }
+  const last = GATE.length - 1;
+  el("text", { x: x(last) - 10, y: y(GATE[last][6]) - 10, "text-anchor": "end", "font-size": 11.5, fill: "var(--ink-2)" }, svg, "Drift");
+  el("text", { x: x(4), y: y(GATE[4][2]) - 10, "text-anchor": "middle", "font-size": 11.5, fill: "var(--ink-2)" }, svg, "Falls");
+  GATE.forEach((d, i) => el("text", { x: x(i), y: H - M.b + 16, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, svg, d[0]));
+  const cross = el("line", { y1: M.t, y2: M.t + ph, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden" }, svg);
+  const tip = tipFor(host);
+  const hit = el("rect", { x: M.l, y: M.t, width: pw, height: ph, fill: "transparent" }, svg);
+  hit.addEventListener("pointermove", ev => {
+    const p = svgPoint(svg, ev); const i = Math.max(0, Math.min(n - 1, Math.floor((p.x - M.l) / slot)));
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+    tip.show(rows(GATE[i]), p.px, p.py);
+  });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); tip.hide(); });
+})();
+
+// 3. training curves: episode length + horizon (both seconds)
+(function () {
+  const host = document.getElementById("train");
+  const lg = document.createElement("div"); lg.className = "legend";
+  lg.innerHTML = '<span><i class="sw" style="background:var(--s1)"></i>Training episode length (s)</span><span><i class="sw dash"></i>Horizon (s)</span>';
+  host.appendChild(lg);
+  const { svg, y } = frame(host, 40, [0, 10, 20, 30, 40], " s");
+  const xMax = 740, x = v => M.l + (v / xMax) * pw;
+  for (const t of [0, 100, 200, 300, 400, 500, 600, 700])
+    el("text", { x: x(t), y: H - M.b + 16, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, svg, t + "M");
+  // warm-up band
+  el("rect", { x: x(0), y: M.t, width: x(39.3) - x(0), height: ph, fill: "var(--grid)", opacity: 0.6 }, svg);
+  el("text", { x: x(2), y: M.t + 12, "font-size": 11, fill: "var(--muted)" }, svg, "actor frozen");
+  // horizon steps
+  let hp = ""; TRAIN.forEach((d, i) => { hp += (i ? ` H${x(d[0])} V${y(d[4])}` : `M${x(d[0])},${y(d[4])}`); });
+  el("path", { d: hp, fill: "none", stroke: "var(--target)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, svg);
+  const pts = TRAIN.filter(d => d[1] > 0);
+  el("polyline", { points: pts.map(d => `${x(d[0])},${y(d[1])}`).join(" "), fill: "none", stroke: "var(--s1)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+  const end = pts[pts.length - 1];
+  el("circle", { cx: x(end[0]), cy: y(end[1]), r: 4, fill: "var(--s1)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+  el("text", { x: x(405) + 4, y: y(38) - 6, "font-size": 11, fill: "var(--ink-2)" }, svg, "38 s");
+  el("text", { x: x(220) + 4, y: y(25.3) - 6, "font-size": 11, fill: "var(--ink-2)" }, svg, "25 s");
+  el("text", { x: x(60), y: y(16.9) - 6, "font-size": 11, fill: "var(--ink-2)" }, svg, "17 s");
+  el("text", { x: M.l + 4, y: H - 2, "font-size": 11, fill: "var(--muted)" }, svg, "Training steps");
+  const cross = el("line", { y1: M.t, y2: M.t + ph, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden" }, svg);
+  const dot = el("circle", { r: 4.5, fill: "var(--s1)", stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, svg);
+  const tip = tipFor(host);
+  const hit = el("rect", { x: M.l, y: M.t, width: pw, height: ph, fill: "transparent" }, svg);
+  hit.addEventListener("pointermove", ev => {
+    const p = svgPoint(svg, ev), v = ((p.x - M.l) / pw) * xMax;
+    let best = TRAIN[0]; for (const d of TRAIN) if (Math.abs(d[0] - v) < Math.abs(best[0] - v)) best = d;
+    cross.setAttribute("x1", x(best[0])); cross.setAttribute("x2", x(best[0])); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", x(best[0])); dot.setAttribute("cy", y(best[1])); dot.setAttribute("visibility", "visible");
+    tip.show(`<b>${best[0]} M steps</b>` +
+      `<div class="row"><span>Episode length</span><span>${best[1].toFixed(1)} s</span></div>` +
+      `<div class="row"><span>Horizon</span><span>${best[4].toFixed(1)} s</span></div>` +
+      `<div class="row"><span>Clean streak</span><span>${best[3].toFixed(1)}</span></div>` +
+      `<div class="row"><span>Return</span><span>${best[2].toLocaleString()}</span></div>` +
+      `<div class="row"><span>Value loss</span><span>${best[5]}</span></div>`, p.px, p.py);
+  });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); tip.hide(); });
+})();
+
+// table
+(function () {
+  const tb = document.querySelector("#ckpts tbody");
+  for (const d of GATE.concat(EXTRA)) {
+    const tr = document.createElement("tr");
+    if (d[0] === "600M") tr.className = "hi"; if (d[0] === "Start") tr.className = "base";
+    const name = d[0] === "Start" ? "Start brain (100 episodes)" : (d[0].endsWith("M") ? "ckpt_" + d[0] : d[0]);
+    tr.innerHTML = `<td>${name}</td><td>${d[1]} %</td><td>${d[2]} %</td><td>${d[3].toFixed(1)} s</td><td>${d[4].toFixed(1)}</td><td>${d[5].toFixed(1)}</td><td>${d[6]} %</td>`;
+    tb.appendChild(tr);
+  }
+})();
+</script>
