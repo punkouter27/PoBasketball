@@ -79,3 +79,8 @@ Affected policy: dribble (stationary) only; nothing exported unless the gate pas
 - Resume `runs/dribble_time10d/ckpt_600M.pt` on the SAME level (l2a_time), so actor, critic, optimiser and std all load (no warm-up).
   Horizon starts at 45 s (= gate; 10d never got past 38 s), drift_w 2.0 -> 4.0 (drift ends 28 % of gate episodes), same PPO settings as
   10d (KL 0.02, epochs 2, lr_max 2e-5, lr_min 1e-7, anchor 1.0 to ckpt_600M). 135 min training + gate evals every 25 M.
+- 13:00 `dribble_45` stopped at 18 M (my error): **collapsed in the first 20 iterations** (episodes 1.2 s, KL 0.29 at the 1e-7 LR floor,
+  value loss 7.8k). Cause: the resume omitted `--freeze-norm` (10d had it). ckpt_600M's normaliser count is only 1e6 (set by
+  onnx_to_ckpt) and each iteration adds ~1e5, so the stats re-fitted within a few iterations: means moved up to 5.1 sigma, 25 inputs
+  > 0.5 sigma; the shifted inputs broke the actor and its failures skewed the stats further. Kept on disk.
+- `dribble_45b`: identical plus `--freeze-norm`, 90 min training (budget ends ~14:45 with evals).
