@@ -59,7 +59,7 @@ Stage 1 changes (affected policy: dribble family; no obs/action/physics change; 
   probe a composite teacher (legs + torso from locomotion, arms from dribble) and, if it carries the ball, behaviour-clone it into
   the dribble network before PPO.
 
-## 11:00-12:40 Review page (user: REVIEW) - `SCREENSHOTS/20261121_review/index.html`
+## 10:30-12:05 Review page (user: REVIEW) - `SCREENSHOTS/20261121_review/index.html`
 
 - Game captures (engine `-StreetballCapture`, seed 7, tier 3): new dribble brain vs dribble_drift250. First 40 s: new 1 hard reset / 4 loose
   balls, previous 7 / 17. GIF bursts re-recorded at `slomo 0.25` (12 fps game time).
@@ -70,3 +70,12 @@ Stage 1 changes (affected policy: dribble family; no obs/action/physics change; 
 - Capture lessons: `-ExecutePythonScript` quits the editor after the script (use `-ExecCmds="py <file>"`); editor viewport screenshots
   only complete on a forced redraw when the editor is in the background; window-only capture (PrintWindow on the editor HWND) works.
   A desktop screen capture was tried once and grabbed a browser window instead; it was deleted immediately and never published.
+
+## 12:13 `dribble_45` (user: "training as needed for another 2.5 hours"): push the stationary dribble from 71 % toward the 85 % gate
+
+Affected policy: dribble (stationary) only; nothing exported unless the gate passes. No obs/action/physics change.
+- `train.py`: `--horizon0` (l2a_time starting horizon; the curriculum state is not saved in a checkpoint) and `--drift-w` (L2 drift
+  penalty weight). Defaults leave behaviour unchanged.
+- Resume `runs/dribble_time10d/ckpt_600M.pt` on the SAME level (l2a_time), so actor, critic, optimiser and std all load (no warm-up).
+  Horizon starts at 45 s (= gate; 10d never got past 38 s), drift_w 2.0 -> 4.0 (drift ends 28 % of gate episodes), same PPO settings as
+  10d (KL 0.02, epochs 2, lr_max 2e-5, lr_min 1e-7, anchor 1.0 to ckpt_600M). 135 min training + gate evals every 25 M.

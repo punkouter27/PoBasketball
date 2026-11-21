@@ -124,6 +124,11 @@ def parse():
         "--ckpt-every-steps", type=float, default=25e6, help="also save ckpt_<Msteps>.pt at these milestones"
     )
     ap.add_argument("--save-every", type=int, default=50, help="iterations")
+    ap.add_argument(
+        "--horizon0", type=float, default=None,
+        help="l2a_time: starting episode horizon in s (the curriculum state is not in a checkpoint; e.g. 45 = the gate's length)",
+    )
+    ap.add_argument("--drift-w", type=float, default=None, help="L2 dribble levels: weight of the pelvis-drift penalty")
     return ap.parse_args()
 
 
@@ -175,6 +180,12 @@ def main():
         level.quiet_posture = True
     if args.assist_anneal_steps is not None:
         level.assist_anneal_steps = args.assist_anneal_steps
+    if args.horizon0 is not None:
+        level.horizon0 = level.horizon = args.horizon0
+        print(f"horizon starts at {args.horizon0} s")
+    if args.drift_w is not None:
+        level.drift_w = args.drift_w
+        print(f"drift penalty weight {args.drift_w}")
     if args.posture_ramp_steps > 0:
         level.posture_ramp = (args.critic_warmup_iters * args.num_envs * args.steps_per_env, args.posture_ramp_steps)
 
