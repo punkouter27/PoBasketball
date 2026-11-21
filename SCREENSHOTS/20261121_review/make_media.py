@@ -13,7 +13,6 @@ engine high-res shot of Play-In-Editor after moving the PCG volume and rotating 
 
 import glob
 import os
-import shutil
 
 from PIL import Image, ImageDraw, ImageFont
 

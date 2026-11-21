@@ -14,7 +14,7 @@ Replay: `C:/Users/punko/Downloads/_CODEMATT/PoBasketball/shared/golden/replay_ba
 | Max abs obs diff (C++ builder vs Python) | 1.192e-06 (slot 90, step 24) | report |
 | Max abs action diff (NNE vs onnxruntime) | 1.192e-06 | report |
 | Foot-contact flag mismatched steps | 0 / 250 | report |
-| Mean inference | 0.126 ms | < 2 ms |
+| Mean inference | 0.082 ms | < 2 ms |
 | Lowest pelvis height (athlete upright) | 0.930 m | >= 0.70 m |
 
 **PASS**
