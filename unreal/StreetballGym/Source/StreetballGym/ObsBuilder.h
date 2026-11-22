@@ -6,7 +6,7 @@ class UMuJoCoSim;
 
 /**
  * C++ twin of sim/streetball/obs.py (NumObs-float observation, NumAction-float action rule).
- * Index tables come from Content/Sim/obs_spec.json so both sides share one definition.
+ * Index tables come from Content/Project/RL_Policies/obs_spec.json so both sides share one definition.
  * Verified slot-for-slot against shared/golden/obs_golden.npz by the Streetball.ObsGolden test.
  */
 struct STREETBALLGYM_API FObsBuilder

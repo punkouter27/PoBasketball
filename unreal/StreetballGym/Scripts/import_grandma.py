@@ -3,7 +3,7 @@ as the main character's skeletal mesh, with its own skeleton, materials, texture
 
     UnrealEditor-Cmd.exe <project> -run=pythonscript -script="<this file>"     (via Scripts/run_headless.ps1)
 
-Output: /Game/Art/Characters/Grandma/SK_Grandma (+ _Skeleton, materials, textures). No physics asset: the body
+Output: /Game/Project/Agents/Grandma/SK_Grandma (+ _Skeleton, materials, textures). No physics asset: the body
 is simulated by MuJoCo, Chaos stays off.
 """
 import os
@@ -12,7 +12,7 @@ import unreal
 
 PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(PROJECT, "Content", "Art", "Exports", "Grandma", "SK_Grandma.fbx")
-DEST = "/Game/Art/Characters/Grandma"
+DEST = "/Game/Project/Agents/Grandma"
 
 ui = unreal.FbxImportUI()
 ui.set_editor_property("import_as_skeletal", True)

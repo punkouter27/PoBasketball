@@ -14,7 +14,7 @@ AStreetballSpectatorActor::AStreetballSpectatorActor()
 	Mesh->SetEnableGravity(false);
 	// Mesh faces +Y in local space; rotate -90 deg so actor +X is facing direction.
 	Mesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Manny(TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Manny(TEXT("/Game/Project/Agents/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"));
 	if (Manny.Succeeded()) Mesh->SetSkeletalMeshAsset(Manny.Object);
 }
 
@@ -26,8 +26,8 @@ void FCourtCrowdPlayer::Initialize(UWorld* World, int32 Seed, int32 Count)
 	ReactionCount = 0;
 	if (!World || Count <= 0) return;
 
-	USkeletalMesh* Manny = LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"), nullptr, LOAD_NoWarn | LOAD_Quiet);
-	USkeletalMesh* Quinn = LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Characters/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	USkeletalMesh* Manny = LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Project/Agents/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	USkeletalMesh* Quinn = LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Project/Agents/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple"), nullptr, LOAD_NoWarn | LOAD_Quiet);
 	FRandomStream Rng(Seed * 4999 + 31);
 
 	FActorSpawnParameters SP;

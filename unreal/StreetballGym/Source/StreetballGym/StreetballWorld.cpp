@@ -49,7 +49,7 @@ AStreetballCharacter::AStreetballCharacter()
 	Mesh->SetAnimInstanceClass(UStreetballAnimInstance::StaticClass());
 	Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	Mesh->bEnableUpdateRateOptimizations = false;
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Manny(TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Manny(TEXT("/Game/Project/Agents/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"));
 	if (Manny.Succeeded()) Mesh->SetSkeletalMeshAsset(Manny.Object);
 }
 
@@ -150,14 +150,14 @@ AStreetballWorld::AStreetballWorld()
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickGroup = TG_PrePhysics;
 	// Substrate court materials (Scripts/make_court_materials.py). Prefix match on the MJCF geom name, longest wins.
-	GeomMaterialOverrides.Add(TEXT("floor"), TEXT("/Game/Art/Materials/MI_CourtAsphalt.MI_CourtAsphalt"));
-	GeomMaterialOverrides.Add(TEXT("ball"), TEXT("/Game/Art/Materials/MI_Basketball.MI_Basketball"));
-	GeomMaterialOverrides.Add(TEXT("rim_bracket"), TEXT("/Game/Art/Materials/MI_SteelPaint.MI_SteelPaint"));
-	GeomMaterialOverrides.Add(TEXT("rim_"), TEXT("/Game/Art/Materials/MI_RimPaint.MI_RimPaint"));
-	GeomMaterialOverrides.Add(TEXT("board_"), TEXT("/Game/Art/Materials/MI_Backboard.MI_Backboard"));
-	GeomMaterialOverrides.Add(TEXT("pole_"), TEXT("/Game/Art/Materials/MI_SteelPaint.MI_SteelPaint"));
-	GeomMaterialOverrides.Add(TEXT("arm_"), TEXT("/Game/Art/Materials/MI_SteelPaint.MI_SteelPaint"));
-	GeomMaterialOverrides.Add(TEXT("fence_"), TEXT("/Game/Art/Materials/MI_ChainLink.MI_ChainLink"));
+	GeomMaterialOverrides.Add(TEXT("floor"), TEXT("/Game/Project/Environments/Materials/MI_CourtAsphalt.MI_CourtAsphalt"));
+	GeomMaterialOverrides.Add(TEXT("ball"), TEXT("/Game/Project/Environments/Materials/MI_Basketball.MI_Basketball"));
+	GeomMaterialOverrides.Add(TEXT("rim_bracket"), TEXT("/Game/Project/Environments/Materials/MI_SteelPaint.MI_SteelPaint"));
+	GeomMaterialOverrides.Add(TEXT("rim_"), TEXT("/Game/Project/Environments/Materials/MI_RimPaint.MI_RimPaint"));
+	GeomMaterialOverrides.Add(TEXT("board_"), TEXT("/Game/Project/Environments/Materials/MI_Backboard.MI_Backboard"));
+	GeomMaterialOverrides.Add(TEXT("pole_"), TEXT("/Game/Project/Environments/Materials/MI_SteelPaint.MI_SteelPaint"));
+	GeomMaterialOverrides.Add(TEXT("arm_"), TEXT("/Game/Project/Environments/Materials/MI_SteelPaint.MI_SteelPaint"));
+	GeomMaterialOverrides.Add(TEXT("fence_"), TEXT("/Game/Project/Environments/Materials/MI_ChainLink.MI_ChainLink"));
 }
 
 UMaterialInterface* AStreetballWorld::MaterialOverrideFor(const FString& GeomName) const
@@ -246,7 +246,7 @@ UPolicyRunner* AStreetballWorld::LoadPolicy(const FString& Family)
 	// File from the transition table ("policies/<family>.onnx"), else <PolicyDir>/<family>.onnx.
 	FString Rel = Director ? Director->PolicyFileFor(Family) : FString();
 	if (Rel.IsEmpty()) Rel = FPaths::Combine(PolicyDir, Family + TEXT(".onnx"));
-	// Side-by-side comparisons: -StreetballPolicy_<family>=<file> (relative to Content/Sim, e.g. policies/locomotion_amp.onnx)
+	// Side-by-side comparisons: -StreetballPolicy_<family>=<file> (relative to Content/Project/RL_Policies, e.g. policies/locomotion_amp.onnx)
 	FString Override;
 	if (FParse::Value(FCommandLine::Get(), *FString::Printf(TEXT("StreetballPolicy_%s="), *Family), Override) && !Override.IsEmpty())
 	{

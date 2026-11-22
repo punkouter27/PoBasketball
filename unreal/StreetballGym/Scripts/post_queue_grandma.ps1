@@ -1,7 +1,7 @@
 # Runs the Unreal half of the grandma skin AFTER the training queue exits (UU_AGENT: no editor while a long
 # headless run is active, and the machine has < 3 GB commit headroom while training).
 #   1. wait for `streetball.queue` to exit
-#   3. import Content/Art/Exports/Grandma/SK_Grandma.fbx  -> /Game/Art/Characters/Grandma/SK_Grandma
+#   3. import Content/Art/Exports/Grandma/SK_Grandma.fbx  -> /Game/Project/Agents/Grandma/SK_Grandma
 #   2. build StreetballGymEditor (AStreetballCharacter::ApplyMainCharacterMesh)
 #   4. dump SK_Grandma's bind joints and compare with shared/mannequin_bones.json (<= 1 cm)
 #   5. run the Streetball automation tests (B5.BoneMapper checks the bind pose against the sim)
@@ -45,7 +45,7 @@ if (-not $ok) { Say "STOP: import failed"; exit 1 }
 # 4. bind-joint check
 $dump = (Join-Path $out "grandma_bones_ue.json").Replace("\", "/")   # UE parses -script escapes: \2... would become a control char
 $dlog = Join-Path $logs "dump.log"
-& $headless -TimeoutSec 900 -LogFile $dlog -EditorArgs @("-run=pythonscript", "-script=$(Join-Path $PSScriptRoot 'dump_mannequin_bones.py') $dump /Game/Art/Characters/Grandma/SK_Grandma")
+& $headless -TimeoutSec 900 -LogFile $dlog -EditorArgs @("-run=pythonscript", "-script=$(Join-Path $PSScriptRoot 'dump_mannequin_bones.py') $dump /Game/Project/Agents/Grandma/SK_Grandma")
 $cmp = & python (Join-Path $PSScriptRoot "compare_bones.py") (Join-Path $repo "shared\mannequin_bones.json") $dump --tol-cm 1.0 2>&1
 Add-Content -Path $md -Value "`n``````n$($cmp -join "`n")`n```````n" -Encoding utf8
 Say "bind-joint check vs Manny: rc=$LASTEXITCODE"

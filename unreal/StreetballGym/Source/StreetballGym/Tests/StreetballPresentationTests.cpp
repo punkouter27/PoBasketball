@@ -371,7 +371,7 @@ bool FStreetballLoopTest::RunTest(const FString&)
 	int32 Null = 0;
 	for (const TPair<FName, TObjectPtr<UPolicyRunner>>& P : W->GetPolicies()) if (!P.Value) ++Null;
 	TestEqual(TEXT("every family has a runnable policy (trained or dummy)"), Null, 0);
-	TestTrue(TEXT("transition table loaded from Content/Sim"), W->GetDirector()->HasTable());
+	TestTrue(TEXT("transition table loaded from Content/Project/RL_Policies"), W->GetDirector()->HasTable());
 	AddInfo(FString::Printf(TEXT("transition table v%d; trained policies present: [%s]"), W->GetDirector()->TableVersion(), *FString::Join(W->GetRealPolicyNames(), TEXT(", "))));
 	TestNotNull(TEXT("camera pre-allocated"), W->GetCamera());
 

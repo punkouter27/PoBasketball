@@ -2,7 +2,7 @@
 
     run_headless.ps1 -EditorArgs @("-run=pythonscript", "-script=<this file>")
 
-Builds /Game/Audio/MetaSounds/MS_* and rewires DA_CourtAudioBank to them:
+Builds /Game/Project/Core/Audio/MetaSounds/MS_* and rewires DA_CourtAudioBank to them:
   * impact sounds (ball/floor, palm, shoe, rim, board, net) = the placeholder wave from make_audio_assets.py, low-passed
     and gained by the float input "Impact" (0..1, set per event by FCourtAudioPlayer), plus a synthesized body (thump /
     ring) whose level also follows Impact -> soft dribbles sound muffled, hard pounds bright and boomy;
@@ -12,8 +12,8 @@ Swap any slot for a recorded sample later; the bank accepts any USoundBase.
 """
 import unreal
 
-PKG = "/Game/Audio/MetaSounds"
-BANK = "/Game/Audio/DA_CourtAudioBank"
+PKG = "/Game/Project/Core/Audio/MetaSounds"
+BANK = "/Game/Project/DataAssets/DA_CourtAudioBank"
 bs = unreal.get_engine_subsystem(unreal.MetaSoundBuilderSubsystem)
 ed = unreal.get_editor_subsystem(unreal.MetaSoundEditorSubsystem)
 OK = unreal.MetaSoundBuilderResult.SUCCEEDED
@@ -340,7 +340,7 @@ def discover():
 def main():
     unreal.EditorAssetLibrary.make_directory(PKG)
     discover()
-    A = "/Game/Audio/"
+    A = "/Game/Project/Core/Audio/"
     built = {
         "BallFloor": impact_sound("MS_BallFloor", A + "SW_BallFloor", 900.0, 9000.0, 0.35, body_freq=85.0, body_decay=0.11, body_gain=0.7, wave_len=0.4),
         "BallPalm": impact_sound("MS_BallPalm", A + "SW_BallPalm", 1500.0, 9000.0, 0.4, wave_len=0.2),

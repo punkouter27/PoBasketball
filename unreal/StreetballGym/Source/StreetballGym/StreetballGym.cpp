@@ -7,7 +7,7 @@ IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, StreetballGym, "Streetball
 
 namespace Streetball
 {
-	FString SimDir() { return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Sim")); }
+	FString SimDir() { return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Project/RL_Policies")); }
 	FString SceneXmlPath() { return FPaths::Combine(SimDir(), TEXT("scene.xml")); }
 	FString ObsSpecPath() { return FPaths::Combine(SimDir(), TEXT("obs_spec.json")); }
 	FString HumanoidSpecPath() { return FPaths::Combine(SimDir(), TEXT("humanoid_spec.json")); }

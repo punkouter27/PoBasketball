@@ -1,7 +1,7 @@
-"""Copy the shared contracts and exported policies into the Unreal project (Content/Sim).
+"""Copy the shared contracts and exported policies into the Unreal project (Content/Project/RL_Policies).
 
 Policy roster (shared/transition_table.json v1): five families, one ONNX each:
-    balance, locomotion, dribble, scramble, shot  ->  Content/Sim/policies/<family>.onnx
+    balance, locomotion, dribble, scramble, shot  ->  Content/Project/RL_Policies/policies/<family>.onnx
 The Unreal director (UStreetballDirector) loads the table at BeginPlay and resolves each state
 to its family file; a family without a file falls back to policies/dummy_policy.onnx.
 
@@ -11,7 +11,7 @@ Sources, in order of preference, for each family:
 Sidecar <name>.json files are copied alongside; a sidecar whose obs_spec hash differs from the
 current shared/obs_spec.json raises a warning (the policy was exported against another interface).
 
-Also refreshes Content/Sim/{obs_spec,humanoid_spec,transition_table}.json.
+Also refreshes Content/Project/RL_Policies/{obs_spec,humanoid_spec,transition_table}.json.
 
 Usage: uv run python tools/sync_policies_to_unreal.py
 """
@@ -23,7 +23,7 @@ import shutil
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SHARED = ROOT.parent / "shared"
-DST = ROOT.parent / "unreal" / "StreetballGym" / "Content" / "Sim"
+DST = ROOT.parent / "unreal" / "StreetballGym" / "Content" / "Project" / "RL_Policies"
 FAMILIES = ("balance", "locomotion", "dribble", "scramble", "shot")
 
 
@@ -35,7 +35,7 @@ def main() -> None:
             shutil.copy2(src, DST / name)
         else:
             print(f"WARNING missing {src}")
-    # the fallback every family without a trained file uses (a fresh clone has none: Content/Sim/policies is ignored)
+    # the fallback every family without a trained file uses (a fresh clone has none: Content/Project/RL_Policies/policies is ignored)
     for name in ("dummy_policy.onnx", "dummy_policy.json"):
         if (SHARED / name).exists():
             shutil.copy2(SHARED / name, DST / "policies" / name)

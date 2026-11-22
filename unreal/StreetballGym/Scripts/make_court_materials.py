@@ -19,7 +19,7 @@ import unreal  # noqa: E402
 import sbmat  # noqa: E402
 from sbmat import Graph
 
-PKG = "/Game/Art/Materials"
+PKG = "/Game/Project/Environments/Materials"
 CF4 = unreal.CustomMaterialOutputType.CMOT_FLOAT4
 CF1 = unreal.CustomMaterialOutputType.CMOT_FLOAT1
 

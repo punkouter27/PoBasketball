@@ -1,7 +1,7 @@
 """Create a separate Chaos comparison map without modifying Court or its game mode."""
 import unreal
 
-level = "/Game/Maps/LearningAgentsComparison"
+level = "/Game/Project/Environments/Maps/LearningAgentsComparison"
 editor = unreal.EditorLevelLibrary
 if unreal.EditorAssetLibrary.does_asset_exist(level):
     if not editor.load_level(level):

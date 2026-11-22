@@ -18,7 +18,8 @@ from sbmat import Graph  # noqa: E402
 
 L = unreal.StreetballEditorLibrary
 EAL = unreal.EditorAssetLibrary
-PKG = "/Game/VFX"
+PKG = "/Game/Project/Core/VFX"
+DATA_DIR = "/Game/Project/DataAssets"  # DA_CourtFXBank lives with the other DataAssets
 BURST = "/Niagara/DefaultAssets/Templates/Systems/DirectionalBurstLightweight"
 LOOP = "/Niagara/DefaultAssets/Templates/Systems/FountainLightweight"
 
@@ -291,17 +292,17 @@ def main():
             built[name] = make_system(name, template, spec)
         except Exception as e:
             unreal.log_error(f"NIAGARA {name} FAILED: {e}")
-    bank_path = f"{PKG}/DA_CourtFXBank"
+    bank_path = f"{DATA_DIR}/DA_CourtFXBank"
     if EAL.does_asset_exist(bank_path):
         EAL.delete_asset(bank_path)
     factory = unreal.DataAssetFactory()
     factory.set_editor_property("data_asset_class", unreal.CourtFXBank)
-    bank = unreal.AssetToolsHelpers.get_asset_tools().create_asset("DA_CourtFXBank", PKG, unreal.CourtFXBank, factory)
+    bank = unreal.AssetToolsHelpers.get_asset_tools().create_asset("DA_CourtFXBank", DATA_DIR, unreal.CourtFXBank, factory)
     for prop, name in (("ball_dust", "NS_BallDust"), ("rim_sparks", "NS_RimSparks"), ("board_dust", "NS_BoardDust"), ("swish", "NS_Swish"),
                        ("foot_dust", "NS_FootDust"), ("sweat", "NS_Sweat"), ("leaves", "NS_Leaves"), ("motes", "NS_Motes"), ("pigeons", "NS_Pigeons")):
         if name in built:
             bank.set_editor_property(prop, built[name])
-    net = unreal.load_asset("/Game/Art/Env/Proxy/SM_BasketballNet")
+    net = unreal.load_asset("/Game/Project/Environments/Env/Proxy/SM_BasketballNet")
     if net:
         net.set_material(0, net_mat)
         EAL.save_loaded_asset(net)

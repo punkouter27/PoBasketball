@@ -6,7 +6,7 @@ neighbourhood (build_environment.py) reads.
 
 Swapping in Megascans / Fab assets later: download them in the editor (Fab panel, needs the user's Epic sign-in),
 then edit env_slots.json so a slot lists the new mesh paths (e.g. "bench": ["/Game/Fab/Bench_01/SM_Bench_01"]) and
-re-run build_environment.py. Slots keep any paths that are not under /Game/Art/Env/Proxy when this script re-runs.
+re-run build_environment.py. Slots keep any paths that are not under /Game/Project/Environments/Env/Proxy when this script re-runs.
 """
 import json
 import os
@@ -22,8 +22,8 @@ from sbmat import Graph
 PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXPORTS = os.path.join(PROJECT, "Content", "Art", "Exports", "Env")
 SLOTS_JSON = os.path.join(PROJECT, "Content", "Art", "env_slots.json")
-DEST = "/Game/Art/Env/Proxy"
-MATS = "/Game/Art/Env/Materials"
+DEST = "/Game/Project/Environments/Env/Proxy"
+MATS = "/Game/Project/Environments/Env/Materials"
 
 # slot material -> (base colour, roughness, metallic, emissive)
 LOOK = {
