@@ -114,3 +114,15 @@ spot; same encoding as L1/L3 waypoints: unit direction in the heading frame + di
 - NOT trained yet (user: finish up). Next run: `skill_run --level l2a_time --gate l2a_dribble_r` with `--init
   runs/production/dribble_anchor_init.pt --freeze-norm --horizon0 45 --kl-target 0.02 --epochs 2 --lr-max 2e-5 --lr-min 1e-7
   --anchor-coef 1.0 --assist-anneal-steps 1` (drift_w default 2.0), 2-3 h; compare with ckpt_600M 71 %.
+
+## 21:25 `dribble_anchor10` (user: "train this dribbling another 10 hours"): first training with observable drift
+
+Affected policy: dribble (stationary, right hand) only. State machine rows, interface, physics: unchanged. Nothing exported unless the gate passes.
+- Start check: `runs/production/dribble_anchor_init.pt` on `l2a_dribble_r`, 200 episodes: 68.5 % success, falls 0 %, drift 30.5 %.
+- Run: the 15:00 plan, 600 min of training (evals of every checkpoint follow): `skill_run --level l2a_time --gate l2a_dribble_r`,
+  extra `--init runs/production/dribble_anchor_init.pt --freeze-norm --horizon0 45 --kl-target 0.02 --epochs 2 --lr-max 2e-5
+  --lr-min 1e-7 --anchor-coef 1.0 --assist-anneal-steps 1`. Reference: ckpt_600M 71 %, gate 85 % + holds 100.
+- Found before the run (Unreal, not fixed): tier 3 without `-StreetballDribbleHand=right` sends left hand / hand switches, which this
+  brain never trained on: 34 resets in ~1 min. With the flag, seed 7: first dribble 22.44 s (same as 09:00), 3 resets in 60 s.
+- Found before the run (Unreal, not fixed): `Content/Sim/court.xml` (11-17) lacks the soft ball-palm contact pairs of
+  `sim/assets/court.xml` (50ab00d, 11-19), so the game's dribble physics differs from the training physics.
