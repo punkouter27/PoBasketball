@@ -187,7 +187,9 @@ class L3DribbleWalk(L3MovingDribble):
         k = ids.numel()
         ang = env.rand(k, lo=-3.1416, hi=3.1416)
         d = env.rand(k, lo=self.wp_dist[0], hi=self.wp_dist[1])
-        base = env.qpos[ids, env.root_q : env.root_q + 2]  # current root xy (p_pelvis is stale right after set_root_pose)
+        base = env.qpos[
+            ids, env.root_q : env.root_q + 2
+        ]  # current root xy (p_pelvis is stale right after set_root_pose)
         wp = base + d[:, None] * torch.stack([torch.cos(ang), torch.sin(ang)], -1)
         wp[:, 0] = wp[:, 0].clamp(-self.court[0], self.court[0])
         wp[:, 1] = wp[:, 1].clamp(-self.court[1], self.court[1])
@@ -204,7 +206,10 @@ class L3DribbleWalk(L3MovingDribble):
                 if self.succ_ema > self.promote_at and self.stage < len(self.speed_stages) - 1:
                     self.stage += 1
                     self.succ_ema = 0.0
-                    print(f"[l3a_walk] success > {self.promote_at:.0%}: speed stage -> {self.speed_stages[self.stage]} m/s", flush=True)
+                    print(
+                        f"[l3a_walk] success > {self.promote_at:.0%}: speed stage -> {self.speed_stages[self.stage]} m/s",
+                        flush=True,
+                    )
         super().on_reset(ids)
         self.ep_steps[ids] = 0
 

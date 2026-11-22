@@ -467,6 +467,9 @@ class StreetballEnv:
             "time_outs": trunc & ~term,
         }
         info.update(self.level.metrics())
+        # the standard penalties, one weighted term each (charged by Level.penalties() inside reward())
+        for k, v in getattr(self.level, "penalty_terms", {}).items():
+            info[f"m/pen_{k}"] = v
         info["success"] = done & self.level.episode_success()  # evaluated before the auto-reset
         if hasattr(self.level, "episode_fail_reasons"):  # diagnostics only (evaluate.py breakdown)
             for k, v in self.level.episode_fail_reasons().items():

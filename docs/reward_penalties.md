@@ -18,5 +18,10 @@ Curriculum gates (eval success rate a level must hold before its policy is promo
 l2a_dribble_r 0.85, l2c_crossover 0.80, l3a_moving_dribble 0.75, l3b_scramble 0.80, l4_jump_shot 0.30. Level variants
 (l2b_dribble_l, l2a_cycles, l1_traverse_amp, …) use their parent level's gate, as before.
 
+Each weighted term is also kept separately (`Level.penalty_terms`) and reported per step as `info["m/pen_<term>"]`, so
+`train.py` logs `m/pen_torque_sq`, `m/pen_joint_ang_vel_sq`, `m/pen_action_rate_sq` and `m/pen_foot_slip` to TensorBoard
+and progress.csv (2026-11-22, logging only: the reward is unchanged). `sim/tests/test_env.py::
+test_every_penalty_term_is_charged_and_logged` (GPU) checks all four are charged under random actions.
+
 **Shipped policies were not retrained.** Every policy in `shared/policies/` was trained before the foot-slip term
 existed; their behaviour is unchanged (inference only). The term takes effect on the next training run of any level.

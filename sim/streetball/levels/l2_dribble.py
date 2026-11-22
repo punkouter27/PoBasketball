@@ -37,7 +37,9 @@ class L2Dribble(Level):
     # task slots 4-6 carry the way back to the start spot (see task_block). Checkpoints from before 2026-11-21 need
     # tools/open_task_inputs.py (slots 4-6) first: their weights on these inputs were never trained.
     anchor_obs = True
-    near_spot_r = 0.3  # clean bounce: ball within this horizontal distance (m) of the dribble spot all cycle (Unreal: NearSpotR)
+    near_spot_r = (
+        0.3  # clean bounce: ball within this horizontal distance (m) of the dribble spot all cycle (Unreal: NearSpotR)
+    )
     # reach shaping floor (m) for the palm target while the ball rises; 0 = off (target always 12 cm above the ball)
     reach_hold = 0.0
     # min ball-centre z for the touch shaping (first_touch, r_palm); 0 = off. A touch below the band ends the peak low.
@@ -160,7 +162,9 @@ class L2Dribble(Level):
             fwd, left = env.H[:, :2, 0], env.H[:, :2, 1]
             tb[:, 4] = (dirw * fwd).sum(-1)
             tb[:, 5] = (dirw * left).sum(-1)
-            tb[:, 6] = dist.clamp(max=1.0)  # the gate ends at 0.75 m; the clamp also guards a stale pelvis on a reset step
+            tb[:, 6] = dist.clamp(
+                max=1.0
+            )  # the gate ends at 0.75 m; the clamp also guards a stale pelvis on a reset step
         return tb if ids is None else tb[ids]
 
     def _active_palm_contact(self) -> torch.Tensor:

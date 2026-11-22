@@ -87,12 +87,23 @@ def side_by_side(left, right, out, size, fps, llab, rlab):
 def main():
     made = []
     # 1. GIFs (quarter-speed bursts: 12 frames per game second -> played at 12 fps = real time)
-    n = gif(frames("cap_n21snew_gif_*.png"), os.path.join(HERE, "gif_new_dribble.gif"), (640, 360), 12,
-            ("New dribble brain", "ckpt_600M - gate 71 % - real time", NEW))
+    n = gif(
+        frames("cap_n21snew_gif_*.png"),
+        os.path.join(HERE, "gif_new_dribble.gif"),
+        (640, 360),
+        12,
+        ("New dribble brain", "ckpt_600M - gate 71 % - real time", NEW),
+    )
     made.append(("gif_new_dribble.gif", n))
-    n = side_by_side(frames("cap_n21snew_bcgif_*.png"), frames("cap_n21sold_bcgif_*.png"),
-                     os.path.join(HERE, "gif_new_vs_old.gif"), (480, 270), 12,
-                     ("NEW (ckpt_600M)", "gate 71 %", NEW), ("OLD (dribble_drift 250M)", "gate 9 %", OLD))
+    n = side_by_side(
+        frames("cap_n21snew_bcgif_*.png"),
+        frames("cap_n21sold_bcgif_*.png"),
+        os.path.join(HERE, "gif_new_vs_old.gif"),
+        (480, 270),
+        12,
+        ("NEW (ckpt_600M)", "gate 71 %", NEW),
+        ("OLD (dribble_drift 250M)", "gate 9 %", OLD),
+    )
     made.append(("gif_new_vs_old.gif", n))
 
     # 2. annotated gameplay stills
@@ -101,7 +112,10 @@ def main():
     tag(im, "New dribble brain in Unreal", "Tier 3 stationary dribble - seed 7 - 12 s in", NEW)
     im.save(os.path.join(HERE, "ann_new_dribble.jpg"), quality=88)
     made.append(("ann_new_dribble.jpg", 1))
-    for b, lab, col, sub in (("new", "NEW brain", NEW, "same seed, 32 s in"), ("old", "OLD brain", OLD, "same seed, 32 s in")):
+    for b, lab, col, sub in (
+        ("new", "NEW brain", NEW, "same seed, 32 s in"),
+        ("old", "OLD brain", OLD, "same seed, 32 s in"),
+    ):
         im = Image.open(frames(f"cap_n21{b}_bc32_*.png")[0]).convert("RGB").resize((800, 450), Image.LANCZOS)
         tag(im, lab, sub, col, scale=0.5).save(os.path.join(HERE, f"still_{b}_32s.jpg"), quality=88)
         made.append((f"still_{b}_32s.jpg", 1))
@@ -109,7 +123,12 @@ def main():
     # 3. editor shots
     ed = [
         ("sie01_running.png", "ed_sie_running.jpg", "Simulate-In-Editor", "game running inside the editor viewport"),
-        ("sie02_prop_selected.png", "ed_sie_selected.jpg", "Runtime actor selected", "spectator 6 picked while the game runs"),
+        (
+            "sie02_prop_selected.png",
+            "ed_sie_selected.jpg",
+            "Runtime actor selected",
+            "spectator 6 picked while the game runs",
+        ),
         ("sie04_sun_rotated.png", "ed_sie_sun.jpg", "Sun rotated -15 / +70 deg", "shadows move, the game carries on"),
     ]
     for src, dst, t, s in ed:

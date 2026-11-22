@@ -34,6 +34,13 @@ public:
 	static FString BuildStampYYMMDD();
 	/** Text shown bottom-right ("build YYMMDD"); empty until the widget tree exists. */
 	FString GetBuildStampText() const;
+	/** true when the narrow (portrait) layout is in use. */
+	bool IsNarrowLayout() const { return LayoutMode == 1; }
+	/** Below this width (Slate units) the HUD uses the stacked narrow layout. */
+	static constexpr float NarrowWidth = 900.f;
+	/** Wide (landscape): corner anchors. Narrow (portrait / phone width): the mode banner, policy badge, telemetry and
+	 *  key hints stack bottom-left above the version stamp and wrap, so nothing overlaps at 9:16. */
+	void ApplyLayout(const FVector2D& ViewSize);
 
 	// exposed for tests
 	FString GetTierText() const;
@@ -46,6 +53,7 @@ public:
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 	virtual int32 NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 	                          FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
@@ -65,6 +73,8 @@ protected:
 	UPROPERTY() TObjectPtr<UTextBlock> BottomBarText;
 	UPROPERTY() TObjectPtr<UTextBlock> SubtitleText;
 	FString LastSubtitle;
+	int32 LayoutMode = -1;   // -1 not laid out yet, 0 wide, 1 narrow
+	float LayoutWidth = 0.f;
 
 	bool bLoose = false;
 	bool bTelemetryVisible = true;

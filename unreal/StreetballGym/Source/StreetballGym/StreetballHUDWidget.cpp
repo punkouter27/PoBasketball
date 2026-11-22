@@ -1,4 +1,5 @@
 #include "StreetballHUDWidget.h"
+#include "StreetballShowcase.h"
 #include "UiTheme.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/TextBlock.h"
@@ -115,6 +116,65 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 		StampSlot->SetAutoSize(true);
 	}
 	return Super::RebuildWidget();
+}
+
+void UStreetballHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	ApplyLayout(MyGeometry.GetLocalSize());
+}
+
+void UStreetballHUDWidget::ApplyLayout(const FVector2D& ViewSize)
+{
+	if (!ModeBannerText || !PolicyFpsText || !TelemetryText || !BottomBarText || !SubtitleText || ViewSize.X <= 1.f) return;
+	using namespace StreetballUiTheme;
+	const bool bNarrow = ViewSize.X < NarrowWidth || ViewSize.X < ViewSize.Y;
+	// The diagnostics corner button (touch devices) sits top-right: keep the policy badge clear of it.
+	const UStreetballShowcaseSubsystem* Showcase = UStreetballShowcaseSubsystem::Get(this);
+	const float RightInset = SafeAreaMargin + ((Showcase && Showcase->HasTouchButton()) ? 52.f : 0.f);
+	auto Place = [](UTextBlock* T, const FVector2D& Anchor, const FVector2D& Align, const FVector2D& Pos)
+	{
+		if (UCanvasPanelSlot* S = Cast<UCanvasPanelSlot>(T->Slot))
+		{
+			S->SetAnchors(FAnchors(Anchor.X, Anchor.Y));
+			S->SetAlignment(Align);
+			S->SetPosition(Pos);
+		}
+	};
+	const float Wrap = bNarrow ? FMath::Max(120.f, ViewSize.X - 2.f * SafeAreaMargin) : 0.f;
+	for (UTextBlock* T : { ModeBannerText.Get(), PolicyFpsText.Get(), TelemetryText.Get(), BottomBarText.Get(), SubtitleText.Get() })
+	{
+		T->SetAutoWrapText(bNarrow);
+		T->SetWrapTextAt(Wrap);
+	}
+	if (!bNarrow)
+	{
+		if (LayoutMode == 0 && FMath::IsNearlyEqual(LayoutWidth, ViewSize.X)) return;
+		Place(ModeBannerText, FVector2D(0.5f, 0.f), FVector2D(0.5f, 0.f), FVector2D(0.f, SafeAreaMargin));
+		Place(PolicyFpsText, FVector2D(1.f, 0.f), FVector2D(1.f, 0.f), FVector2D(-RightInset, SafeAreaMargin));
+		Place(TelemetryText, FVector2D(0.f, 1.f), FVector2D(0.f, 1.f), FVector2D(SafeAreaMargin, -SafeAreaMargin));
+		Place(BottomBarText, FVector2D(0.5f, 1.f), FVector2D(0.5f, 1.f), FVector2D(0.f, -SafeAreaMargin));
+		Place(SubtitleText, FVector2D(0.5f, 1.f), FVector2D(0.5f, 1.f), FVector2D(0.f, -SafeAreaMargin - 40.f));
+		LayoutMode = 0;
+		LayoutWidth = ViewSize.X;
+		return;
+	}
+	// Narrow: bottom-up stack above the version stamp row (stamp: bottom-right, ~20 px tall at Space3 from the edge).
+	float Y = -(Space3 + 22.f + Space2);
+	auto Stack = [&Place, &Y](UTextBlock* T)
+	{
+		if (T->GetVisibility() == ESlateVisibility::Collapsed) return;
+		Place(T, FVector2D(0.f, 1.f), FVector2D(0.f, 1.f), FVector2D(SafeAreaMargin, Y));
+		Y -= T->GetDesiredSize().Y + Space1;
+	};
+	Stack(BottomBarText);
+	Stack(TelemetryText);
+	Stack(PolicyFpsText);
+	Stack(ModeBannerText);
+	Y -= Space3;
+	Stack(SubtitleText);
+	LayoutMode = 1;
+	LayoutWidth = ViewSize.X;
 }
 
 FString UStreetballHUDWidget::BuildStampYYMMDD()
