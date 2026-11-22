@@ -2,7 +2,7 @@
 
     run_headless.ps1 -EditorArgs @("-run=pythonscript", "-script=<this file>")     (after import_env_assets.py)
 
-Builds /Game/PCG/PCG_Neighbourhood and puts a PCG Volume ("StreetballNeighbourhood") into /Game/Maps/Court. The graph:
+Builds /Game/Project/Environments/PCG/PCG_Neighbourhood and puts a PCG Volume ("StreetballNeighbourhood") into /Game/Project/Environments/Maps/Court. The graph:
   layout anchors (Create Points, from the ring geometry below)
     -> Attribute Noise on density -> Density Filter (random thinning per seed)
     -> Transform Points (position / yaw / scale jitter)
@@ -27,8 +27,8 @@ L = unreal.StreetballEditorLibrary
 EAL = unreal.EditorAssetLibrary
 PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SLOTS_JSON = os.path.join(PROJECT, "Content", "Art", "env_slots.json")
-GRAPH = "/Game/PCG/PCG_Neighbourhood"
-MAP = "/Game/Maps/Court"
+GRAPH = "/Game/Project/Environments/PCG/PCG_Neighbourhood"
+MAP = "/Game/Project/Environments/Maps/Court"
 PCG_SEED = 1959
 
 # ring geometry (metres, court centre at the origin; fence half extents from court.xml)
@@ -114,9 +114,9 @@ def mesh_entries(slots, weights):
     entries = []
     for slot, w in weights.items():
         if slot == "_cube_concrete":
-            paths = [(CUBE, "/Game/Art/Env/Materials/MI_Env_Concrete.MI_Env_Concrete")]
+            paths = [(CUBE, "/Game/Project/Environments/Env/Materials/MI_Env_Concrete.MI_Env_Concrete")]
         elif slot == "_cube_asphalt":
-            paths = [(CUBE, "/Game/Art/Materials/MI_CourtAsphalt.MI_CourtAsphalt")]
+            paths = [(CUBE, "/Game/Project/Environments/Materials/MI_CourtAsphalt.MI_CourtAsphalt")]
         else:
             paths = [(p if "." in p.rsplit("/", 1)[-1] else f"{p}.{p.rsplit('/', 1)[-1]}", None) for p in slots.get(slot, [])]
         for p, mat in paths:
@@ -129,7 +129,7 @@ def mesh_entries(slots, weights):
 def build_graph(slots):
     if EAL.does_asset_exist(GRAPH):
         EAL.delete_asset(GRAPH)
-    graph = unreal.AssetToolsHelpers.get_asset_tools().create_asset("PCG_Neighbourhood", "/Game/PCG", unreal.PCGGraph, unreal.PCGGraphFactory())
+    graph = unreal.AssetToolsHelpers.get_asset_tools().create_asset("PCG_Neighbourhood", "/Game/Project/Environments/PCG", unreal.PCGGraph, unreal.PCGGraphFactory())
     lay = layout()
     for name, (weights, keep, jit) in BRANCHES.items():
         entries = mesh_entries(slots, weights)

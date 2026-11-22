@@ -4,6 +4,8 @@
 #   pwsh Scripts/run_headless.ps1 -TimeoutSec 900 -LogFile out.log -- -ExecCmds="Automation RunTests Streetball; Quit" [-GateReplay=...]
 #
 # Exit code: the editor's exit code, or 124 on timeout (editor killed).
+# PositionalBinding off: everything not named (after --) goes to the editor, never into -Editor / -LogFile.
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [int]$TimeoutSec = 900,
     [string]$LogFile = "",

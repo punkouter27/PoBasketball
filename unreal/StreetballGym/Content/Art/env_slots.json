@@ -1,46 +1,46 @@
 {
   "building": [
-    "/Game/Art/Env/Proxy/SM_Brownstone_A",
-    "/Game/Art/Env/Proxy/SM_Brownstone_B",
-    "/Game/Art/Env/Proxy/SM_Brownstone_C"
+    "/Game/Project/Environments/Env/Proxy/SM_Brownstone_A",
+    "/Game/Project/Environments/Env/Proxy/SM_Brownstone_B",
+    "/Game/Project/Environments/Env/Proxy/SM_Brownstone_C"
   ],
   "bench": [
-    "/Game/Art/Env/Proxy/SM_Bench"
+    "/Game/Project/Environments/Env/Proxy/SM_Bench"
   ],
   "trash_can": [
-    "/Game/Art/Env/Proxy/SM_TrashCan"
+    "/Game/Project/Environments/Env/Proxy/SM_TrashCan"
   ],
   "fountain": [
-    "/Game/Art/Env/Proxy/SM_WaterFountain"
+    "/Game/Project/Environments/Env/Proxy/SM_WaterFountain"
   ],
   "car": [
-    "/Game/Art/Env/Proxy/SM_ParkedCar"
+    "/Game/Project/Environments/Env/Proxy/SM_ParkedCar"
   ],
   "tree": [
-    "/Game/Art/Env/Proxy/SM_Tree_A",
-    "/Game/Art/Env/Proxy/SM_Tree_B"
+    "/Game/Project/Environments/Env/Proxy/SM_Tree_A",
+    "/Game/Project/Environments/Env/Proxy/SM_Tree_B"
   ],
   "streetlight": [
-    "/Game/Art/Env/Proxy/SM_StreetLight"
+    "/Game/Project/Environments/Env/Proxy/SM_StreetLight"
   ],
   "hydrant": [
-    "/Game/Art/Env/Proxy/SM_Hydrant"
+    "/Game/Project/Environments/Env/Proxy/SM_Hydrant"
   ],
   "litter": [
-    "/Game/Art/Env/Proxy/SM_Litter_Can",
-    "/Game/Art/Env/Proxy/SM_Litter_Paper",
-    "/Game/Art/Env/Proxy/SM_Litter_Cup"
+    "/Game/Project/Environments/Env/Proxy/SM_Litter_Can",
+    "/Game/Project/Environments/Env/Proxy/SM_Litter_Paper",
+    "/Game/Project/Environments/Env/Proxy/SM_Litter_Cup"
   ],
   "weeds": [
-    "/Game/Art/Env/Proxy/SM_Weeds"
+    "/Game/Project/Environments/Env/Proxy/SM_Weeds"
   ],
   "net": [
-    "/Game/Art/Env/Proxy/SM_BasketballNet"
+    "/Game/Project/Environments/Env/Proxy/SM_BasketballNet"
   ],
   "pigeon": [
-    "/Game/Art/Env/Proxy/SM_Pigeon"
+    "/Game/Project/Environments/Env/Proxy/SM_Pigeon"
   ],
   "leaf": [
-    "/Game/Art/Env/Proxy/SM_Leaf"
+    "/Game/Project/Environments/Env/Proxy/SM_Leaf"
   ]
 }

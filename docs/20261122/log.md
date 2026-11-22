@@ -1,5 +1,20 @@
 # 2026-11-22
 
+## Consistency audit (Po Game Standard v3)
+
+Affected: no policy, observation, action or reward value changed; no retraining.
+
+- Content moved through the editor into `/Game/Project/{Agents,Core,DataAssets,Environments,RL_Policies}` (170 assets,
+  0 redirectors left, 0 load failures, no dependency on an old path); `Content/Sim` -> `Content/Project/RL_Policies`
+  (plain files: MJCF, specs, transition table, git-ignored ONNX copies). `/Game/...` strings updated in `Source/`,
+  `Config/`, `Scripts/`, `env_slots.json`; `sim/tools/sync_policies_to_unreal.py` copies to the new folder.
+- New DataAssets `DA_RewardConfig`, `DA_ShowcaseConfig` (from the C++ defaults), selected in `Config/DefaultGame.ini`.
+- Diagnostics overlay: "Benchmark sim speed [B]" (bounded CPU MuJoCo run, physics steps/s); idle clock ignores frames
+  longer than 0.25 s; HUD stacks bottom-left in portrait (9:16) so nothing overlaps.
+- Reward: each penalty term logged separately (`m/pen_<term>`); gate tests write their report to `Saved/Reports/`.
+- Web: every response carries `X-Commit`; the workflow and `/diag` check it.
+- Gaze tracking: not added (no neck joint; bones mirror physics) - owner decision, see AGENTS.md.
+
 ## 08:30 `dribble_anchor10` finished: training gate passed, NOT promoted
 
 Affected policy: dribble (stationary, right hand) only. No code, exported policy, state machine row, interface or physics changed.
@@ -31,7 +46,7 @@ Affected: dribble preview policy (Unreal tier 3); Unreal physics XML (court only
 locomotion/scramble policies: unchanged. NOT a promotion: no run_gate, no golden replay, the gate bugs (items 2-4) stay open.
 - `shared/policies/dribble.onnx` <- `runs/dribble_anchor10/best.pt` (preview, as on 11-21 15:00). The previous preview is kept as
   `shared/policies/dribble_anchor_init.onnx`.
-- `unreal/StreetballGym/Content/Sim/court.xml` <- `sim/assets/court.xml` (adds the `ball_palm_l` / `ball_palm_r` contact pairs).
+- `unreal/StreetballGym/Content/Sim/court.xml` (now `Content/Project/RL_Policies/court.xml` after the merge) <- `sim/assets/court.xml` (adds the `ball_palm_l` / `ball_palm_r` contact pairs).
 - `tools/sync_policies_to_unreal.py` also copies `sim/assets/{scene,humanoid,court}.xml`, so the court cannot go stale again.
 - Then: Unreal `Streetball.*` tests, and the game at tier 3 with `-StreetballDribbleHand=right`.
 - Result 16:30: export parity 1.6e-6; ruff clean. Unreal tests NOT run: Windows Smart App Control blocked the unsigned

@@ -40,11 +40,11 @@ class STREETBALLGYM_API AStreetballCharacter : public AActor
 public:
 	AStreetballCharacter();
 	/** Main character skin (visual only; re-proportioned onto Manny's joints by Scripts/retarget_grandma_blender.py). */
-	static constexpr const TCHAR* GrandmaMeshPath = TEXT("/Game/Art/Characters/Grandma/SK_Grandma.SK_Grandma");
+	static constexpr const TCHAR* GrandmaMeshPath = TEXT("/Game/Project/Agents/Grandma/SK_Grandma.SK_Grandma");
 	/** Same skin with the cardigan hem split into a Chaos Cloth section (Scripts/build_grandma_extras.py). Preferred. */
-	static constexpr const TCHAR* GrandmaClothMeshPath = TEXT("/Game/Art/Characters/Grandma/SK_Grandma_Cloth.SK_Grandma_Cloth");
-	static constexpr const TCHAR* GroomFlyawaysPath = TEXT("/Game/Art/Characters/Grandma/Groom/GR_Grandma_Flyaways.GR_Grandma_Flyaways");
-	static constexpr const TCHAR* GroomBrowsPath = TEXT("/Game/Art/Characters/Grandma/Groom/GR_Grandma_Brows.GR_Grandma_Brows");
+	static constexpr const TCHAR* GrandmaClothMeshPath = TEXT("/Game/Project/Agents/Grandma/SK_Grandma_Cloth.SK_Grandma_Cloth");
+	static constexpr const TCHAR* GroomFlyawaysPath = TEXT("/Game/Project/Agents/Grandma/Groom/GR_Grandma_Flyaways.GR_Grandma_Flyaways");
+	static constexpr const TCHAR* GroomBrowsPath = TEXT("/Game/Project/Agents/Grandma/Groom/GR_Grandma_Brows.GR_Grandma_Brows");
 	/**
 	 * Mesh priority: -StreetballCharacterMesh=<object path> (e.g. a MetaHuman body on the UE5 skeleton), then the cloth
 	 * grandma, the plain grandma, Manny. -StreetballCharacter=Manny forces Manny. -StreetballNoCloth skips the cloth mesh.
@@ -96,15 +96,15 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Streetball") FString KeyframeName = TEXT("stand");
 	UPROPERTY(EditAnywhere, Category = "Streetball") bool bShowHumanoidGeoms = false;
-	/** Directory with <level>.onnx policies; relative paths resolve against Content/Sim. */
+	/** Directory with <level>.onnx policies; relative paths resolve against Content/Project/RL_Policies. */
 	UPROPERTY(EditAnywhere, Category = "Streetball") FString PolicyDir = TEXT("policies");
 	UPROPERTY(EditAnywhere, Category = "Streetball") FString FallbackPolicy = TEXT("policies/dummy_policy.onnx");
-	/** shared/transition_table.json copy; relative paths resolve against Content/Sim. */
+	/** shared/transition_table.json copy; relative paths resolve against Content/Project/RL_Policies. */
 	UPROPERTY(EditAnywhere, Category = "Streetball") FString TransitionTablePath = TEXT("transition_table.json");
-	UPROPERTY(EditAnywhere, Category = "Streetball") FString AudioBankPath = TEXT("/Game/Audio/DA_CourtAudioBank.DA_CourtAudioBank");
+	UPROPERTY(EditAnywhere, Category = "Streetball") FString AudioBankPath = TEXT("/Game/Project/DataAssets/DA_CourtAudioBank.DA_CourtAudioBank");
 	UPROPERTY(EditAnywhere, Category = "Streetball") int32 DirectorSeed = 7;
-	UPROPERTY(EditAnywhere, Category = "Presentation") FString FXBankPath = TEXT("/Game/VFX/DA_CourtFXBank.DA_CourtFXBank");
-	UPROPERTY(EditAnywhere, Category = "Presentation") FString VoiceBankPath = TEXT("/Game/Audio/Voice/DA_GrandmaVoiceBank.DA_GrandmaVoiceBank");
+	UPROPERTY(EditAnywhere, Category = "Presentation") FString FXBankPath = TEXT("/Game/Project/DataAssets/DA_CourtFXBank.DA_CourtFXBank");
+	UPROPERTY(EditAnywhere, Category = "Presentation") FString VoiceBankPath = TEXT("/Game/Project/DataAssets/DA_GrandmaVoiceBank.DA_GrandmaVoiceBank");
 	/** Cosmetic materials by sim geom name prefix (first match wins; longest prefixes first). Missing assets keep the MJCF colour. */
 	UPROPERTY(EditAnywhere, Category = "Presentation") TMap<FString, FString> GeomMaterialOverrides;
 	/** -StreetballNoPresentation turns voice/VFX/ambience off (gate replays). */

@@ -22,7 +22,7 @@ if ($Output -eq "") {
 }
 $Output = [System.IO.Path]::GetFullPath($Output)
 if (Test-Path $Output) { throw "Output already exists; choose a fresh directory to protect previous runs." }
-$args = @("/Game/Maps/LearningAgentsComparison", "-game", "-LATier=$Tier", "-LAAgents=$Agents", "-LAOutput=$Output")
+$args = @("/Game/Project/Environments/Maps/LearningAgentsComparison", "-game", "-LATier=$Tier", "-LAAgents=$Agents", "-LAOutput=$Output")
 if ($Resume -ne "") { $args += "-LAResume=$((Resolve-Path $Resume).Path)" }
 if ($Mode -eq "Train" -or $Mode -eq "Smoke") { $args += "-LATrain" }
 if ($Mode -eq "Smoke") {

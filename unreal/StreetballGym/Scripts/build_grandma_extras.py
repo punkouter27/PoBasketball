@@ -25,7 +25,7 @@ from sbmat import Graph  # noqa: E402
 
 PROJECT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
 EXPORTS = _os.path.join(PROJECT, "Content", "Art", "Exports", "Grandma")
-DEST = "/Game/Art/Characters/Grandma"
+DEST = "/Game/Project/Agents/Grandma"
 EAL = unreal.EditorAssetLibrary
 L = unreal.StreetballEditorLibrary
 

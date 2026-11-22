@@ -1,5 +1,5 @@
 """Item 20: import the offline-baked grandma voice (tools/voice_bake/bake.py -> Content/Art/Exports/Voice) as sound
-waves + /Game/Audio/Voice/DA_GrandmaVoiceBank (UGrandmaVoiceBank: per-line audio and per-frame CC morph weights).
+waves + /Game/Project/DataAssets/DA_GrandmaVoiceBank (UGrandmaVoiceBank: per-line audio and per-frame CC morph weights).
 
     run_headless.ps1 -EditorArgs @("-run=pythonscript", "-script=<this file>")
 
@@ -12,7 +12,8 @@ import unreal
 
 PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(PROJECT, "Content", "Art", "Exports", "Voice")
-DEST = "/Game/Audio/Voice"
+DEST = "/Game/Project/Core/Audio/Voice"
+DATA_DIR = "/Game/Project/DataAssets"  # DA_GrandmaVoiceBank lives with the other DataAssets
 EAL = unreal.EditorAssetLibrary
 
 
@@ -32,12 +33,12 @@ def main():
         tasks.append(t)
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks(tasks)
 
-    path = f"{DEST}/DA_GrandmaVoiceBank"
+    path = f"{DATA_DIR}/DA_GrandmaVoiceBank"
     if EAL.does_asset_exist(path):
         EAL.delete_asset(path)
     factory = unreal.DataAssetFactory()
     factory.set_editor_property("data_asset_class", unreal.GrandmaVoiceBank)
-    bank = unreal.AssetToolsHelpers.get_asset_tools().create_asset("DA_GrandmaVoiceBank", DEST, unreal.GrandmaVoiceBank, factory)
+    bank = unreal.AssetToolsHelpers.get_asset_tools().create_asset("DA_GrandmaVoiceBank", DATA_DIR, unreal.GrandmaVoiceBank, factory)
     morphs = bank_json["morphs"]
     bank.set_editor_property("fps", float(bank_json.get("fps", 30)))
     bank.set_editor_property("morphs", [unreal.Name(m) for m in morphs])

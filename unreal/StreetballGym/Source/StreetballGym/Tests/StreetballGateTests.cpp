@@ -5,7 +5,8 @@
 // Inputs (CVars, defaults relative to <repo>/shared):
 //   streetball.GateReplay  = golden/replay_balance.json   (sim/tools/replay_recorder.py policy --level l0_stand)
 //   streetball.GatePolicy  = policies/balance.onnx (production balance; replay_l0.json/l0_stand.onnx were a stale pair)
-// Both tests pass-with-SKIPPED when the files are absent and write docs/phase_reports/Step4_gate_unreal.md.
+// Both tests pass-with-SKIPPED when the files are absent and write their report to Saved/Reports/Step4_gate_unreal.md
+// (tests never write tracked files); add -StreetballGateReportToDocs to refresh docs/phase_reports/Step4_gate_unreal.md on purpose.
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -161,11 +162,21 @@ namespace
 		if (t == Steps - 1) G.RootCmAt5s = R;
 	}
 
+	/** Repo-relative form of a path under the repo root (the report is committed: no local absolute paths). */
+	FString RepoRel(const FString& Path)
+	{
+		const FString Root = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("../.."))) / TEXT("");
+		FString Full = FPaths::ConvertRelativePathToFull(Path);
+		return Full.StartsWith(Root) ? Full.RightChop(Root.Len()) : Full;
+	}
+
 	void WriteGateReport(const FString& Section, const FString& Body)
 	{
-		const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("../../docs/phase_reports/Step4_gate_unreal.md")));
+		const FString Docs = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("../../docs/phase_reports/Step4_gate_unreal.md")));
+		const bool bToDocs = FParse::Param(FCommandLine::Get(), TEXT("StreetballGateReportToDocs"));
+		const FString Path = bToDocs ? Docs : FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Reports/Step4_gate_unreal.md")));
 		FString Existing;
-		FFileHelper::LoadFileToString(Existing, *Path);
+		if (!FFileHelper::LoadFileToString(Existing, *Path) && !bToDocs) FFileHelper::LoadFileToString(Existing, *Docs);
 		// Replace or append the section (sections are delimited by "## " headings).
 		const FString Header = TEXT("## ") + Section;
 		int32 Start = Existing.Find(Header);
@@ -276,7 +287,7 @@ bool FStreetballGatePresetTest::RunTest(const FString&)
 	const bool bPass = G.MaxRootCm < 2.0 && G.MaxJointDeg < 1.0;
 	const FString Body = FString::Printf(
 		TEXT("Replay: `%s` (mode %s, %d steps x %d substeps = %.1f s)\n\n| Metric | Value | Gate |\n|---|---|---|\n| Max root position error | %.4f cm | < 2 cm |\n| Max joint error | %.5f deg | < 1 deg |\n| Root error at 1 s / end | %.4f / %.4f cm | - |\n\n**%s**"),
-		*ReplayPath, *R.Mode, R.Steps, R.Substeps, R.Steps * R.Substeps * 0.002, G.MaxRootCm, G.MaxJointDeg, G.RootCmAt1s, G.RootCmAt5s, bPass ? TEXT("PASS") : TEXT("FAIL"));
+		*RepoRel(ReplayPath), *R.Mode, R.Steps, R.Substeps, R.Steps * R.Substeps * 0.002, G.MaxRootCm, G.MaxJointDeg, G.RootCmAt1s, G.RootCmAt5s, bPass ? TEXT("PASS") : TEXT("FAIL"));
 	WriteGateReport(TEXT("Preset actions (open loop)"), Body);
 	AddInfo(FString::Printf(TEXT("open loop %d steps: max root %.4f cm, max joint %.5f deg -> %s"), R.Steps, G.MaxRootCm, G.MaxJointDeg, bPass ? TEXT("PASS") : TEXT("FAIL")));
 	TestTrue(TEXT("root < 2 cm"), G.MaxRootCm < 2.0);
@@ -380,7 +391,7 @@ bool FStreetballGateLiveTest::RunTest(const FString&)
 		TEXT("| Foot-contact flag mismatched steps | %d / %d | report |\n")
 		TEXT("| Mean inference | %.3f ms | < 2 ms |\n")
 		TEXT("| Lowest pelvis height (athlete upright) | %.3f m | >= 0.70 m |\n\n**%s**"),
-		*ReplayPath, *PolicyPath, R.Steps, R.Substeps, R.Steps * R.Substeps * 0.002,
+		*RepoRel(ReplayPath), *RepoRel(PolicyPath), R.Steps, R.Substeps, R.Steps * R.Substeps * 0.002,
 		G.MaxRootCm, G.MaxJointDeg, G.RootCmAt1s, G.RootCmAt5s, G.MaxObs, WorstObsSlot, WorstObsStep, G.MaxAction,
 		G.FootMismatchSteps, R.Steps, InferenceMs / FMath::Max(1, R.Steps), G.MinPelvisZ, bPass ? TEXT("PASS") : TEXT("FAIL"));
 	WriteGateReport(TEXT("Live physics (closed loop)"), Body + Rollout);

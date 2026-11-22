@@ -4,7 +4,7 @@ Written by the Streetball.Gate.* automation tests (libmujoco 4.0.0 in UE 5.8.4).
 
 ## Live physics (closed loop)
 
-Replay: `C:/Users/punko/Downloads/_CODEMATT/PoBasketball/shared/golden/replay_balance.json`, policy: `C:/Users/punko/Downloads/_CODEMATT/PoBasketball/shared/policies/balance.onnx` (250 steps x 10 substeps = 5.0 s, closed loop in Unreal with NNE ORT-CPU)
+Replay: `shared/golden/replay_balance.json`, policy: `shared/policies/balance.onnx` (250 steps x 10 substeps = 5.0 s, closed loop in Unreal with NNE ORT-CPU)
 
 | Metric | Value | Gate |
 |---|---|---|
@@ -34,7 +34,7 @@ Level `l0_stand`, 5.00 s.
 
 ## Preset actions (open loop)
 
-Replay: `C:/Users/punko/Downloads/_CODEMATT/PoBasketball/shared/golden/replay_balance.json` (mode policy, 250 steps x 10 substeps = 5.0 s)
+Replay: `shared/golden/replay_balance.json` (mode policy, 250 steps x 10 substeps = 5.0 s)
 
 | Metric | Value | Gate |
 |---|---|---|

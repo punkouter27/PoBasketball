@@ -61,11 +61,24 @@ def build_version() -> str:
     return time.strftime("%y%m%d", time.gmtime())
 
 
+def build_commit() -> str:
+    """The commit being deployed: GITHUB_SHA in CI, else git HEAD; empty outside git."""
+    sha = os.environ.get("GITHUB_SHA", "").strip()
+    if sha:
+        return sha
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+
+
 def check_diag_config() -> None:
     """Every local /diag check must point at a file in dist; every CDN check must match the page's import map."""
     cfg = json.loads((WEB / "diag_checks.json").read_text(encoding="utf-8"))
     page = (WEB / "index.html").read_text(encoding="utf-8")
-    kinds = {"json", "text", "replays", "webgl2"}
+    kinds = {"json", "text", "replays", "commit", "webgl2"}
     for c in cfg["checks"]:
         if c["kind"] not in kinds or c["group"] not in {"api", "data", "service"}:
             raise SystemExit(f"diag_checks.json: bad kind/group in {c}")
@@ -154,14 +167,20 @@ def main() -> None:
     for f in ("index.html", "diag.html", "app.js", "diag_checks.json", "staticwebapp.config.json"):
         shutil.copy2(WEB / f, DIST / f)
     ver = build_version()
+    commit = build_commit()
     for html_name in ("index.html", "diag.html"):
         page = DIST / html_name
         text = page.read_text(encoding="utf-8")
         if "{{VERSION}}" not in text:
             raise SystemExit(f"{html_name}: no {{{{VERSION}}}} placeholder")
-        page.write_text(text.replace("{{VERSION}}", ver), encoding="utf-8")
+        page.write_text(text.replace("{{VERSION}}", ver).replace("{{COMMIT}}", commit), encoding="utf-8")
+    # every response carries the commit it was built from; the workflow and /diag compare it
+    swa = json.loads((WEB / "staticwebapp.config.json").read_text(encoding="utf-8"))
+    swa.setdefault("globalHeaders", {})["X-Commit"] = commit
+    (DIST / "staticwebapp.config.json").write_text(json.dumps(swa, indent=2) + "\n", encoding="utf-8")
     check_diag_config()
     print(f"version v{ver}")
+    print(f"commit {commit}")
     print(f"built {DIST}")
 
 

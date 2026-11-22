@@ -1,10 +1,12 @@
 {
-  "_doc": "Checks /diag runs live from the browser (web/diag.html). web/build.py verifies every local url exists in web/dist and that the CDN urls match the import map in index.html. kind: json | text | replays | webgl2. group: api | data | service.",
+  "_doc": "Checks /diag runs live from the browser (web/diag.html). web/build.py verifies every local url exists in web/dist and that the CDN urls match the import map in index.html. kind: json | text | replays | commit | webgl2. group: api | data | service.",
   "checks": [
     {"name": "page", "group": "api", "kind": "text", "url": "index.html", "expect": "po-version",
      "label": "Viewer page", "purpose": "The static page that hosts the viewer"},
     {"name": "script", "group": "api", "kind": "text", "url": "app.js", "expect": "WebGLRenderer",
      "label": "Viewer script", "purpose": "Scene builder and replay player (app.js)"},
+    {"name": "commit", "group": "api", "kind": "commit", "url": "index.html",
+     "label": "Deployed commit", "purpose": "X-Commit header the host sends, equal to the commit this build came from"},
     {"name": "model", "group": "data", "kind": "json", "url": "data/model.json", "expect": "scene.xml",
      "label": "Scene geometry", "purpose": "Court, ball and humanoid geoms baked from sim/assets/scene.xml"},
     {"name": "replays", "group": "data", "kind": "replays", "url": "data/replays.json",

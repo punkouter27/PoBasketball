@@ -74,6 +74,26 @@ def test_step_random_actions(env):
     assert dones > 0, "random actions should make the character fall at least once"
 
 
+def test_every_penalty_term_is_charged_and_logged(env):
+    """torque^2, joint angular velocity^2, action rate^2 and foot slip are each charged (weight < 0, term > 0 for some
+    worlds) and reported separately as info["m/pen_<term>"] (the trainer writes every m/ key to TensorBoard)."""
+    from streetball import reward_config
+
+    env.reset(torch.arange(env.N, device=env.device))
+    seen = {t: 0.0 for t in reward_config.PENALTY_TERMS}
+    for _ in range(30):
+        a = torch.rand(env.N, env.N_ACT, device=env.device, generator=env.gen) * 2 - 1
+        _, _, _, info = env.step(a)
+        for t in reward_config.PENALTY_TERMS:
+            v = info[f"m/pen_{t}"]
+            assert v.shape == (env.N,) and torch.isfinite(v).all()
+            assert (v <= 0).all(), f"{t} is a penalty"
+            seen[t] = min(seen[t], float(v.min()))
+    print({t: f"{v:.3e}" for t, v in seen.items()})
+    for t, v in seen.items():
+        assert v < 0, f"{t} was never charged under random actions"
+
+
 def test_randomisation_varies(env):
     masses = env.m_body_mass[:, env.pelvis_b]
     fric = env.m_geom_friction[:, env.floor_g, 0]

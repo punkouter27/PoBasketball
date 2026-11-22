@@ -1,4 +1,4 @@
-"""Task B1: create /Game/Maps/Court headlessly (no GUI).
+"""Task B1: create /Game/Project/Environments/Maps/Court headlessly (no GUI).
 
     UnrealEditor-Cmd.exe StreetballGym.uproject -run=pythonscript
         -script="<this file>" -unattended -nop4 -nosplash
@@ -8,7 +8,7 @@ Creates an empty level with sun, sky light, atmosphere and one AStreetballWorld 
 """
 import unreal
 
-LEVEL = "/Game/Maps/Court"
+LEVEL = "/Game/Project/Environments/Maps/Court"
 
 ell = unreal.EditorLevelLibrary
 if not ell.new_level(LEVEL):

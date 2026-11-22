@@ -3,8 +3,8 @@
     UnrealEditor-Cmd.exe StreetballGym.uproject -run=pythonscript -script="<this file>" -unattended -nop4
 
 Writes short synthetic WAVs (sine / noise bursts, pure-python `wave` so no numpy is needed) to
-Saved/GeneratedAudio/, imports them as USoundWave into /Game/Audio, then creates
-/Game/Audio/DA_CourtAudioBank and wires each slot. Replace the slots with real samples later.
+Saved/GeneratedAudio/, imports them as USoundWave into /Game/Project/Core/Audio, then creates
+/Game/Project/DataAssets/DA_CourtAudioBank and wires each slot. Replace the slots with real samples later.
 """
 import math
 import os
@@ -16,7 +16,8 @@ import unreal
 
 SR = 44100
 OUT_DIR = os.path.join(unreal.Paths.project_saved_dir(), "GeneratedAudio")
-PKG_DIR = "/Game/Audio"
+PKG_DIR = "/Game/Project/Core/Audio"
+DATA_DIR = "/Game/Project/DataAssets"  # the bank lives with the other DataAssets
 
 
 def write_wav(path, samples):
@@ -106,9 +107,9 @@ def main():
         waves[name] = obj
 
     bank_cls = unreal.load_class(None, "/Script/StreetballGym.CourtAudioBank")
-    bank = unreal.load_asset(f"{PKG_DIR}/DA_CourtAudioBank")
+    bank = unreal.load_asset(f"{DATA_DIR}/DA_CourtAudioBank")
     if bank is None:
-        bank = tools.create_asset("DA_CourtAudioBank", PKG_DIR, bank_cls, unreal.DataAssetFactory())
+        bank = tools.create_asset("DA_CourtAudioBank", DATA_DIR, bank_cls, unreal.DataAssetFactory())
     bank.set_editor_property("ball_floor", waves["SW_BallFloor"])
     bank.set_editor_property("ball_palm", waves["SW_BallPalm"])
     bank.set_editor_property("shoe_floor", waves["SW_ShoeFloor"])
@@ -116,7 +117,7 @@ def main():
     bank.set_editor_property("ball_board", waves["SW_BallBoard"])
     bank.set_editor_property("net_rattle", waves["SW_NetRattle"])
     unreal.EditorAssetLibrary.save_loaded_asset(bank)
-    unreal.log(f"audio bank ready: {PKG_DIR}/DA_CourtAudioBank with {len(waves)} placeholder waves")
+    unreal.log(f"audio bank ready: {DATA_DIR}/DA_CourtAudioBank with {len(waves)} placeholder waves")
 
 
 main()

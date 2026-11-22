@@ -15,8 +15,8 @@ import sys
 import unreal
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "mannequin_bones.json"
-# optional second argument: another skeletal mesh (e.g. /Game/Art/Characters/Grandma/SK_Grandma) to verify a retarget
-MESH_PATH = sys.argv[2] if len(sys.argv) > 2 else "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple"
+# optional second argument: another skeletal mesh (e.g. /Game/Project/Agents/Grandma/SK_Grandma) to verify a retarget
+MESH_PATH = sys.argv[2] if len(sys.argv) > 2 else "/Game/Project/Agents/Mannequins/Meshes/SKM_Manny_Simple"
 
 
 def _xf_to_dict(xf: unreal.Transform) -> dict:

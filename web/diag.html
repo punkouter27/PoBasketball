@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="po-version" content="{{VERSION}}">
+<meta name="po-commit" content="{{COMMIT}}">
 <title>System status</title>
 <style>
   :root {
@@ -94,6 +95,19 @@
       if (bad.length === list.body.length) throw new Error(`every replay failed: ${bad.join(', ')}`);
       return { ms, detail: `${list.body.length - bad.length}/${list.body.length} replays load`,
                degraded: bad.length ? `failed: ${bad.join(', ')}` : null };
+    },
+    async commit(c) {
+      // the host stamps every response with X-Commit (web/build.py -> staticwebapp.config.json); it must be the commit
+      // this page was built from
+      const t0 = performance.now();
+      const r = await fetch(c.url, { method: 'HEAD', cache: 'no-store' });
+      const ms = performance.now() - t0;
+      if (!r.ok) throw new Error(`${c.url}: HTTP ${r.status}`);
+      const live = r.headers.get('x-commit');
+      const built = document.querySelector('meta[name="po-commit"]').content;
+      if (!live) throw new Error('Missing X-Commit header (only the deployed site sets it)');
+      if (built && live !== built) throw new Error(`X-Commit ${live.slice(0, 7)} but this page was built from ${built.slice(0, 7)}`);
+      return { ms, detail: live.slice(0, 7) };
     },
     async webgl2() {
       const t0 = performance.now();

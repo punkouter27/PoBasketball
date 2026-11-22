@@ -129,8 +129,12 @@ class Level:
             "foot_slip": self.p_foot_slip,
         }
         total = torch.zeros(self.N, device=self.dev)
+        charged: dict[str, torch.Tensor] = {}
         for t in terms:
-            total = total + w[t] * fn[t]()
+            charged[t] = w[t] * fn[t]()
+            total = total + charged[t]
+        # each weighted term is kept for logging (env.step -> info["m/pen_<term>"] -> TensorBoard / progress.csv)
+        self.penalty_terms = charged
         return total
 
     def p_pose(self) -> torch.Tensor:

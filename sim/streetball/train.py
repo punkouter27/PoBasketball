@@ -125,7 +125,9 @@ def parse():
     )
     ap.add_argument("--save-every", type=int, default=50, help="iterations")
     ap.add_argument(
-        "--horizon0", type=float, default=None,
+        "--horizon0",
+        type=float,
+        default=None,
         help="l2a_time: starting episode horizon in s (the curriculum state is not in a checkpoint; e.g. 45 = the gate's length)",
     )
     ap.add_argument("--drift-w", type=float, default=None, help="L2 dribble levels: weight of the pelvis-drift penalty")

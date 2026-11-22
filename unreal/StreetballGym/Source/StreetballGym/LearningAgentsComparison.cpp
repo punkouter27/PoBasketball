@@ -86,7 +86,7 @@ ALAComparisonAgent::ALAComparisonAgent()
 	Mesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 	Mesh->SetAnimInstanceClass(UStreetballAnimInstance::StaticClass());
 	Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Manny(TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Manny(TEXT("/Game/Project/Agents/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"));
 	if (Manny.Succeeded()) Mesh->SetSkeletalMeshAsset(Manny.Object);
 }
 
