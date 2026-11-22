@@ -1,16 +1,16 @@
 {
-  "checkpoint": "runs\\production\\dribble_anchor_init.pt",
+  "checkpoint": "runs\\dribble_anchor10\\best.pt",
   "obs_spec_sha256": "c766c7d32fb36d2ef26b9d23c6a632cc31f8d49ed556058d41db5e3dc154773a",
   "obs_spec_sha256_16": "c766c7d32fb36d2e",
   "n_obs": 125,
   "n_action": 29,
   "opset": 17,
-  "ort_vs_torch_max_abs_diff": 2.086162567138672e-06,
+  "ort_vs_torch_max_abs_diff": 1.5962868928909302e-06,
   "input": "obs[1,125]",
   "output": "action[1,29] in [-1,1]",
   "level": "l2a_time",
   "interface_sha": "c766c7d32fb36d2e",
   "physics_sha": "319cd05af6f00d17+6fa7a3aaae076514",
-  "train_steps": 600047616,
+  "train_steps": 1332019200,
   "nan_grads": 0
 }

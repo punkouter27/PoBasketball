@@ -24,3 +24,17 @@ Open, none applied (each needs approval):
 4. `tools/run_gate.py` exports `l2a_dribble_r.onnx`; the sync copies `dribble.onnx`, so the game would keep the old brain.
 5. Decide contact thresholds for the dribble, or train the sliding out.
 6. Low priority: in `l2a_time` a 50-bounce success is a non-bootstrapped terminal. It did not prevent a pass.
+
+## Show the new dribble in Unreal (user: "show in unreal"), open items 1 and preview
+
+Affected: dribble preview policy (Unreal tier 3); Unreal physics XML (court only). State machine rows, interface, shot/balance/
+locomotion/scramble policies: unchanged. NOT a promotion: no run_gate, no golden replay, the gate bugs (items 2-4) stay open.
+- `shared/policies/dribble.onnx` <- `runs/dribble_anchor10/best.pt` (preview, as on 11-21 15:00). The previous preview is kept as
+  `shared/policies/dribble_anchor_init.onnx`.
+- `unreal/StreetballGym/Content/Sim/court.xml` <- `sim/assets/court.xml` (adds the `ball_palm_l` / `ball_palm_r` contact pairs).
+- `tools/sync_policies_to_unreal.py` also copies `sim/assets/{scene,humanoid,court}.xml`, so the court cannot go stale again.
+- Then: Unreal `Streetball.*` tests, and the game at tier 3 with `-StreetballDribbleHand=right`.
+- Result 16:30: export parity 1.6e-6; ruff clean. Unreal tests NOT run: Windows Smart App Control blocked the unsigned
+  `Binaries/Win64/UnrealEditor-StreetballGymEditor.dll` (unchanged since 11-17) for UnrealEditor-Cmd (GetLastError 4551, CodeIntegrity
+  event 3077). The game (`-game`, seed 7) loads the new `dribble.onnx`: 1 reset (startup) in the first 2 min, a tier-up event at
+  30.5 s and the director re-entering DRIBBLE_STATIONARY every ~30 s. On 11-21 the old brain on the old court had 3 resets in 60 s.

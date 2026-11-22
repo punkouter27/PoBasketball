@@ -11,7 +11,8 @@ Sources, in order of preference, for each family:
 Sidecar <name>.json files are copied alongside; a sidecar whose obs_spec hash differs from the
 current shared/obs_spec.json raises a warning (the policy was exported against another interface).
 
-Also refreshes Content/Sim/{obs_spec,humanoid_spec,transition_table}.json.
+Also refreshes Content/Sim/{obs_spec,humanoid_spec,transition_table}.json and copies the MuJoCo scene
+sim/assets/{scene,humanoid,court}.xml.
 
 Usage: uv run python tools/sync_policies_to_unreal.py
 """
@@ -35,6 +36,9 @@ def main() -> None:
             shutil.copy2(src, DST / name)
         else:
             print(f"WARNING missing {src}")
+    # the MuJoCo scene Unreal simulates must be the training one (Content/Sim/court.xml went stale once, 11-17 vs 11-19)
+    for name in ("scene.xml", "humanoid.xml", "court.xml"):
+        shutil.copy2(ROOT / "assets" / name, DST / name)
     # the fallback every family without a trained file uses (a fresh clone has none: Content/Sim/policies is ignored)
     for name in ("dummy_policy.onnx", "dummy_policy.json"):
         if (SHARED / name).exists():
