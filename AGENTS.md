@@ -75,6 +75,22 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, deployed
   gaze yet. Adding one needs an owner decision: a neck joint (frozen-contract change + retraining) or a render-only
   head look-at as an exception to the mirroring rule.
 
+### Deliberate deviations
+
+| Deviation | Why | Commit sha / date | How to undo |
+|---|---|---|---|
+| Headless Unreal never uses `-nullrhi`; automation runs through `Scripts/run_headless.ps1` with the RHI | owner rule, kept over the audit's `-nullrhi` suggestion | — | — |
+| The Unreal game draws `PoBasketball` top-left and `vYYMMDD` bottom-right in its own window; the web page shows them once outside the canvas | a desktop game has no page (UU_AGENT build-stamp rule) | `51df776` 2026-11-22 | — |
+| `Content/Art/{Raw,Exports}` and `Content/Art/env_slots.json` stay outside `/Game/Project` | source files and the PCG swap table, not cooked assets | `c630dfa` 2026-11-22 | — |
+| `Content/Project/RL_Policies` holds plain files (MJCF, specs, git-ignored ONNX); no `UI/` folder | the runtime loads policies from disk via NNE; the HUD is C++ | `c630dfa` 2026-11-22 | — |
+| `shared/mannequin_bones.json` keeps its old `/Game/Characters/Mannequins` provenance path; dated `docs/<date>` logs keep old paths | frozen Phase A2 dump, not used for lookups; history | `c630dfa` 2026-11-22 | — |
+| Gate tests write `Saved/Reports/Step4_gate_unreal.md`; the committed copy (owner `edc8f53`) refreshes only with `-StreetballGateReportToDocs` | tests must not rewrite tracked files | `51df776` 2026-11-22 | — |
+| Unreal is built and tested locally only; CI runs the Python checks and the web viewer | no Unreal Engine on GitHub runners | — | — |
+| No gaze; no BC/AMP training (mocap set not on this machine); shipped policies not retrained | neck joint = frozen-contract change + retraining; owner decision | — | owner decision |
+
+**Hosting:** Azure Static Web App `pobasketball`, Free tier. Never run test suites against the live site; live checks =
+at most 6 page loads + /diag + X-Commit.
+
 ### CI/CD and Azure
 
 - One workflow, `.github/workflows/deploy.yml`, on a GitHub-hosted runner. Every push and pull request: Python checks
@@ -185,11 +201,13 @@ every publish. Tests never write into tracked files.
 - `git status` before you start; commit your own files only (never `Saved/`, `Intermediate/`, `sim/runs/`,
   `web/dist/`, screenshots outside `SCREENSHOTS/`). Pull/rebase before pushing; never force-push.
 - Asset moves touch many `.uasset` files at once: do them in their own commit while nobody else has the editor open.
-- Do not run test suites against the live site (free tier): a few page loads of `/` and `/diag` only.
+- Live site: see **Hosting** in section 1 for the live-check budget.
 
 ## 3. Verify the repo
 
-From the repo root (PowerShell or Git Bash):
+The command sequences below verify the repo, from the repo root (PowerShell or Git Bash). Last full run (2026-11-22):
+pytest 27 passed locally incl. GPU (CI 20 passed, 3 skipped without CUDA); Unreal `Streetball.*` 26/26; build 0 code
+warnings.
 
 ```
 uvx ruff@0.17.6 check .
@@ -205,7 +223,7 @@ Unreal (UE 5.8, close the editor first):
 & "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" StreetballGymEditor Win64 Development `
     "-Project=$PWD\unreal\StreetballGym\StreetballGym.uproject" -WaitMutex          # 0 warnings expected
 & unreal/StreetballGym/Scripts/run_headless.ps1 -TimeoutSec 1500 -LogFile $env:TEMP\sb_tests.log `
-    -- "-ExecCmds=Automation RunTests Streetball; Quit"                                # 25 tests, exit code 0
+    -- "-ExecCmds=Automation RunTests Streetball; Quit"                                # 26 tests, exit code 0
 # 16:9 and 9:16 runtime check (overlay, benchmark, demo mode screenshots into <dir>, then quits):
 & "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" `
     unreal/StreetballGym/StreetballGym.uproject -game -windowed -ResX=1600 -ResY=900 `
