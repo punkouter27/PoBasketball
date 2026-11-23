@@ -1,6 +1,10 @@
 // Replay viewer: draws the MuJoCo scene's primitive geoms and moves their bodies from the frames web/build.py baked.
+// The policy that recorded a replay also runs here (onnxruntime-web) on the recorded observations, so the page shows
+// real in-browser inference latency and checks the output against the recorded action. Tab: diagnostics overlay.
+// 30 s without input: demo mode (idle.js).
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { IdleTimer, DWELL_SECONDS } from "./idle.js";
 
 const $ = (id) => document.getElementById(id);
 const fail = (msg) => { const e = $("err"); e.textContent = msg; e.style.display = "grid"; throw new Error(msg); };
@@ -71,7 +75,7 @@ const [models, replays] = await Promise.all([getJSON("data/model.json"), getJSON
 if (!replays.length) fail("No replays in this build.");
 for (const rp of replays) $("replay").add(new Option(`${rp.name}${rp.level ? ` · ${rp.level}` : ""}`, rp.name));
 
-let rep = null, bodies = new Map(), frames = [], bodyIds = [], frame = 0, clock = 0, playing = true, follow = true;
+let rep = null, cur = {}, bodies = new Map(), frames = [], bodyIds = [], frame = 0, clock = 0, playing = true, follow = true;
 const tmp = new THREE.Vector3(), focus = new THREE.Vector3();
 let focusBody = null;   // the humanoid's root: the moving body with the most geoms under it
 
@@ -79,7 +83,8 @@ async function load(name) {
   rep = replays.find((r) => r.name === name);
   const data = await getJSON(`data/${name}.json`);
   bodies = buildScene(models[rep.xml]);
-  frames = data.frames; bodyIds = data.bodies;
+  cur = data; frames = data.frames; bodyIds = data.bodies;
+  $("replay").value = name;
   const moving = bodyIds.filter((id, i) => frames.some((f) => [0, 1, 2].some((k) => Math.abs(f[i * 7 + k] - frames[0][i * 7 + k]) > 1e-3)));
   focusBody = moving.length ? moving.reduce((a, b) => (spec(b) > spec(a) ? b : a)) : null;
   $("scrub").max = frames.length - 1;
@@ -99,6 +104,62 @@ function apply() {
   });
   $("scrub").value = frame;
   $("info").textContent = `${(frame * rep.frameTime).toFixed(2)} s · ${frame + 1}/${frames.length}`;
+  infer(frame);
+}
+
+// ---- the policy, run in the browser on the recorded observation of the current control step ----
+let ort = null, inferBusy = false, inferCount = 0, policyError = "", lastDiff = null;
+const sessions = new Map(), latency = [];
+function session(url) {
+  if (!sessions.has(url)) {
+    sessions.set(url, (async () => {
+      if (!ort) { ort = await import("onnxruntime-web"); ort.env.wasm.numThreads = 1; }   // no SharedArrayBuffer needed
+      return ort.InferenceSession.create(url, { executionProviders: ["wasm"] });
+    })());
+  }
+  return sessions.get(url);
+}
+async function infer(i) {
+  if (inferBusy || !rep?.policy || !cur.obs) return;
+  inferBusy = true;
+  const r = rep, obs = cur.obs[i], recorded = cur.action[i];
+  try {
+    const s = await session(r.policy);
+    const t0 = performance.now();
+    const out = await s.run({ obs: new ort.Tensor("float32", Float32Array.from(obs), [1, obs.length]) });
+    const ms = performance.now() - t0;
+    const a = out.action.data;
+    let diff = 0;
+    for (let k = 0; k < recorded.length; k++) diff = Math.max(diff, Math.abs(a[k] - recorded[k]));
+    latency.push(ms); if (latency.length > 60) latency.shift();
+    lastDiff = diff; policyError = ""; inferCount++;
+    if (inferCount === 1 || inferCount % 500 === 0) {
+      console.info(`[policy] ${r.policy} inference in the browser (onnxruntime-web, wasm): obs[1,${obs.length}] -> ` +
+        `action[1,${a.length}] in ${ms.toFixed(2)} ms, max |action - recorded| = ${diff.toExponential(1)} ` +
+        `(step ${i}, ${inferCount} inferences)`);
+    }
+  } catch (e) {
+    policyError = String(e.message || e);
+    console.warn(`[policy] ${r.policy}: ${policyError}`);
+  } finally { inferBusy = false; }
+}
+
+// ---- diagnostics overlay (Tab or the corner "i"): FPS, episode reward, inference latency, stage ----
+let fpsFrames = 0, fpsT0 = performance.now(), fps = 0;
+function toggleOverlay() {
+  const o = $("overlay"), open = o.hidden;
+  o.hidden = !open; $("overlayBtn").setAttribute("aria-expanded", open);
+}
+function updateOverlay() {
+  if ($("overlay").hidden) return;
+  const avg = latency.length ? latency.reduce((x, y) => x + y, 0) / latency.length : null;
+  $("ov-fps").textContent = fps.toFixed(0);
+  $("ov-reward").textContent = "n/a: replays record no reward";
+  $("ov-latency").textContent = !rep?.policy ? "no policy (random actions)"
+    : policyError ? `error: ${policyError}` : avg == null ? "loading…" : `${avg.toFixed(2)} ms (avg of ${latency.length})`;
+  $("ov-check").textContent = lastDiff == null || !rep?.policy ? "—" : lastDiff.toExponential(1);
+  $("ov-stage").textContent = `${rep?.level || "—"} · ${rep?.mode || ""}`;
+  $("ov-mode").textContent = idle.active ? "Demo (30 s idle)" : "Manual";
 }
 
 // ---- controls ----
@@ -106,7 +167,37 @@ $("replay").onchange = (e) => load(e.target.value);
 $("play").onclick = () => { playing = !playing; $("play").textContent = playing ? "Pause" : "Play"; };
 $("follow").onclick = () => { follow = !follow; $("follow").setAttribute("aria-pressed", follow); $("follow").textContent = follow ? "Follow" : "Free"; };
 $("scrub").oninput = (e) => { frame = +e.target.value; clock = frame * rep.frameTime; apply(); };
-addEventListener("keydown", (e) => { if (e.code === "Space") { e.preventDefault(); $("play").click(); } });
+addEventListener("keydown", (e) => {
+  if (e.code === "Space") { e.preventDefault(); $("play").click(); }
+  if (e.code === "Tab") { e.preventDefault(); toggleOverlay(); }
+});
+$("overlayBtn").onclick = toggleOverlay;
+
+// ---- demo mode: after 30 s without input the policy replays cycle with an orbiting camera; any input stops it ----
+const idle = new IdleTimer();
+let dwell = 0;
+function anyInput() {
+  if (idle.input()) { document.body.classList.remove("demo"); controls.autoRotate = false; }
+}
+for (const ev of ["keydown", "pointerdown", "wheel", "touchstart"]) addEventListener(ev, anyInput, { capture: true, passive: true });
+function gamepadInput() {
+  for (const g of navigator.getGamepads?.() || []) if (g && (g.buttons.some((b) => b.pressed) || g.axes.some((a) => Math.abs(a) > 0.3))) return true;
+  return false;
+}
+function demoStep(rawDt, dt) {
+  if (gamepadInput()) anyInput();
+  if (idle.tick(rawDt)) {
+    document.body.classList.add("demo"); controls.autoRotate = true; controls.autoRotateSpeed = 1.2;
+    playing = true; $("play").textContent = "Pause"; follow = true; dwell = 0;
+  }
+  if (!idle.active) return;
+  dwell += dt;
+  if (dwell >= DWELL_SECONDS) {
+    dwell = 0;
+    const list = replays.filter((r) => r.policy);
+    if (list.length) load(list[(list.indexOf(rep) + 1) % list.length].name);
+  }
+}
 
 // The canvas fills the viewport area between the page's top bar and footer (any aspect, landscape or portrait).
 function resize() {
@@ -120,7 +211,11 @@ let last = performance.now();
 renderer.setAnimationLoop((now) => {
   // rAF's timestamp is the frame's start, which can be earlier than the performance.now() taken above:
   // clamp so the first dt is never negative (a negative clock gave frame -1 and frames[-1] undefined).
-  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now;
+  const rawDt = (now - last) / 1000;
+  const dt = Math.max(0, Math.min(0.1, rawDt)); last = now;
+  demoStep(rawDt, dt);
+  fpsFrames++;
+  if (now - fpsT0 >= 500) { fps = (fpsFrames * 1000) / (now - fpsT0); fpsFrames = 0; fpsT0 = now; updateOverlay(); }
   if (playing && frames.length) {
     clock += dt * +$("speed").value;
     const total = frames.length * rep.frameTime;

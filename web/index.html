@@ -45,6 +45,20 @@
   #now { position: absolute; top: 10px; left: 12px; color: var(--muted); font-size: 13px; pointer-events: none; }
   .po-foot { display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; background: var(--surface);
     border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  /* Diagnostics overlay (Tab or the corner "i"): opaque panel, text >= 4.5:1. */
+  .ov-btn { position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; border-radius: 10px; z-index: 3;
+    background: var(--surface-2); color: var(--text); border: 1px solid var(--border); font: 600 18px/1 Inter, system-ui, sans-serif; cursor: pointer; }
+  .ov-btn:hover, .ov-btn:focus-visible { border-color: var(--accent); outline: none; }
+  #overlay { position: absolute; top: 36px; left: 12px; right: 64px; max-width: 420px; z-index: 2; padding: 10px 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 13px; }
+  #overlay dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; }
+  #overlay dt { color: var(--muted); } #overlay dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  #overlay p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  /* Demo mode (30 s without input): viewer controls hidden, the camera orbits, replays cycle. */
+  body.demo .controls { display: none; }
+  .demo-hint { display: none; position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); padding: 4px 10px;
+    border-radius: 6px; background: var(--surface); color: var(--text); font-size: 12px; white-space: nowrap; }
+  body.demo .demo-hint { display: block; }
   #err { position: absolute; inset: 0; display: none; place-items: center; padding: 16px; text-align: center; background: var(--bg); }
   @media (max-width: 520px) {
     #replay { flex: 1 1 100%; }
@@ -54,7 +68,8 @@
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "onnxruntime-web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.wasm.min.mjs"
 } }
 </script>
 </head>
@@ -67,13 +82,29 @@
   </div>
   <div class="settings-sheet" id="settingsSheet" role="dialog" aria-label="Viewer settings">
     <strong>Settings</strong>
-    <p>Space plays or pauses. Drag to orbit, scroll to zoom.</p>
+    <p>Space plays or pauses. Drag to orbit, scroll to zoom. Tab shows diagnostics.</p>
     <a href="/diag">System status →</a>
   </div>
 </header>
 <main id="stage">
   <div id="view"></div>
   <div id="now" aria-live="polite"></div>
+  <button type="button" class="ov-btn" id="overlayBtn" aria-label="Diagnostics (Tab)" title="Diagnostics (Tab)"
+    aria-expanded="false" aria-controls="overlay">i</button>
+  <section id="overlay" hidden aria-label="Diagnostics">
+    <dl>
+      <dt>FPS</dt><dd id="ov-fps">—</dd>
+      <dt>Episode reward</dt><dd id="ov-reward">—</dd>
+      <dt>Inference latency</dt><dd id="ov-latency">—</dd>
+      <dt>Policy vs recorded</dt><dd id="ov-check">—</dd>
+      <dt>Curriculum stage</dt><dd id="ov-stage">—</dd>
+      <dt>Mode</dt><dd id="ov-mode">—</dd>
+    </dl>
+    <p>Inference: the replay's ONNX policy, onnxruntime-web (WASM, 1 thread) on this device's CPU, fed the recorded
+      observation of each step; "policy vs recorded" = max |action − recorded action|. No physics runs in the page:
+      bodies move from recorded MuJoCo rollouts. Training speed is benchmarked separately (benchmark/, GPU).</p>
+  </section>
+  <div class="demo-hint">Demo · press any key or touch to take over</div>
   <div class="controls">
     <select id="replay" aria-label="Replay"></select>
     <button id="play" aria-label="Play or pause">Pause</button>

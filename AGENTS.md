@@ -114,6 +114,12 @@ at most 6 page loads + /diag + X-Commit.
   "Benchmark sim speed [B]" button: a bounded (1.5 s) CPU MuJoCo run of `scene.xml` reported as physics steps/s.
   Training runs MuJoCo Warp on the GPU, so this is a local proxy, labelled as such. Demo mode starts after 30 s without
   input; frames longer than 0.25 s (shader warm-up, loads) do not count as idle time.
+- Web viewer (the live site): the same Tab / corner "i" overlay (FPS, episode reward = n/a because replays record no
+  reward, inference latency, policy-vs-recorded action check, stage) and the same 30 s demo mode (`web/idle.js`,
+  frames > 0.25 s ignored, tested by `web/idle.test.mjs` through pytest, needs `node`). `web/build.py` ships each
+  policy replay's ONNX (`shared/policies/<name>.onnx`) and its recorded obs/action; the page runs it with
+  onnxruntime-web (WASM, CDN-pinned in the import map) and logs `[policy] ... inference in the browser` to the console.
+  /diag caches its results for 60 s per tab (sessionStorage, `web/diag.html` CACHE_S); "Re-check" probes again.
 - The Unreal gate tests (`Streetball.Gate.*`) write `Saved/Reports/Step4_gate_unreal.md`; refresh the committed
   `docs/phase_reports/Step4_gate_unreal.md` on purpose with `-StreetballGateReportToDocs`.
 - Version: one stamp, UTC `yyMMdd` of the HEAD commit, computed by `web/build.py` (index.html, diag.html) with the same
@@ -205,8 +211,8 @@ every publish. Tests never write into tracked files.
 
 ## 3. Verify the repo
 
-The command sequences below verify the repo, from the repo root (PowerShell or Git Bash). Last full run (2026-11-22):
-pytest 27 passed locally incl. GPU (CI 20 passed, 3 skipped without CUDA); Unreal `Streetball.*` 26/26; build 0 code
+The command sequences below verify the repo, from the repo root (PowerShell or Git Bash). Last full run (2026-11-23):
+pytest 28 passed locally incl. GPU (CI: GPU tests skip without CUDA); Unreal `Streetball.*` 26/26; build 0 code
 warnings.
 
 ```

@@ -5,7 +5,10 @@ browser. No physics runs in the page: this script loads sim/assets/scene.xml in 
 kinematics on every recorded qpos, and writes
   dist/data/model.json      every visible geom (body, type, size, local pose, colour)
   dist/data/replays.json    the list of replays (name, level, mode, frame count, frame time)
-  dist/data/<name>.json     per frame: position + quaternion of every body that carries a geom
+  dist/data/<name>.json     per frame: position + quaternion of every body that carries a geom; for policy
+                            replays also the recorded policy input (obs) and output (action) of every control step
+  dist/policies/<p>.onnx    the policy that recorded each replay (shared/policies): the page runs it in the browser
+                            (onnxruntime-web) on the recorded obs and compares with the recorded action
 Needs only `mujoco` and `numpy` (CI installs mujoco==4.0.0, the version in sim/uv.lock).
 """
 
@@ -26,6 +29,9 @@ ROOT = WEB.parent
 DIST = WEB / "dist"
 ASSETS = ROOT / "sim" / "assets"
 GOLDEN = ROOT / "shared" / "golden"
+POLICIES = ROOT / "shared" / "policies"
+# replay name -> policy name where they differ (replay_l0.json was recorded with l0_stand.onnx, sim/tools/replay_recorder.py)
+POLICY_OF = {"l0": "l0_stand"}
 
 TYPES = {
     mujoco.mjtGeom.mjGEOM_PLANE: "plane",
@@ -78,7 +84,7 @@ def check_diag_config() -> None:
     """Every local /diag check must point at a file in dist; every CDN check must match the page's import map."""
     cfg = json.loads((WEB / "diag_checks.json").read_text(encoding="utf-8"))
     page = (WEB / "index.html").read_text(encoding="utf-8")
-    kinds = {"json", "text", "replays", "commit", "webgl2"}
+    kinds = {"json", "text", "replays", "commit", "webgl2", "onnx"}
     for c in cfg["checks"]:
         if c["kind"] not in kinds or c["group"] not in {"api", "data", "service"}:
             raise SystemExit(f"diag_checks.json: bad kind/group in {c}")
@@ -86,7 +92,7 @@ def check_diag_config() -> None:
         if not url:
             continue
         if url.startswith("https://"):
-            base = url.split("/build/")[0].split("/examples/")[0]
+            base = url.split("/build/")[0].split("/examples/")[0].split("/dist/")[0]
             if base not in page:
                 raise SystemExit(f"diag_checks.json: {url} is not what index.html imports")
         elif not (DIST / url).is_file():
@@ -124,9 +130,18 @@ def main() -> None:
                 raise SystemExit(f"{path.name}: non-finite body positions")
             frames.append(r(np.hstack([d.xpos[bodies], d.xquat[bodies]])))
         name = path.stem.removeprefix("replay_")
-        (DIST / "data" / f"{name}.json").write_text(
-            json.dumps({"bodies": bodies, "frames": frames}, separators=(",", ":")), encoding="utf-8"
-        )
+        data = {"bodies": bodies, "frames": frames}
+        policy = POLICIES / f"{POLICY_OF.get(name, name)}.onnx"
+        if rep.get("mode") == "policy" and rep.get("obs") and policy.is_file():
+            if len(rep["obs"]) != len(frames) or len(rep["action"]) != len(frames):
+                raise SystemExit(f"{path.name}: obs/action length differs from qpos")
+            data["obs"] = [r(o, 6) for o in rep["obs"]]
+            data["action"] = [r(a, 6) for a in rep["action"]]
+            (DIST / "policies").mkdir(exist_ok=True)
+            shutil.copy2(policy, DIST / "policies" / policy.name)
+        else:
+            policy = None
+        (DIST / "data" / f"{name}.json").write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
         replays.append(
             {
                 "name": name,
@@ -135,9 +150,10 @@ def main() -> None:
                 "mode": rep.get("mode", ""),
                 "frames": len(frames),
                 "frameTime": float(rep["dt"]) * int(rep.get("substeps", 1)),
+                "policy": f"policies/{policy.name}" if policy else None,
             }
         )
-        print(f"{name}: {len(frames)} frames, {len(bodies)} bodies")
+        print(f"{name}: {len(frames)} frames, {len(bodies)} bodies, policy {policy.name if policy else '-'}")
 
     if not replays:
         raise SystemExit(f"no replay_*.json in {GOLDEN}")
@@ -164,7 +180,7 @@ def main() -> None:
     (DIST / "data" / "model.json").write_text(json.dumps(scenes, separators=(",", ":")), encoding="utf-8")
     (DIST / "data" / "replays.json").write_text(json.dumps(replays, indent=1), encoding="utf-8")
 
-    for f in ("index.html", "diag.html", "app.js", "diag_checks.json", "staticwebapp.config.json"):
+    for f in ("index.html", "diag.html", "app.js", "idle.js", "diag_checks.json", "staticwebapp.config.json"):
         shutil.copy2(WEB / f, DIST / f)
     ver = build_version()
     commit = build_commit()

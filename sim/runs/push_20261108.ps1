@@ -1,7 +1,7 @@
 # l2a_push (dribble approach #7): 120 min from l2a_cycles_c3, then eval on the real L2a gate and an HTML report.
 # Prerequisite: Windows Smart App Control must allow torch\lib\shm.dll (blocked from 2026-11-08 21:07).
 # Launch hidden (survives the Claude session): Win32_Process.Create with ShowWindow=0, as for cycles3.
-Set-Location "C:\Users\punko\Downloads\CODE_MATT\PoBasketball\sim"
+Set-Location (Join-Path $PSScriptRoot "..")
 $log = "runs\push_20261108.txt"
 function Say($m) { "[$(Get-Date -Format HH:mm:ss)] $m" | Out-File -FilePath $log -Append -Encoding utf8 }
 Say "torch import check"

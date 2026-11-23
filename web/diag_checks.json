@@ -1,5 +1,5 @@
 {
-  "_doc": "Checks /diag runs live from the browser (web/diag.html). web/build.py verifies every local url exists in web/dist and that the CDN urls match the import map in index.html. kind: json | text | replays | commit | webgl2. group: api | data | service.",
+  "_doc": "Checks /diag runs live from the browser (web/diag.html). web/build.py verifies every local url exists in web/dist and that the CDN urls match the import map in index.html. kind: json | text | replays | commit | onnx | webgl2. group: api | data | service.",
   "checks": [
     {"name": "page", "group": "api", "kind": "text", "url": "index.html", "expect": "po-version",
      "label": "Viewer page", "purpose": "The static page that hosts the viewer"},
@@ -11,10 +11,14 @@
      "label": "Scene geometry", "purpose": "Court, ball and humanoid geoms baked from sim/assets/scene.xml"},
     {"name": "replays", "group": "data", "kind": "replays", "url": "data/replays.json",
      "label": "Replay bundle", "purpose": "Golden MuJoCo rollouts (every replay listed is fetched and checked)"},
+    {"name": "policy", "group": "data", "kind": "onnx", "url": "policies/balance.onnx",
+     "label": "Policy model", "purpose": "ONNX policy the viewer runs in the browser (balance, l0_stand)"},
     {"name": "three", "group": "service", "kind": "text", "url": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
      "expect": "REVISION", "label": "three.js (jsDelivr CDN)", "purpose": "3D engine the viewer imports"},
     {"name": "orbit", "group": "service", "kind": "text", "url": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/OrbitControls.js",
      "expect": "OrbitControls", "label": "three.js OrbitControls (jsDelivr CDN)", "purpose": "Camera orbit and zoom"},
+    {"name": "ort", "group": "service", "kind": "text", "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.wasm.min.mjs",
+     "expect": "InferenceSession", "label": "onnxruntime-web (jsDelivr CDN)", "purpose": "Runs the policy in the browser (WASM)"},
     {"name": "webgl2", "group": "service", "kind": "webgl2",
      "label": "WebGL2", "purpose": "Browser 3D context the renderer needs"}
   ]

@@ -6,6 +6,7 @@
 <meta name="po-version" content="{{VERSION}}">
 <meta name="po-commit" content="{{COMMIT}}">
 <title>System status</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%236366f1%22/%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #0b0f17; --surface: #121826; --surface-2: #1a2233; --border: #2a3349;
@@ -26,6 +27,7 @@
   .banner { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); font-weight: 600; }
   .banner.ok { background: var(--ok-soft); } .banner.warn { background: var(--warn-soft); } .banner.bad { background: var(--bad-soft); }
   .meta { color: var(--muted); font-size: 12px; margin: 0; }
+  .meta a { color: #a5b4fc; }
   #g-api, #g-data, #g-service { display: grid; gap: 8px; margin-top: 8px; }
   h2 { margin: 8px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   .row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
@@ -60,6 +62,9 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const SLOW_MS = 3000;
+  // Results are cached for CACHE_S in this tab (sessionStorage), so reloading /diag does not refetch every replay and
+  // policy; "Re-check" (?fresh) probes again. All probes are static-file GETs/HEADs: nothing billable.
+  const CACHE_S = 60, CACHE_KEY = `po-diag:${document.querySelector('meta[name="po-commit"]').content}`;   // per build
 
   async function timed(url, as) {
     const t0 = performance.now();
@@ -109,6 +114,15 @@
       if (built && live !== built) throw new Error(`X-Commit ${live.slice(0, 7)} but this page was built from ${built.slice(0, 7)}`);
       return { ms, detail: live.slice(0, 7) };
     },
+    async onnx(c) {
+      // the policy file the viewer runs in the browser: an ONNX protobuf (first field: ir_version, tag 0x08)
+      const t0 = performance.now();
+      const r = await fetch(c.url, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`${c.url}: HTTP ${r.status}`);
+      const buf = new Uint8Array(await r.arrayBuffer());
+      if (buf.length < 1024 || buf[0] !== 0x08) throw new Error(`${c.url} is not an ONNX model`);
+      return { ms: performance.now() - t0, detail: `${(buf.length / 1024).toFixed(0)} KB` };
+    },
     async webgl2() {
       const t0 = performance.now();
       const gl = document.createElement('canvas').getContext('webgl2');
@@ -134,7 +148,12 @@
   try { checks = (await timed('diag_checks.json', 'json')).body.checks; }
   catch (e) { checks = []; $('banner').textContent = 'Not working: the check list (diag_checks.json) did not load'; $('banner').className = 'banner bad'; }
 
-  const results = await Promise.all(checks.map(async (c) => {
+  const fresh = new URLSearchParams(location.search).has('fresh');
+  let cached = null;
+  try { cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null'); } catch { cached = null; }
+  const age = cached ? (Date.now() - cached.at) / 1000 : Infinity;
+  const useCache = !fresh && cached && age < CACHE_S && cached.results.length === checks.length;
+  const results = useCache ? cached.results.map((r, i) => ({ ...r, c: checks[i] })) : await Promise.all(checks.map(async (c) => {
     try {
       const r = await runners[c.kind](c);
       const status = r.degraded || r.ms > SLOW_MS ? 'Degraded' : 'Healthy';
@@ -143,6 +162,9 @@
       return { c, status: 'Unhealthy', ms: null, problem: e.message };
     }
   }));
+  if (!useCache && checks.length) {
+    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), results: results.map(({ c, ...r }) => r) })); } catch { /* private mode */ }
+  }
   for (const r of results) $(`g-${r.c.group}`)?.appendChild(row(r.c, r.status, r.ms, r.detail, r.problem));
 
   if (checks.length) {
@@ -154,7 +176,10 @@
     else { b.textContent = 'Everything is working'; b.className = 'banner ok'; }
   }
   const ver = document.querySelector('meta[name="po-version"]').content;
-  $('meta').textContent = `Version v${ver} · checked ${new Date().toISOString().replace('T', ' ').slice(0, 19)} UTC in ${Math.round(performance.now() - t0)} ms · ${checks.length} checks`;
+  const when = useCache ? new Date(cached.at) : new Date();
+  $('meta').innerHTML = esc(`Version v${ver} · checked ${when.toISOString().replace('T', ' ').slice(0, 19)} UTC` +
+    (useCache ? ` (cached ${Math.round(age)} s ago, kept ${CACHE_S} s)` : ` in ${Math.round(performance.now() - t0)} ms`) +
+    ` · ${checks.length} checks · `) + '<a href="?fresh">Re-check</a>';
   document.body.dataset.diagDone = '1';
 </script>
 </body>

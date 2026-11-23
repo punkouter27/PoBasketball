@@ -1,5 +1,5 @@
 # 2026-11-08 ~14:45 (via WMI, hidden): dribble approach #6 - one-bounce curriculum (l2a_cycles), 120 min, then eval on the real L2a gate.
-Set-Location "C:\Users\punko\Downloads\CODE_MATT\PoBasketball\sim"
+Set-Location (Join-Path $PSScriptRoot "..")
 $log = "runs\cycles2_20261108.txt"
 function Say($m) { "[$(Get-Date -Format HH:mm:ss)] $m" | Out-File -FilePath $log -Append -Encoding utf8 }
 Say "train l2a_cycles_c2 (60 min, full resume from l2a_cycles_c1; K-promotion bug fixed)"
