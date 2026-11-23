@@ -58,6 +58,7 @@ def main():
     args = parse()
     torch.manual_seed(args.seed)
     out = base.RUNS / args.run_name
+    base.RUN_NAME = args.run_name  # the runs grid hook (base.run_with_grid) records this run dir
     out.mkdir(parents=True, exist_ok=True)
     env_cfg = EnvConfig(
         num_envs=args.num_envs,
@@ -219,4 +220,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    base.run_with_grid(main, "sim/streetball/train_amp.py")

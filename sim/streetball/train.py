@@ -16,6 +16,8 @@ import hashlib
 import json
 import math
 import pathlib
+import subprocess
+import sys
 import time
 from dataclasses import asdict
 
@@ -30,6 +32,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
 SHARED = ROOT.parent / "shared"
 PUSH_MAX = 150.0  # set from args in main() before tags are built
+RUN_NAME: str | None = None  # set by main() (train_amp.py too) once the run dir is known; read by the runs grid hook
 
 
 def version_tags(level_name: str) -> dict:
@@ -138,6 +141,8 @@ def main():
     args = parse()
     torch.manual_seed(args.seed)
     run = args.run_name or f"{args.level}_{time.strftime('%m%d_%H%M%S')}"
+    global RUN_NAME
+    RUN_NAME = run
     out = RUNS / run
     out.mkdir(parents=True, exist_ok=True)
 
@@ -324,5 +329,52 @@ def main():
     print(f"done: {out} ({stop_reason})", flush=True)
 
 
+def record_run(ended: str, launcher: str, started: float) -> None:
+    """benchmark/runs.py: note this machine and how the run ended, and rebuild runs/runs.html. Never fatal; skips the
+    Benchmark's own throwaway run (benchmark/workload.py runs this file as __main__ with --run-name _benchmark)."""
+    if not RUN_NAME or RUN_NAME == "_benchmark":
+        return
+    try:
+        res = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT.parent / "benchmark" / "runs.py"),
+                "--record",
+                RUN_NAME,
+                "--ended",
+                ended,
+                "--launcher",
+                launcher,
+                "--started",
+                f"{started:.0f}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        print((res.stdout or res.stderr).strip() or f"runs grid exited {res.returncode}", flush=True)
+    except Exception as exc:  # noqa: BLE001 - the grid must never change how training ends
+        print(f"runs grid not rebuilt: {exc}", flush=True)
+
+
+def run_with_grid(entry, launcher: str) -> None:
+    """Run a trainer's main(); whatever ends it (finished, Ctrl+C, crash), record the run in the training runs grid."""
+    started, ended = time.time(), "finished"
+    try:
+        entry()
+    except KeyboardInterrupt:
+        ended = "interrupted (Ctrl+C)"
+        raise
+    except SystemExit as exc:
+        if exc.code not in (0, None):
+            ended = f"exited with code {exc.code}"
+        raise
+    except BaseException as exc:
+        ended = " ".join(f"crashed: {type(exc).__name__}: {exc}".split())[:200]
+        raise
+    finally:
+        record_run(ended, launcher, started)
+
+
 if __name__ == "__main__":
-    main()
+    run_with_grid(main, "sim/streetball/train.py")
