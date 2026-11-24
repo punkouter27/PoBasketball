@@ -11,7 +11,18 @@ import json
 import pathlib
 
 PATH = pathlib.Path(__file__).resolve().parents[2] / "shared" / "reward_config.json"
-PENALTY_TERMS = ("torque_sq", "joint_ang_vel_sq", "action_rate_sq", "foot_slip")
+PENALTY_TERMS = (
+    "torque_sq",
+    "joint_ang_vel_sq",
+    "action_rate_sq",
+    "foot_slip",
+    # 2026-11-24, shipped at weight 0 (docs/20261124/log.md)
+    "power_abs",
+    "com_offset",
+    "com_vel_z_sq",
+    "ang_vel_xy_sq",
+    "short_swing",
+)
 
 
 @functools.cache
@@ -24,7 +35,7 @@ def load(path: pathlib.Path = PATH) -> dict:
 
 
 def penalty_weights(level_name: str) -> dict[str, float]:
-    """The four penalty weights for a level: defaults, then that level's overrides."""
+    """The penalty weights for a level: defaults, then that level's overrides."""
     cfg = load()
     w = {t: float(cfg["penalties"][t]) for t in PENALTY_TERMS}
     w.update({t: float(v) for t, v in cfg.get("level_overrides", {}).get(level_name, {}).items()})

@@ -155,6 +155,11 @@ bool FStreetballShowcaseConfigAssetsTest::RunTest(const FString&)
 	SameWeight(TEXT("joint_ang_vel_sq"), Reward->JointAngVelSqWeight);
 	SameWeight(TEXT("action_rate_sq"), Reward->ActionRateSqWeight);
 	SameWeight(TEXT("foot_slip"), Reward->FootSlipWeight);
+	SameWeight(TEXT("power_abs"), Reward->PowerAbsWeight);
+	SameWeight(TEXT("com_offset"), Reward->ComOffsetWeight);
+	SameWeight(TEXT("com_vel_z_sq"), Reward->ComVelZSqWeight);
+	SameWeight(TEXT("ang_vel_xy_sq"), Reward->AngVelXYSqWeight);
+	SameWeight(TEXT("short_swing"), Reward->ShortSwingWeight);
 	const TArray<TSharedPtr<FJsonValue>>& Stages = Cfg->GetArrayField(TEXT("curriculum"));
 	if (TestEqual(TEXT("curriculum stage count"), Reward->CurriculumStages.Num(), Stages.Num()))
 	{

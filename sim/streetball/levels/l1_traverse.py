@@ -88,6 +88,12 @@ class L1Traverse(Level):
         tb[:, 3] = self.speed_cmd
         return tb if ids is None else tb[ids]
 
+    def task_mirror(self):
+        """dir_h is a heading-frame (x, y) direction: y flips; distance and speed command do not."""
+        sign = [1.0] * obs_spec.N_TASK
+        sign[1] = -1.0
+        return list(range(obs_spec.N_TASK)), sign
+
     def reward(self) -> torch.Tensor:
         env = self.env
         dist, dir_h, fwd = self._rel()

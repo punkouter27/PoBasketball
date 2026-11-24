@@ -14,6 +14,11 @@ FIELDS = {
     "joint_ang_vel_sq": "JointAngVelSqWeight",
     "action_rate_sq": "ActionRateSqWeight",
     "foot_slip": "FootSlipWeight",
+    "power_abs": "PowerAbsWeight",
+    "com_offset": "ComOffsetWeight",
+    "com_vel_z_sq": "ComVelZSqWeight",
+    "ang_vel_xy_sq": "AngVelXYSqWeight",
+    "short_swing": "ShortSwingWeight",
 }
 
 

@@ -39,6 +39,9 @@ class RandomizationConfig:
     body_mass: tuple[float, float] = (0.9, 1.1)
     floor_friction: tuple[float, float] = (0.6, 1.1)  # absolute sliding friction
     motor_kp: tuple[float, float] = (0.9, 1.1)
+    # 2026-11-24: damping (kv) scaled separately from kp. (1, 1) = off, and no random number is drawn, so existing
+    # runs keep their random stream; widen it (e.g. (0.8, 1.2)) for a new training run.
+    motor_kd: tuple[float, float] = (1.0, 1.0)
     ball_mass: tuple[float, float] = (0.95, 1.05)
     ball_restitution: tuple[float, float] = (0.9, 1.1)  # scales contact damping (lower = bouncier)
     action_latency_prob: float = 0.5  # per episode: one control step of delay
@@ -118,6 +121,8 @@ class StreetballEnv:
         self.site_xpos = t(self.wd.site_xpos)  # (N, nsite, 3)
         self.xfrc = t(self.wd.xfrc_applied)  # (N, nbody, 6)
         self.actuator_force = t(self.wd.actuator_force)
+        self.actuator_velocity = t(self.wd.actuator_velocity)  # (N, nu), joint order (obs.ObsIndex asserts it)
+        self.subtree_com = t(self.wd.subtree_com)  # (N, nbody, 3); [pelvis] = humanoid CoM (the ball is a world child)
         self.con_geom = t(self.wd.contact.geom)  # (naconmax, 2)
         self.con_world = t(self.wd.contact.worldid)  # (naconmax,)
         self.nacon = t(self.wd.nacon)  # (1,)
@@ -364,6 +369,8 @@ class StreetballEnv:
         bp = self.base_biasprm[None].repeat(k, 1, 1)
         gp[..., 0] *= fk
         bp[..., 1] *= fk
+        if rc.motor_kd[0] != 1.0 or rc.motor_kd[1] != 1.0:
+            bp[..., 2] *= self.rand(k, 1, lo=rc.motor_kd[0], hi=rc.motor_kd[1])  # position actuator: biasprm[2] = -kv
         self.m_gainprm[ids] = gp
         self.m_biasprm[ids] = bp
         fr = self.rand(k, lo=rc.ball_restitution[0], hi=rc.ball_restitution[1])
@@ -453,7 +460,8 @@ class StreetballEnv:
         nan = ~torch.isfinite(self.qpos).all(dim=1)
 
         reward = self.level.reward()
-        term = self.level.terminated() | self.fallen | nan
+        fall_term = self.fallen if self.level.terminate_on_fall else torch.zeros_like(self.fallen)
+        term = self.level.terminated() | fall_term | nan
         trunc = self.step_count >= self.max_steps
         done = term | trunc
         self.ep_return += reward
