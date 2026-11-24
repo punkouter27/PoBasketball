@@ -56,3 +56,14 @@ single chain-link ring, not a fence: added by mistake, unused). Downloaded at 2K
 other downloads). Repo is public, so the files are git-ignored (owner decision); `M_CourtAsphalt` takes the scan through
 parameters, applied at startup from `Content/Art/megascans.json`. Fresh-clone render unchanged (0.72/255).
 Streetball.* automation 27/27.
+
+## MetaHuman grandma (local only; presentation)
+
+Grace preset -> MHC_Grandma (cloud auto-rig + texture sources, owner signed in), body constraints x1.152 (180 cm),
+Optimized build; body + outfit exported and re-proportioned onto Manny's joints by `retarget_grandma_blender.py` with
+global scale 1.0 (new optional arg; feet-less meshes now skipped by the sole fix), 0.00 mm joint error. Native face with
+ABP_Face (copies the pose from the body), grooms rigid on the head at helmet LOD 5 (bound grooms render nothing here;
+unbound card LODs crashed at a close-up camera cut). `AStreetballCharacter` tries the MetaHuman body first
+(`Content/Art/Exports/GrandmaMH/parts.json`), `-StreetballNoMetaHuman` opts out. No policy, obs, director row or physics
+change. Skin cache enabled for the project. Streetball.* 27/27 with the MetaHuman active.
+Open: groom binding, outfit (default tee/shorts), lip-sync (Audio2Face).

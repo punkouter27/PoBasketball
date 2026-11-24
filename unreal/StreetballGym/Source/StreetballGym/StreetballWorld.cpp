@@ -64,6 +64,8 @@ FString AStreetballCharacter::ApplyMainCharacterMesh()
 		TArray<FString, TInlineAllocator<3>> Candidates;
 		FString Override;
 		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballCharacterMesh="), Override) && !Override.IsEmpty()) Candidates.Add(Override);
+		TSharedPtr<FJsonObject> MH;
+		if (!FParse::Param(FCommandLine::Get(), TEXT("StreetballNoMetaHuman")) && LoadMetaHumanParts(MH)) Candidates.Add(MH->GetStringField(TEXT("body")));
 		if (!FParse::Param(FCommandLine::Get(), TEXT("StreetballNoCloth"))) Candidates.Add(GrandmaClothMeshPath);
 		Candidates.Add(GrandmaMeshPath);
 		bool bFound = false;
@@ -98,9 +100,112 @@ int32 AStreetballCharacter::NumGrooms() const
 	return N;
 }
 
+bool AStreetballCharacter::LoadMetaHumanParts(TSharedPtr<FJsonObject>& Out)
+{
+	FString Text;
+	const FString Path = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Art/Exports/GrandmaMH/parts.json"));
+	return FFileHelper::LoadFileToString(Text, *Path) && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Out) && Out.IsValid()
+		&& Out->HasTypedField<EJson::String>(TEXT("body"));
+}
+
+void AStreetballCharacter::AttachMetaHuman(const TSharedPtr<FJsonObject>& Parts)
+{
+	// Outfit: skinned to the same re-proportioned skeleton, follows the driven body bone for bone.
+	if (USkeletalMesh* O = LoadObject<USkeletalMesh>(nullptr, *Parts->GetStringField(TEXT("outfit")), nullptr, LOAD_NoWarn | LOAD_Quiet))
+	{
+		OutfitMesh = NewObject<USkeletalMeshComponent>(this, TEXT("MetaHumanOutfit"));
+		OutfitMesh->SetupAttachment(Mesh);
+		OutfitMesh->SetSkeletalMeshAsset(O);
+		OutfitMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		OutfitMesh->SetLeaderPoseComponent(Mesh);
+		OutfitMesh->RegisterComponent();
+	}
+	// Face: the native MetaHuman head (RigLogic DNA kept); ABP_Face copies body bones from its attach parent and keeps
+	// the facial joints in their own local space, so the head follows the physics-driven neck.
+	FString FacePath, AnimPath;
+	if (Parts->TryGetStringField(TEXT("face"), FacePath))
+	{
+		if (USkeletalMesh* F = LoadObject<USkeletalMesh>(nullptr, *FacePath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			FaceMesh = NewObject<USkeletalMeshComponent>(this, TEXT("MetaHumanFace"));
+			FaceMesh->SetupAttachment(Mesh);
+			FaceMesh->SetSkeletalMeshAsset(F);
+			FaceMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			FaceMesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+			if (Parts->TryGetStringField(TEXT("face_anim_class"), AnimPath))
+				if (UClass* C = LoadObject<UClass>(nullptr, *AnimPath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+				{
+					FaceMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+					FaceMesh->SetAnimInstanceClass(C);
+				}
+			FaceMesh->RegisterComponent();
+			// mesh tick after the body, so the copied pose is this frame's
+			FaceMesh->AddTickPrerequisiteComponent(Mesh);
+		}
+	}
+	const TSharedPtr<FJsonObject>* Grooms_ = nullptr;
+	if (FaceMesh && Parts->TryGetObjectField(TEXT("grooms"), Grooms_))
+	{
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& G : (*Grooms_)->Values)
+		{
+			const TSharedPtr<FJsonObject> O = G.Value->AsObject();
+			UGroomAsset* GA = LoadObject<UGroomAsset>(nullptr, *O->GetStringField(TEXT("groom")), nullptr, LOAD_NoWarn | LOAD_Quiet);
+			UGroomBindingAsset* B = LoadObject<UGroomBindingAsset>(nullptr, *O->GetStringField(TEXT("binding")), nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (!GA || !B) continue;
+			UGroomComponent* GC = NewObject<UGroomComponent>(this, *FString::Printf(TEXT("MetaHuman%s"), *G.Key));
+			GC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			if (!FParse::Param(FCommandLine::Get(), TEXT("StreetballGroomBinding")))
+			{
+				// Rigid on the face's head bone (strands are authored in the face's bind-pose space). The mesh binding
+				// renders nothing on this setup (2026-11-24: bound grooms invisible with or without the skin cache and a
+				// forced LOD, while Epic's own Blueprint renders them); a short bob does not need to deform with the face.
+				const FReferenceSkeleton& Ref = FaceMesh->GetSkeletalMeshAsset()->GetRefSkeleton();
+				FTransform HeadCS = FTransform::Identity;
+				for (int32 b = Ref.FindBoneIndex(TEXT("head")); b != INDEX_NONE; b = Ref.GetParentIndex(b)) HeadCS = HeadCS * Ref.GetRefBonePose()[b];
+				GC->SetupAttachment(FaceMesh, TEXT("head"));
+				GC->SetRelativeTransform(HeadCS.Inverse());
+				GC->SetGroomAsset(GA);
+				// Without a binding the automatic LOD switch crashed the game at the first close-up camera cut (the
+				// close LODs expect a skinned binding); hold one card LOD. -StreetballGroomLOD=<n> overrides.
+				int32 RigidLOD = 5; // 5-7 are the rigid helmet meshes; the card LODs (0-4) render nothing without a binding
+				FParse::Value(FCommandLine::Get(), TEXT("StreetballGroomLOD="), RigidLOD);
+				GC->SetForcedLOD(RigidLOD);
+			}
+			else
+			{
+				GC->SetupAttachment(FaceMesh);
+				GC->SetGroomAsset(GA, B);
+			}
+			// The Blueprint's component override materials (hair colour, cards, helmet); without them nothing renders.
+			const TArray<TSharedPtr<FJsonValue>>* Mats = nullptr;
+			if (O->TryGetArrayField(TEXT("materials"), Mats))
+				for (int32 m = 0; m < Mats->Num(); ++m)
+					if (UMaterialInterface* MI = LoadObject<UMaterialInterface>(nullptr, *(*Mats)[m]->AsString(), nullptr, LOAD_NoWarn | LOAD_Quiet))
+						GC->SetMaterial(m, MI);
+			GC->RegisterComponent();
+			Grooms.Add(GC);
+			UE_LOG(LogStreetball, Log, TEXT("Character: MetaHuman groom %s: asset %s, binding %s (target %s), %d LODs, visible %d"),
+				*G.Key, *GA->GetName(), *B->GetName(), B->GetTargetSkeletalMesh() ? *B->GetTargetSkeletalMesh()->GetName() : TEXT("none"),
+				GA->GetLODCount(), GC->IsVisible() ? 1 : 0);
+		}
+	}
+	// Debug: the assembled Blueprint itself, 1.5 m to the side, to compare hair/skin with Epic's own setup.
+	if (FParse::Param(FCommandLine::Get(), TEXT("StreetballMetaHumanBP")))
+		if (UClass* BPC = LoadObject<UClass>(nullptr, TEXT("/Game/Project/Agents/GrandmaMH/Build/MHC_Grandma/BP_MHC_Grandma.BP_MHC_Grandma_C"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+			GetWorld()->SpawnActor<AActor>(BPC, FTransform(FRotator(0, 90, 0), GetActorLocation() + FVector(0, 150, 0)));
+	UE_LOG(LogStreetball, Log, TEXT("Character: MetaHuman grandma (outfit %s, face %s, %d grooms)"),
+		OutfitMesh ? TEXT("yes") : TEXT("no"), FaceMesh ? TEXT("yes") : TEXT("no"), Grooms.Num());
+}
+
 void AStreetballCharacter::AttachExtras()
 {
 	const USkeletalMesh* SM = Mesh->GetSkeletalMeshAsset();
+	TSharedPtr<FJsonObject> MH;
+	if (SM && LoadMetaHumanParts(MH) && SM->GetPathName() == MH->GetStringField(TEXT("body")))
+	{
+		AttachMetaHuman(MH);
+		return;
+	}
 	if (!SM || !SM->GetName().StartsWith(TEXT("SK_Grandma")) || FParse::Param(FCommandLine::Get(), TEXT("StreetballNoGroom"))) return;
 	// Strands are authored in the grandma's bind-pose mesh space. With a binding asset they skin with the mesh;
 	// without one they ride rigidly on the head bone (offset = inverse of the head's bind transform).

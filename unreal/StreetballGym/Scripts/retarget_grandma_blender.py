@@ -12,7 +12,7 @@ global scale g). End bones (head, hands, toes) are rigid (rotation + g). Every o
 follows its nearest chain ancestor. Vertices (and every shape key) get the weight-blended T, i.e. linear blend
 skinning with these maps; edit bones get head/tail/roll mapped the same way.
 
-    blender -b --factory-startup --python retarget_grandma_blender.py -- <in.fbx> <mannequin_bones.json> <out.fbx> <preview_dir>
+    blender -b --factory-startup --python retarget_grandma_blender.py -- <in.fbx> <mannequin_bones.json> <out.fbx> <preview_dir> [global_scale]
 """
 import json
 import math
@@ -68,6 +68,13 @@ if missing:
     raise SystemExit(f"bones missing from source or Manny: {missing}")
 
 g = (Ht["head"] - Ht["pelvis"]).length / (Hg["head"] - Hg["pelvis"]).length
+# Optional 5th argument: fixed global scale. A MetaHuman body is already sized to Manny's height by its own body
+# constraints (Scripts/build_grandma_metahuman.py), so its widths are right as they are: pass 1.0 so cross-sections,
+# hands and feet are not widened by the torso ratio (the separate face mesh is never scaled).
+_extra = sys.argv[sys.argv.index("--") + 1:][4:]
+if _extra:
+    print(f"RETARGET torso ratio {g:.4f}, global scale fixed to {float(_extra[0]):.4f}")
+    g = float(_extra[0])
 print(f"RETARGET global scale g = {g:.4f}")
 
 
@@ -177,6 +184,9 @@ FOOT = {}
 for s in ("l", "r"):
     w = W[:, oi[f"foot_{s}"]] + W[:, oi[f"ball_{s}"]]
     sel = w > 0.5
+    if not sel.any():  # a mesh without feet (e.g. a MetaHuman outfit): nothing to put on the floor
+        print(f"RETARGET foot_{s}: no foot vertices, soles left as they are")
+        continue
     FOOT[s] = (w, float(Ht[f"foot_{s}"].z), float(base_world[sel, 2].min()))
     print(f"RETARGET foot_{s}: sole z {FOOT[s][2] * 100:.1f} cm -> 0.0 cm (ankle {FOOT[s][1] * 100:.1f} cm)")
 

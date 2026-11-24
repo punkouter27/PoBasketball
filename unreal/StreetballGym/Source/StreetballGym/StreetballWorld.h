@@ -53,6 +53,16 @@ public:
 	FString ApplyMainCharacterMesh();
 	/** Cosmetic extras on the grandma skin: groom layers (bound to the mesh, or rigid on the head bone). */
 	void AttachExtras();
+	/**
+	 * Local-only MetaHuman grandma (2026-11-24; git-ignored, built by Scripts/build_grandma_metahuman.py +
+	 * import_grandma_metahuman.py): Content/Art/Exports/GrandmaMH/parts.json lists the re-proportioned body (on Manny's
+	 * joints, so the bone mapper drives it like the CC grandma), its outfit (leader pose), the native MetaHuman face
+	 * (ABP_Face copies the pose from its attach parent, the body) and the grooms bound to the face. Missing file or assets
+	 * = the CC grandma as before. -StreetballNoMetaHuman skips it.
+	 */
+	static bool LoadMetaHumanParts(TSharedPtr<class FJsonObject>& Out);
+	void AttachMetaHuman(const TSharedPtr<class FJsonObject>& Parts);
+	bool IsMetaHuman() const { return FaceMesh != nullptr; }
 	/** Face mesh whose morph targets the voice drives (the body itself for the CC grandma). */
 	USkeletalMeshComponent* GetFaceMesh() const { return Mesh; }
 	int32 NumGrooms() const;
@@ -60,6 +70,8 @@ public:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> Mesh;
 	UPROPERTY(VisibleAnywhere) TArray<TObjectPtr<UGroomComponent>> Grooms;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> FaceMesh;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> OutfitMesh;
 };
 
 /** One visual proxy for a sim geom (static shapes for the court, the ball, and optional debug geoms). */

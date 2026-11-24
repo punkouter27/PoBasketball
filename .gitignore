@@ -40,3 +40,7 @@ unreal/StreetballGym/*.slnx
 # without them the game keeps its procedural materials.
 unreal/StreetballGym/Content/Art/Raw/Megascans/
 unreal/StreetballGym/Content/Project/Environments/Megascans/
+# MetaHuman Grandma (local only, like the Megascans: public repo; owner decision 2026-11-24)
+unreal/StreetballGym/Content/Project/Agents/GrandmaMH/
+unreal/StreetballGym/Content/Art/Raw/GrandmaMH/
+unreal/StreetballGym/Content/Art/Exports/GrandmaMH/
