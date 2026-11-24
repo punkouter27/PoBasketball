@@ -22,6 +22,8 @@ from sbmat import Graph
 PKG = "/Game/Project/Environments/Materials"
 CF4 = unreal.CustomMaterialOutputType.CMOT_FLOAT4
 CF1 = unreal.CustomMaterialOutputType.CMOT_FLOAT1
+CF2 = unreal.CustomMaterialOutputType.CMOT_FLOAT2
+CF3 = unreal.CustomMaterialOutputType.CMOT_FLOAT3
 
 
 def noise(g, pos, scale, levels=4, lo=0.0, hi=1.0, turb=False):
@@ -70,6 +72,7 @@ key *= 0.55 * fade;
 float crack = (1.0 - smoothstep(0.0, 0.006, abs(NC - 0.5))) * smoothstep(0.45, 0.6, NP);
 float puddle = 0.0;                      // no puddles on the playing surface (user, 2026-11-17)
 float3 base = (0.13 + 0.04 * NF + 0.03 * (NP - 0.5)).xxx * float3(1.0, 0.985, 0.97);
+base = lerp(base, SC * SB, SA);          // Megascans scan as the bare asphalt (ScanAmount 0 = procedural only)
 base = lerp(base, float3(0.22, 0.075, 0.06), key);
 base = lerp(base, float3(0.66, 0.66, 0.62), L);
 base *= 1.0 - 0.35 * scuff;
@@ -121,8 +124,23 @@ def asphalt():
     nc = noise(g, wp, 0.004, levels=6)
     npd = noise(g, wp, 0.0012, levels=3)
     nw = noise(g, wp, 0.003, levels=3)
-    c = g.custom(ASPHALT_HLSL, [("WP", (wp, "")), ("NF", (nf, "")), ("NC", (nc, "")), ("NP", (npd, "")), ("NW", (nw, ""))], CF4, "CourtLinesWear")
-    s = g.slab(albedo=(mask(g, c, r=True, gg=True, b=True), ""), roughness=(mask(g, c, a=True), ""))
+    # Optional Megascans layer (2026-11-24): textures are local-only (git-ignored); AStreetballWorld sets them and
+    # ScanAmount from Content/Art/megascans.json when they exist. Defaults (white / flat normal, amount 0) = as before.
+    sa = g.scalar("ScanAmount", 0.0)
+    uv = g.custom("return WP.xy / T;", [("WP", (wp, "")), ("T", (g.scalar("ScanTileCm", 200.0), ""))], CF2, "ScanUV")
+    sc = g.e(unreal.MaterialExpressionTextureSampleParameter2D, parameter_name="ScanBaseColor",
+             texture=unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture"),
+             sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
+    g.link(uv, "", sc, "UVs")
+    sn = g.e(unreal.MaterialExpressionTextureSampleParameter2D, parameter_name="ScanNormal",
+             texture=unreal.load_asset("/Engine/EngineMaterials/FlatNormal"),
+             sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    g.link(uv, "", sn, "UVs")
+    c = g.custom(ASPHALT_HLSL, [("WP", (wp, "")), ("NF", (nf, "")), ("NC", (nc, "")), ("NP", (npd, "")), ("NW", (nw, "")),
+                                ("SC", (sc, "RGB")), ("SA", (sa, "")), ("SB", (g.scalar("ScanBrightness", 1.0), ""))],
+                 CF4, "CourtLinesWear")
+    n = g.custom("return normalize(lerp(float3(0, 0, 1), N, SA));", [("N", (sn, "RGB")), ("SA", (sa, ""))], CF3, "ScanNormal")
+    s = g.slab(albedo=(mask(g, c, r=True, gg=True, b=True), ""), roughness=(mask(g, c, a=True), ""), normal=(n, ""))
     g.front(s)
     return g.finish()
 

@@ -48,3 +48,11 @@ hardware ray tracing). Report: `SCREENSHOTS/20261124_time_of_day/index.html`. `S
 Movie Render Queue plugin enabled; `LS_Broadcast` + `MRQ_Broadcast` in `/Game/Project/Core/Cinematics` (built by
 `Scripts/make_broadcast_render.py`), rendered by `Scripts/render_broadcast.ps1`: 360 frames, 1920x1080, tier 3 dribble at
 17:36. Sample in `SCREENSHOTS/20261124_time_of_day/` (mrq_frame.jpg, mrq_broadcast.gif).
+
+## Megascans (local only; presentation)
+
+Fab library (owner signed in and accepted the Fab EULA): Asphalt, Brick Wall Worn, Graffiti, Graffiti Tag, Chain Link (a
+single chain-link ring, not a fence: added by mistake, unused). Downloaded at 2K: Asphalt only (Chrome blocked the
+other downloads). Repo is public, so the files are git-ignored (owner decision); `M_CourtAsphalt` takes the scan through
+parameters, applied at startup from `Content/Art/megascans.json`. Fresh-clone render unchanged (0.72/255).
+Streetball.* automation 27/27.

@@ -34,3 +34,9 @@ web/dist/
 tensorboard.*
 unreal/StreetballGym/*.slnx
 .venv*/
+
+# Quixel Megascans from Fab (Standard License: no redistribution of the files themselves; this repo is public).
+# Downloads are imported locally by unreal/StreetballGym/Scripts/import_megascans.py from Content/Art/megascans.json;
+# without them the game keeps its procedural materials.
+unreal/StreetballGym/Content/Art/Raw/Megascans/
+unreal/StreetballGym/Content/Project/Environments/Megascans/

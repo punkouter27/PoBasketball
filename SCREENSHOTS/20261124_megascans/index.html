@@ -1,0 +1,97 @@
+<title>Court Megascans Asphalt</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* Layout: one reading column, each section = short claim + evidence (media) + a plain "what it means" line. */
+:root {
+  --bg: #f6f5f2; --card: #ffffff; --ink: #15171b; --ink-2: #4c4f57; --muted: #868a93; --line: #e3e1db;
+  --new: #c98500; --new-soft: #fff4d6; --edit: #1f6fbf; --edit-soft: #e3effc; --warn: #b4441e; --warn-soft: #fbe9e2; --good: #006300;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif; --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111214; --card: #1b1c1f; --ink: #eeedea; --ink-2: #c2c1ba; --muted: #8b8c90; --line: #2d2e31;
+  --new: #f0b43a; --new-soft: #2e2610; --edit: #6fb1f2; --edit-soft: #13263a; --warn: #f08a63; --warn-soft: #34201a; --good: #3cc23c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111214; --card: #1b1c1f; --ink: #eeedea; --ink-2: #c2c1ba; --muted: #8b8c90; --line: #2d2e31;
+  --new: #f0b43a; --new-soft: #2e2610; --edit: #6fb1f2; --edit-soft: #13263a; --warn: #f08a63; --warn-soft: #34201a; --good: #3cc23c; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 15.5px/1.6 var(--font); }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 44px; }
+header { display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-size: clamp(26px, 4.2vw, 36px); line-height: 1.15; text-wrap: balance; }
+h2 { margin: 0; font-size: 21px; line-height: 1.25; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+code { font: 13px var(--mono); }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.item { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pill { align-self: flex-start; font: 600 11.5px/1 var(--font); padding: 4px 9px; border-radius: 999px; }
+.pill.new { background: var(--new-soft); color: var(--new); }
+.pill.edit { background: var(--edit-soft); color: var(--edit); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.item b { font-size: 15px; }
+.item span { font-size: 13.5px; color: var(--ink-2); }
+section { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+figure img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); display: block; background: #000; }
+figcaption { font-size: 13px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.means { border-left: 3px solid var(--new); padding: 4px 0 4px 14px; color: var(--ink); max-width: 72ch; }
+.means.edit { border-color: var(--edit); }
+.means.warn { border-color: var(--warn); }
+.tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--ink-2); font-weight: 600; letter-spacing: .02em; }
+tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; white-space: nowrap; }
+pre { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font: 12.5px/1.5 var(--mono); color: var(--ink-2); }
+ol, ul { margin: 0; padding-left: 20px; color: var(--ink-2); display: flex; flex-direction: column; gap: 6px; max-width: 72ch; }
+footer { font-size: 12.5px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">PoBasketball · Unreal 5.8 · 2026-11-24</div>
+    <h1>The court floor is now scanned asphalt (on this machine)</h1>
+    <p>A Quixel Megascans asphalt scan from Fab (free, Standard License) is the bare asphalt under the procedural paint: lines,
+      key, scuffs and cracks are unchanged. Because this repository is public and the licence does not allow redistributing the
+      files, the scan is git-ignored: a fresh clone renders the procedural floor exactly as before. Engine captures, 1600×900,
+      same seed, hour 13:34.</p>
+  </header>
+
+  <section>
+    <h2>Up close</h2>
+    <figure><img src="floor_crop.jpg" alt="Floor crop: blurry procedural noise on the left, real asphalt aggregate on the right">
+      <figcaption>Full-resolution crop of the same floor area. Left: procedural noise. Right: the scan.</figcaption></figure>
+  </section>
+
+  <section>
+    <h2>Broadcast camera</h2>
+    <div class="grid2">
+      <figure><img src="before.jpg" alt="Before"><figcaption>Before</figcaption></figure>
+      <figure><img src="after.jpg" alt="After"><figcaption>After: scan applied</figcaption></figure>
+    </div>
+    <div class="grid2">
+      <figure><img src="no_scans.jpg" alt="Rebuilt material without the scan"><figcaption>Fresh-clone case: new material, no scan imported (mean diff to before 0.72/255)</figcaption></figure>
+      <figure><img src="after_night.jpg" alt="Night with the scan"><figcaption>22:30 with the scan</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <ul>
+      <li><code>Content/Art/megascans.json</code> (committed) lists each Fab listing, its 2K zip and which material parameters its textures fill.</li>
+      <li><code>Scripts/import_megascans.py</code> extracts only the listed maps from the zips in Downloads and imports them to
+        <code>/Game/Project/Environments/Megascans/&lt;id&gt;</code> (git-ignored). The generic texture set's OpenGL normal is green-flipped.</li>
+      <li><code>M_CourtAsphalt</code> gained <code>ScanBaseColor</code>, <code>ScanNormal</code>, <code>ScanAmount</code> (default 0),
+        <code>ScanTileCm</code> (200, the scan is 2×2 m) and <code>ScanBrightness</code>.</li>
+      <li>At startup <code>AStreetballWorld::ApplyLocalScans</code> swaps a material for a dynamic instance with the scan only when every texture loads.</li>
+    </ul>
+    <p class="means warn">Brick, graffiti and graffiti-tag are in the Fab library but their downloads were blocked by Chrome's
+      multiple-downloads setting; the manifest already lists them, and they import with the same script once the zips are in Downloads.</p>
+  </section>
+
+  <footer>Build v261124 · Streetball.* automation 27/27 pass</footer>
+</div>

@@ -136,6 +136,7 @@ public:
 	int32 GetPresentationEventCount(EPresentationEvent E) const { return PresentationCounts[(int32)E]; }
 	bool IsAmbiencePlaying() const { return AudioPlayer.IsAmbiencePlaying(); }
 	int32 GetMaterialOverrideCount() const { return MaterialOverrideCount; }
+	int32 GetLocalScanCount() const { return LocalScanCount; }
 	float GetExertion01() const { return Exertion01; }
 	float GetLastPowerWatts() const { return LastPowerW; }
 
@@ -177,6 +178,9 @@ private:
 	void SetupPresentation();
 	void UpdateCaptureSchedule();
 	UMaterialInterface* MaterialOverrideFor(const FString& GeomName) const;
+	/** Local-only Megascans (Content/Art/megascans.json, git-ignored textures): swaps each listed override material for
+	 *  a dynamic instance with the scan textures, only when every texture of that target loads. Returns targets applied. */
+	int32 ApplyLocalScans();
 	void UpdateCameraAndHUD(float Dt);
 	/** Idle demo mode (StreetballShowcase): Watch mode, HUD hidden, showcase cameras; restored on input. */
 	void HandleDemoMode(bool bActive);
@@ -217,6 +221,7 @@ private:
 	TArray<EPresentationEvent> PendingPresentation;
 	int32 PresentationCounts[(int32)EPresentationEvent::Count] = {0};
 	int32 MaterialOverrideCount = 0;
+	int32 LocalScanCount = 0;
 	float Exertion01 = 0.f;
 	float LastPowerW = 0.f;
 	double NextExertionSweatT = 0.0;

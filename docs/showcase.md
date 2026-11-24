@@ -59,3 +59,12 @@ camera, the live broadcast camera) and `MRQ_Broadcast` (1920x1080 PNG, 30 fps, 8
 game mode kept as `StreetballGameMode`). `Scripts/render_broadcast.ps1 [game args]` renders the live game into
 `Saved/MovieRenders/<date>_<time>/`. The sim steps on MRQ's fixed frame time (USimClock accumulator), so a render is
 reproducible from its arguments. No HUD in the frames.
+
+## Local Megascans (2026-11-24)
+Fab Megascans (Standard License) are used **locally only**: this repo is public and the licence does not allow
+redistributing the files, so `Content/Art/Raw/Megascans/` and `/Game/Project/Environments/Megascans/` are git-ignored.
+`Content/Art/megascans.json` lists the Fab listings, their 2K zips and the material parameters they fill;
+`Scripts/import_megascans.py` imports whatever zips are in `~/Downloads` (or `STREETBALL_DOWNLOADS`), and
+`AStreetballWorld::ApplyLocalScans` applies a target only when all its textures load. Without them (fresh clone) the
+procedural materials render as before. In use: the asphalt scan under `M_CourtAsphalt` (`ScanAmount` etc.). Report:
+`SCREENSHOTS/20261124_megascans/index.html`.

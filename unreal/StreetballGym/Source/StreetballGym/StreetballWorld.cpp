@@ -23,6 +23,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/Texture.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "UObject/ConstructorHelpers.h"
@@ -158,6 +159,49 @@ AStreetballWorld::AStreetballWorld()
 	GeomMaterialOverrides.Add(TEXT("pole_"), TEXT("/Game/Project/Environments/Materials/MI_SteelPaint.MI_SteelPaint"));
 	GeomMaterialOverrides.Add(TEXT("arm_"), TEXT("/Game/Project/Environments/Materials/MI_SteelPaint.MI_SteelPaint"));
 	GeomMaterialOverrides.Add(TEXT("fence_"), TEXT("/Game/Project/Environments/Materials/MI_ChainLink.MI_ChainLink"));
+}
+
+int32 AStreetballWorld::ApplyLocalScans()
+{
+	const FString Path = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Art/megascans.json"));
+	FString Text;
+	TSharedPtr<FJsonObject> Root;
+	if (!FFileHelper::LoadFileToString(Text, *Path) || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root) || !Root.IsValid()) return 0;
+	const TSharedPtr<FJsonObject>* Targets = nullptr;
+	if (!Root->TryGetObjectField(TEXT("targets"), Targets)) return 0;
+	int32 Applied = 0;
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& T : (*Targets)->Values)
+	{
+		const TSharedPtr<FJsonObject> Cfg = T.Value->AsObject();
+		TMap<FName, UTexture*> Textures;
+		bool bAll = true;
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& P : Cfg->GetObjectField(TEXT("textures"))->Values)
+		{
+			UTexture* Tex = LoadObject<UTexture>(nullptr, *P.Value->AsString(), nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (!Tex) { bAll = false; break; }
+			Textures.Add(FName(*P.Key), Tex);
+		}
+		if (!bAll) continue; // not imported on this machine (fresh clone): keep the procedural material
+		UMaterialInstanceDynamic* MID = nullptr;
+		for (TPair<FString, TObjectPtr<UMaterialInterface>>& O : LoadedOverrides)
+		{
+			if (!O.Value || O.Value->GetPathName() != T.Key) continue;
+			if (!MID)
+			{
+				MID = UMaterialInstanceDynamic::Create(O.Value, this);
+				for (const TPair<FName, UTexture*>& X : Textures) MID->SetTextureParameterValue(X.Key, X.Value);
+				for (const TPair<FString, TSharedPtr<FJsonValue>>& S : Cfg->GetObjectField(TEXT("scalars"))->Values)
+					MID->SetScalarParameterValue(FName(*S.Key), (float)S.Value->AsNumber());
+			}
+			O.Value = MID;
+		}
+		if (MID)
+		{
+			++Applied;
+			UE_LOG(LogTemp, Log, TEXT("StreetballWorld: local Megascans applied to %s (%d textures)"), *T.Key, Textures.Num());
+		}
+	}
+	return Applied;
 }
 
 UMaterialInterface* AStreetballWorld::MaterialOverrideFor(const FString& GeomName) const
@@ -326,6 +370,7 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		{
 			if (UMaterialInterface* MI = LoadObject<UMaterialInterface>(nullptr, *P.Value, nullptr, LOAD_NoWarn | LOAD_Quiet)) LoadedOverrides.Add(P.Key, MI);
 		}
+		LocalScanCount = ApplyLocalScans();
 	}
 
 	GeomActors.Reset();
