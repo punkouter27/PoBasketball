@@ -35,3 +35,10 @@ Owner decisions for this batch (asked before implementation, UU_AGENT §5):
 Substrate (`r.Substrate=True`, layered court/ball/rim/skin materials), contact-driven MetaSounds (`Impact` input from
 `FContactAudioProcessor`), contact-driven pooled Niagara bursts (`CourtFX`), PCG neighbourhood with litter, weeds,
 cracks and puddles (`build_environment.py`, `M_CourtAsphalt`), Groom hair and Chaos Cloth hem (2026-11-17).
+
+## Time of day (presentation only; no policy, director row or interface affected)
+
+`UCourtTimeOfDaySubsystem`: sun → moon, sky light scale, 4 streetlight spot lights (one per PCG `SM_StreetLight`
+instance; the PCG ring at 17 m spacing yields 4, not 17), night exposure volume. Start hour reproduces the level's sun:
+before vs after mean pixel difference 1.7/255 over the court. MegaLights tried and reverted (on-screen warning without
+hardware ray tracing). Report: `SCREENSHOTS/20261124_time_of_day/index.html`. `Streetball.Showcase.*` 5/5 pass.

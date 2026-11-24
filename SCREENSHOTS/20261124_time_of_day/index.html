@@ -1,0 +1,126 @@
+<title>Court Time of Day</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* Layout: one reading column, each section = short claim + evidence (media) + a plain "what it means" line. */
+:root {
+  --bg: #f6f5f2; --card: #ffffff; --ink: #15171b; --ink-2: #4c4f57; --muted: #868a93; --line: #e3e1db;
+  --new: #c98500; --new-soft: #fff4d6; --edit: #1f6fbf; --edit-soft: #e3effc; --warn: #b4441e; --warn-soft: #fbe9e2; --good: #006300;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif; --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111214; --card: #1b1c1f; --ink: #eeedea; --ink-2: #c2c1ba; --muted: #8b8c90; --line: #2d2e31;
+  --new: #f0b43a; --new-soft: #2e2610; --edit: #6fb1f2; --edit-soft: #13263a; --warn: #f08a63; --warn-soft: #34201a; --good: #3cc23c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111214; --card: #1b1c1f; --ink: #eeedea; --ink-2: #c2c1ba; --muted: #8b8c90; --line: #2d2e31;
+  --new: #f0b43a; --new-soft: #2e2610; --edit: #6fb1f2; --edit-soft: #13263a; --warn: #f08a63; --warn-soft: #34201a; --good: #3cc23c; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 15.5px/1.6 var(--font); }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 44px; }
+header { display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-size: clamp(26px, 4.2vw, 36px); line-height: 1.15; text-wrap: balance; }
+h2 { margin: 0; font-size: 21px; line-height: 1.25; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+code { font: 13px var(--mono); }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.item { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pill { align-self: flex-start; font: 600 11.5px/1 var(--font); padding: 4px 9px; border-radius: 999px; }
+.pill.new { background: var(--new-soft); color: var(--new); }
+.pill.edit { background: var(--edit-soft); color: var(--edit); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.item b { font-size: 15px; }
+.item span { font-size: 13.5px; color: var(--ink-2); }
+section { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+figure img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); display: block; background: #000; }
+figcaption { font-size: 13px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.means { border-left: 3px solid var(--new); padding: 4px 0 4px 14px; color: var(--ink); max-width: 72ch; }
+.means.edit { border-color: var(--edit); }
+.means.warn { border-color: var(--warn); }
+.tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--ink-2); font-weight: 600; letter-spacing: .02em; }
+tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; white-space: nowrap; }
+pre { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font: 12.5px/1.5 var(--mono); color: var(--ink-2); }
+ol, ul { margin: 0; padding-left: 20px; color: var(--ink-2); display: flex; flex-direction: column; gap: 6px; max-width: 72ch; }
+footer { font-size: 12.5px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">PoBasketball · Unreal 5.8 + MuJoCo · 2026-11-24</div>
+    <h1>The court now has a time of day: golden hour, dusk and a lamp-lit night</h1>
+    <p>A new world subsystem (<code>UCourtTimeOfDaySubsystem</code>) moves the level's sun through the day, turns it into a dim
+      blue moon at night, and switches on a spot light under each PCG streetlight from dusk to dawn. Everything is presentation:
+      MuJoCo, the policies and the HUD are untouched. All images are engine captures (<code>-ShowcaseCapture</code>, 1600×900,
+      same seed and camera), with the clock frozen at the hour shown.</p>
+    <figure><img src="strip.jpg" alt="Four captures of the court: early afternoon, golden hour, dusk with lamps, night">
+      <figcaption>13:34 · 17:36 · 18:18 · 22:30</figcaption></figure>
+  </header>
+
+  <div class="summary">
+    <div class="item"><span class="pill new">New</span><b>Sun, sky and moon</b><span>One directional light: sun by day (warm near the horizon), moon below −3°. The sky light follows; real-time capture recolours the sky.</span></div>
+    <div class="item"><span class="pill new">New</span><b>Streetlights</b><span>4 spot lights, one per <code>SM_StreetLight</code> instance, created once after PCG finishes generating. On 17:54 → 06:06, 15-minute fades.</span></div>
+    <div class="item"><span class="pill new">New</span><b>Night exposure</b><span>An unbound post-process volume fixes exposure at EV100 0.5 at night, blended by sun angle, so auto exposure can't turn night back into day.</span></div>
+    <div class="item"><span class="pill warn">Not shipped</span><b>MegaLights</b><span>Tried and reverted: without hardware ray tracing the engine prints a red warning on screen. The lamps set the per-light flag for later.</span></div>
+  </div>
+
+  <section>
+    <h2>Before and after at the start hour</h2>
+    <p>The clock starts at the hour whose sun matches the level's saved sun (pitch −55°, yaw 35° → 13:34), so the first frame is
+      the court as it looked before. Mean pixel difference over the court area: <b>1.7 / 255</b>, mean brightness 158.0 vs 157.9
+      (the character's pose differs slightly between runs).</p>
+    <div class="grid2">
+      <figure><img src="before.jpg" alt="Court in the previous build"><figcaption>Before: the previous build</figcaption></figure>
+      <figure><img src="h_ref.jpg" alt="Court at the start hour"><figcaption>After: time of day at its start hour</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Golden hour and dusk</h2>
+    <div class="grid2">
+      <figure><img src="h_17.6.jpg" alt="Golden hour, long warm shadows"><figcaption>17:36: low warm sun through the fence</figcaption></figure>
+      <figure><img src="h_18.3.jpg" alt="Dusk with the streetlights on"><figcaption>18:18: sun 5° below the horizon, lamps on</figcaption></figure>
+    </div>
+    <p class="means">The lamps come on at 17:54, before sunset is over. A first version switched them on at 18:30, which left
+      18:18 completely black: the sun had faded and the moon had not started yet.</p>
+  </section>
+
+  <section>
+    <h2>Night</h2>
+    <div class="grid2">
+      <figure><img src="h_22.5.jpg" alt="Night, broadcast camera"><figcaption>22:30, broadcast camera</figcaption></figure>
+      <figure><img src="night_demo.jpg" alt="Night, demo camera"><figcaption>22:30, demo camera</figcaption></figure>
+    </div>
+    <p class="means warn">Only 4 streetlights exist in the PCG output (17 m spacing around the block), so the far side of the court is
+      lit by the moon only. Court floodlights would need a new prop and are not part of this change.</p>
+  </section>
+
+  <section>
+    <h2>Settings and checks</h2>
+    <div class="tablewrap"><table>
+      <tr><th>Setting (DA_ShowcaseConfig › TimeOfDay)</th><th>Default</th><th>Meaning</th></tr>
+      <tr><td><code>bTimeOfDay</code></td><td>on</td><td>Run the system at all</td></tr>
+      <tr><td><code>StartHour</code></td><td>−1</td><td>Negative: the hour matching the level's own sun</td></tr>
+      <tr><td><code>DayLengthMinutes</code></td><td>20</td><td>Real minutes per 24 h; 0 stops the clock</td></tr>
+      <tr><td><code>LampsOnHour</code> / <code>LampsOffHour</code></td><td>17.9 / 6.1</td><td>Streetlights on / off</td></tr>
+      <tr><td><code>LampLumens</code></td><td>6000</td><td>Per lamp</td></tr>
+      <tr><td><code>NightExposureEV100</code></td><td>0.5</td><td>Fixed night exposure (lower = brighter)</td></tr>
+    </table></div>
+    <ul>
+      <li>Command line: <code>-TimeOfDay=21.5</code> sets the start hour, <code>-TimeOfDayFreeze</code> stops the clock.</li>
+      <li>Automation: <code>Streetball.Showcase.TimeOfDayModel</code> checks the start hour reproduces the level's sun, noon
+        elevation, moon and lamp hours, that the light never comes from below the horizon, and that its intensity never jumps more than 5 % in a minute.
+        All 5 <code>Streetball.Showcase.*</code> tests pass.</li>
+      <li>Regenerate: <code>pwsh Scripts/capture_time_of_day.ps1 -OutDir SCREENSHOTS/20261124_time_of_day/raw</code>, then
+        <code>make_media.py</code> in this folder.</li>
+    </ul>
+  </section>
+
+  <footer>Build v261124 · captures at 1600×900 · RTX 2060, DX12, Lumen, no hardware ray tracing</footer>
+</div>

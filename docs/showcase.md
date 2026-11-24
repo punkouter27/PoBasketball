@@ -39,5 +39,15 @@ then quits. `-ShowcaseIdle=<s>` overrides the idle threshold; `-ShowcaseBenchmar
 `overlay_on.png` shows its result. Run it at `-ResX=1600 -ResY=900` and `-ResX=450 -ResY=800`: below 900 px wide (or
 portrait) the HUD stacks its banner, policy badge, telemetry and key hints bottom-left above the version stamp.
 
-Automation tests: `Streetball.Showcase.IdleDemoIgnoresLongFrames`, `.OverlayAndSimBenchmark`,
+Automation tests: `Streetball.Showcase.IdleDemoIgnoresLongFrames`, `.OverlayAndSimBenchmark`, `.TimeOfDayModel`,
 `.HUDLayoutLandscapeAndPortrait`, `.ConfigDataAssets` (the reward DataAsset equals `shared/reward_config.json`).
+
+## Time of day (2026-11-24)
+`UCourtTimeOfDaySubsystem` (`CourtTimeOfDay.h/.cpp`) moves the level's movable directional light through a 24 h day, turns
+it into a dim blue moon below −3° sun elevation, scales the sky light, and from `LampsOnHour` to `LampsOffHour` lights one
+spot light per `SM_StreetLight` PCG instance (created once, after the PCG output has stopped growing). An unbound
+post-process volume holds exposure at `NightExposureEV100` at night (blended by sun angle). Settings: `DA_ShowcaseConfig`
+› TimeOfDay. `StartHour = -1` starts at the hour matching the level's saved sun, so the first frame matches the old look.
+Command line: `-TimeOfDay=<hour>`, `-TimeOfDayFreeze`. Captures: `Scripts/capture_time_of_day.ps1`; report:
+`SCREENSHOTS/20261124_time_of_day/index.html`. MegaLights is not enabled (needs hardware ray tracing; see DefaultEngine.ini).
+Test: `Streetball.Showcase.TimeOfDayModel`.
