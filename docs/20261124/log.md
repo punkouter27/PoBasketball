@@ -42,3 +42,9 @@ cracks and puddles (`build_environment.py`, `M_CourtAsphalt`), Groom hair and Ch
 instance; the PCG ring at 17 m spacing yields 4, not 17), night exposure volume. Start hour reproduces the level's sun:
 before vs after mean pixel difference 1.7/255 over the court. MegaLights tried and reverted (on-screen warning without
 hardware ray tracing). Report: `SCREENSHOTS/20261124_time_of_day/index.html`. `Streetball.Showcase.*` 5/5 pass.
+
+## Broadcast replays (presentation only)
+
+Movie Render Queue plugin enabled; `LS_Broadcast` + `MRQ_Broadcast` in `/Game/Project/Core/Cinematics` (built by
+`Scripts/make_broadcast_render.py`), rendered by `Scripts/render_broadcast.ps1`: 360 frames, 1920x1080, tier 3 dribble at
+17:36. Sample in `SCREENSHOTS/20261124_time_of_day/` (mrq_frame.jpg, mrq_broadcast.gif).

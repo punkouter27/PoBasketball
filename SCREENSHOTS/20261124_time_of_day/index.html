@@ -102,6 +102,19 @@ footer { font-size: 12.5px; color: var(--muted); }
   </section>
 
   <section>
+    <h2>Broadcast replays with Movie Render Queue</h2>
+    <p>The live game rendered offline through the broadcast camera: tier 3 dribbling, seed 7, 17:36, 1920×1080 at 30 fps with
+      8 temporal samples (motion blur and clean edges). MuJoCo and the dribble policy step on MRQ's fixed frame time, so the same
+      arguments give the same clip. No HUD: MRQ renders the scene only.</p>
+    <div class="grid2">
+      <figure><img src="mrq_frame.jpg" alt="Movie Render Queue frame: grandma dribbling at golden hour"><figcaption>Frame 150 of 360 (full resolution, scaled)</figcaption></figure>
+      <figure><img src="mrq_broadcast.gif" alt="Six seconds of the render, animated"><figcaption>Seconds 3–9, 10 fps, 480 px wide (GIF)</figcaption></figure>
+    </div>
+    <pre>pwsh Scripts/render_broadcast.ps1 -TimeOfDay=17.6 -TimeOfDayFreeze -StreetballSeed=7 -StreetballStartTier=3 -StreetballMaxTier=3 -StreetballDribbleHand=right
+-> Saved/MovieRenders/&lt;date&gt;_&lt;time&gt;/broadcast.0000-0359.png   (12 s; ~4 min on an RTX 2060)</pre>
+  </section>
+
+  <section>
     <h2>Settings and checks</h2>
     <div class="tablewrap"><table>
       <tr><th>Setting (DA_ShowcaseConfig › TimeOfDay)</th><th>Default</th><th>Meaning</th></tr>

@@ -63,7 +63,7 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, deployed
 - Headless Unreal: always go through `unreal/StreetballGym/Scripts/run_headless.ps1`; never pass string CVars through `-ExecCmds`; never use `-nullrhi`.
 - Content layout (moved through the editor on 2026-11-22, redirectors fixed up and deleted): everything cooked lives in
   `/Game/Project/` = `Content/Project/`:
-  `Agents/` (Grandma, UE Mannequins), `Core/` (Audio, VFX), `DataAssets/` (DA_RewardConfig, DA_ShowcaseConfig,
+  `Agents/` (Grandma, UE Mannequins), `Core/` (Audio, VFX, Cinematics: MRQ broadcast render assets), `DataAssets/` (DA_RewardConfig, DA_ShowcaseConfig,
   DA_CourtAudioBank, DA_CourtFXBank, DA_GrandmaVoiceBank), `Environments/` (Maps, Env proxies, Materials, PCG),
   `RL_Policies/` (not assets: the MJCF scene, obs/humanoid specs, transition table and the ONNX policies that
   `sim/tools/sync_policies_to_unreal.py` copies in; `policies/` is git-ignored), `UI/` (none yet: the HUD and overlay

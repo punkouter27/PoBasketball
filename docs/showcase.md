@@ -51,3 +51,11 @@ post-process volume holds exposure at `NightExposureEV100` at night (blended by 
 Command line: `-TimeOfDay=<hour>`, `-TimeOfDayFreeze`. Captures: `Scripts/capture_time_of_day.ps1`; report:
 `SCREENSHOTS/20261124_time_of_day/index.html`. MegaLights is not enabled (needs hardware ray tracing; see DefaultEngine.ini).
 Test: `Streetball.Showcase.TimeOfDayModel`.
+
+## Broadcast replays (Movie Render Queue, 2026-11-24)
+`Scripts/make_broadcast_render.py` (run once through `run_headless.ps1 -ExecutePythonScript=...`) builds
+`/Game/Project/Core/Cinematics/LS_Broadcast` (empty 12 s sequence: with no camera cut MRQ renders through the player's
+camera, the live broadcast camera) and `MRQ_Broadcast` (1920x1080 PNG, 30 fps, 8 temporal samples, 60 warm-up frames,
+game mode kept as `StreetballGameMode`). `Scripts/render_broadcast.ps1 [game args]` renders the live game into
+`Saved/MovieRenders/<date>_<time>/`. The sim steps on MRQ's fixed frame time (USimClock accumulator), so a render is
+reproducible from its arguments. No HUD in the frames.
