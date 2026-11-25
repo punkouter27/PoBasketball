@@ -32,13 +32,27 @@ FAMILIES = {
     "scramble": "l3b_scramble",
     "shot": "l4_jump_shot",
 }
+DRIBBLE_TRANSFER_ARGS = [
+    "--freeze-norm",
+    "--critic-warmup-iters",
+    "20",
+    "--freeze-trunk-layers",
+    "2",
+    "--anchor-coef",
+    "0.02",
+    "--motor-kd",
+    "0.8",
+    "1.2",
+    "--latency-max",
+    "2",
+]
 LADDER: list[tuple[str, float, list[str], str | None]] = [
     ("l0_stand", 150e6, ["--push-curriculum", "--push-max", "100", "--init-std", "0.3"], "balance"),
     ("l1_traverse", 300e6, ["--push-curriculum"], "locomotion"),
-    ("l2a_dribble_r", 400e6, [], None),
-    ("l2b_dribble_l", 200e6, [], None),
-    ("l2c_crossover", 300e6, [], None),
-    ("l3a_moving_dribble", 500e6, [], "dribble"),
+    ("l2a_dribble_r", 400e6, DRIBBLE_TRANSFER_ARGS, None),
+    ("l2b_dribble_l", 200e6, DRIBBLE_TRANSFER_ARGS, None),
+    ("l2c_crossover", 300e6, [*DRIBBLE_TRANSFER_ARGS, "--sym-coef", "0.05"], None),
+    ("l3a_moving_dribble", 500e6, [*DRIBBLE_TRANSFER_ARGS, "--sym-coef", "0.05"], "dribble"),
     ("l3b_scramble", 300e6, [], "scramble"),
     ("l4_jump_shot", 500e6, [], "shot"),
 ]

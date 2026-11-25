@@ -104,12 +104,22 @@ class L3MovingDribble(L1Traverse):
         self.dist_travelled += (xy - self.prev_xy).norm(dim=-1)
         self.prev_xy = xy.clone()
         self.control_steps += env.in_control
+        # Momentum-aware turning: reward horizontal pelvis velocity aligned with commanded waypoint direction
+        v_xy = env.v_pelvis[:, :2]
+        v_norm = v_xy.norm(dim=-1, keepdim=True).clamp(min=1e-4)
+        cmd_dir_w = (
+            (env.H[:, :2, 0] * self._loco_dir[:, 0:1] + env.H[:, :2, 1] * self._loco_dir[:, 1:2])
+            if hasattr(self, "_loco_dir")
+            else fwd
+        )
+        turn_align = ((v_xy / v_norm) * cmd_dir_w).sum(-1).clamp(min=0.0) * env.in_control
         r = (
             r_loco
             + 1.0 * torch.exp(-((spot_d / 0.35) ** 2))
             + 3.0 * r_apex
             + 0.3 * r_palm
             + 0.5 * env.in_control
+            + 0.25 * turn_align
             - 2.0 * (ball_z - 1.25).clamp(min=0.0)
         )
         return r

@@ -39,11 +39,11 @@ public:
 	/** Mechanical power: mean over actuators of |force * velocity|. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Penalties") float PowerAbsWeight = 0.0f;
 	/** Static stability: |CoM_xy - support centre_xy|^2. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Penalties") float ComOffsetWeight = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Penalties") float ComOffsetWeight = -0.2f;
 	/** Vertical CoM speed squared. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Penalties") float ComVelZSqWeight = 0.0f;
 	/** Pelvis roll and pitch rate squared. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Penalties") float AngVelXYSqWeight = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Penalties") float AngVelXYSqWeight = -0.02f;
 	/** At touchdown: max(0, 0.35 s - swing time), summed over feet. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Penalties") float ShortSwingWeight = 0.0f;
 

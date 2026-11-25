@@ -44,7 +44,8 @@ class RandomizationConfig:
     motor_kd: tuple[float, float] = (1.0, 1.0)
     ball_mass: tuple[float, float] = (0.95, 1.05)
     ball_restitution: tuple[float, float] = (0.9, 1.1)  # scales contact damping (lower = bouncier)
-    action_latency_prob: float = 0.5  # per episode: one control step of delay
+    action_latency_prob: float = 0.5  # per episode: probability of delayed control (>=1 step)
+    action_latency_max_steps: int = 1  # max control steps of delay (1 = 0/1 step; 2 = 0/1/2 steps)
     push_force: tuple[float, float] = (0.0, 150.0)  # N, horizontal, random direction
     push_duration_s: float = 0.2
     push_interval_s: tuple[float, float] = (3.0, 8.0)
@@ -203,7 +204,8 @@ class StreetballEnv:
         self.palm_ball_contact = z(N, 2)
         self.ball_floor_contact = z(N)
         self.fallen = z(N, dtype=torch.bool)
-        self.delay_action = z(N, dtype=torch.bool)
+        self.delay_steps = z(N, dtype=torch.long)
+        self.ctrl_history = self.nominal[None, None, :].repeat(N, 3, 1)  # ring buffer for 0..2 control steps delay
         self.push_force = z(N, 3)
         self.push_t_end = z(N)
         self.push_t_next = z(N)
@@ -219,6 +221,11 @@ class StreetballEnv:
 
         self.level.attach(self)
         self.reset(torch.arange(N, device=dev))
+
+    @property
+    def delay_action(self) -> torch.Tensor:
+        """Backward-compatible boolean mask of worlds with >= 1 step of actuator delay."""
+        return self.delay_steps > 0
 
     # ------------------------------------------------------------------ physics
     def _capture_graph(self):
@@ -377,7 +384,14 @@ class StreetballEnv:
         ps = self.base_pair_solref[None].repeat(k, 1, 1)
         ps[:, 0, 1] *= fr
         self.m_pair_solref[ids] = ps
-        self.delay_action[ids] = self.rand(k) < rc.action_latency_prob
+        if rc.action_latency_max_steps <= 1:
+            self.delay_steps[ids] = (self.rand(k) < rc.action_latency_prob).long()
+        else:
+            has_delay = self.rand(k) < rc.action_latency_prob
+            steps = torch.randint(
+                1, min(2, rc.action_latency_max_steps) + 1, (k,), device=self.device, generator=self.gen
+            )
+            self.delay_steps[ids] = torch.where(has_delay, steps, torch.zeros_like(steps))
 
     def _schedule_push(self, ids: torch.Tensor):
         rc = self.cfg.randomization
@@ -413,6 +427,7 @@ class StreetballEnv:
         self.xfrc[ids] = 0.0
         self.prev_action[ids] = 0.0
         self.prev_ctrl[ids] = self.nominal[None]
+        self.ctrl_history[ids] = self.nominal[None, None, :]
         self.step_count[ids] = 0
         self.time[ids] = 0.0
         self.in_control[ids] = 0.0
@@ -437,7 +452,12 @@ class StreetballEnv:
         """action: (N, N_ACT) in [-1, 1]. Returns obs, reward, done, info."""
         action = action.clamp(-1.0, 1.0)
         ctrl = (self.nominal + action * self.half).clamp(self.lo, self.hi)
-        applied = torch.where(self.delay_action[:, None], self.prev_ctrl, ctrl)
+        # Shift ring buffer: [t, t-1, t-2]
+        self.ctrl_history[:, 2] = self.ctrl_history[:, 1]
+        self.ctrl_history[:, 1] = self.ctrl_history[:, 0]
+        self.ctrl_history[:, 0] = ctrl
+        env_idx = torch.arange(self.N, device=self.device)
+        applied = self.ctrl_history[env_idx, self.delay_steps]
         self.ctrl[:] = applied
         self.prev_ctrl[:] = ctrl
         self._apply_pushes()

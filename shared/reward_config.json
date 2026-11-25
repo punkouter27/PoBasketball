@@ -6,9 +6,9 @@
     "action_rate_sq": -0.05,
     "foot_slip": -0.1,
     "power_abs": 0.0,
-    "com_offset": 0.0,
+    "com_offset": -0.2,
     "com_vel_z_sq": 0.0,
-    "ang_vel_xy_sq": 0.0,
+    "ang_vel_xy_sq": -0.02,
     "short_swing": 0.0
   },
   "level_overrides": {

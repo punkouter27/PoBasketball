@@ -136,6 +136,20 @@ class PPO:
         for p in self.anchor.parameters():
             p.requires_grad_(False)
 
+    def freeze_trunk_layers(self, n_layers: int) -> int:
+        """Freeze the first n_layers Linear modules of Actor.net (preserving locomotion/balance trunk)."""
+        if n_layers <= 0:
+            return 0
+        frozen = 0
+        for mod in self.ac.actor.net:
+            if isinstance(mod, nn.Linear):
+                if frozen >= n_layers:
+                    break
+                for p in mod.parameters():
+                    p.requires_grad_(False)
+                frozen += 1
+        return frozen
+
     def set_mirror(self, m) -> None:
         """m: a streetball.mirror.Mirror. Enables the symmetry loss when cfg.sym_coef > 0."""
         dev = self.device

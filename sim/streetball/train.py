@@ -134,6 +134,13 @@ def parse():
         help="left/right symmetry loss weight (0 = off); only on levels that declare Level.task_mirror()",
     )
     ap.add_argument("--motor-kd", type=float, nargs=2, default=(1.0, 1.0), help="kv randomisation range (1 1 = off)")
+    ap.add_argument("--latency-max", type=int, default=1, help="max control steps of actuator latency (1 or 2)")
+    ap.add_argument(
+        "--freeze-trunk-layers",
+        type=int,
+        default=0,
+        help="freeze the first N Linear layers of Actor.net during transfer",
+    )
     ap.add_argument("--save-every", type=int, default=50, help="iterations")
     ap.add_argument(
         "--horizon0",
@@ -158,7 +165,10 @@ def main():
         num_envs=args.num_envs,
         seed=args.seed,
         randomization=RandomizationConfig(
-            enabled=not args.no_randomization, push_force=(0.0, args.push_max), motor_kd=tuple(args.motor_kd)
+            enabled=not args.no_randomization,
+            push_force=(0.0, args.push_max),
+            motor_kd=tuple(args.motor_kd),
+            action_latency_max_steps=max(1, int(args.latency_max)),
         ),
     )
     ppo_cfg = PPOConfig(
@@ -186,6 +196,9 @@ def main():
         agent.set_mirror(mirror.build(env.mjm, env.ix, *tm))
         print(f"symmetry loss on, weight {args.sym_coef}")
     agent.freeze_norm = args.freeze_norm
+    if args.freeze_trunk_layers > 0:
+        n_frozen = agent.freeze_trunk_layers(args.freeze_trunk_layers)
+        print(f"froze {n_frozen} trunk Linear layer(s) of Actor.net")
     if args.anchor_coef > 0.0:
         agent.set_anchor()  # anchor = the actor as initialised (the --init brain)
     if args.reset_std is not None:
