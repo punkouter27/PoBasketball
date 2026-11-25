@@ -21,7 +21,8 @@ enum class EStreetballCameraMode : uint8
 	Broadcast,
 	Follow,
 	Orbit,
-	Free
+	Free,
+	Face        // 2026-11-24: close-up of the head from the front (key F; last in the C cycle)
 };
 
 /** Inputs the cut logic needs each frame (sim metres). */
@@ -33,6 +34,9 @@ struct STREETBALLGYM_API FBroadcastInputs
 	double Speed = 0.0;                     // horizontal character speed m/s
 	EStreetballState State = EStreetballState::Stand;
 	FVector3d Rim[2];                       // east, west
+	FVector HeadUE = FVector::ZeroVector;   // head bone, UE cm (face camera); zero = unknown
+	FVector2d HeadingFwd = FVector2d(1.0, 0.0);   // sim heading (x forward, y left)
+	FVector FaceDirUE = FVector::ZeroVector;      // where the face points (UE); zero = use HeadingFwd
 };
 
 /** Where the camera should be for a shot (UE cm). */

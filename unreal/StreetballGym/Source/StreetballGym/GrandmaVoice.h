@@ -54,6 +54,10 @@ public:
 	/** Continuous physical exertion [0..1] from sim actuator power/torque; drives idle breathing & squint/grimace. */
 	void SetExertion(float InExertion01) { Exertion01 = FMath::Clamp(InExertion01, 0.f, 1.f); }
 	float GetExertion() const { return Exertion01; }
+	/** Dribble Lab face mood [0..1] (2026-11-24): CC morphs while no line or voice mood is playing; replaces the exertion grimace while > 0.05. */
+	void SetBaseMood(float InSmile01, float InFrown01) { BaseSmile = FMath::Clamp(InSmile01, 0.f, 1.f); BaseFrown = FMath::Clamp(InFrown01, 0.f, 1.f); }
+	float GetBaseSmile() const { return BaseSmile; }
+	float GetBaseFrown() const { return BaseFrown; }
 
 	bool HasBank() const { return Bank.IsValid() && Bank->Lines.Num() > 0; }
 	const FString& GetSubtitle() const { return Subtitle; }
@@ -82,4 +86,7 @@ private:
 	int32 LinesPlayed = 0;
 	float Exertion01 = 0.f;
 	TArray<FName> MoodMorphs;          // morphs touched by the mood layer (cleared when it decays)
+	void ApplyBaseMood(float Smile, float Frown);
+	float BaseSmile = 0.f, BaseFrown = 0.f;
+	bool bBaseMoodApplied = false;
 };

@@ -8,6 +8,29 @@
 class UTextBlock;
 class UProgressBar;
 class UVerticalBox;
+class UButton;
+class UBorder;
+
+/** Live numbers for the Dribble Lab panel (filled by the world each frame; the panel redraws at 10 Hz). */
+struct FStreetballDribbleStats
+{
+	int32 Behaviour = 0;
+	int32 Skin = 0;
+	bool bTrained = false;
+	bool bRightHand = true;
+	bool bScramble = false;
+	bool bLoose = false;
+	int32 Resets = 0;
+	int32 Bounces = 0;
+	int32 CleanBounces = 0;
+	int32 Streak = 0;
+	int32 HandSwitches = 0;
+	float RunS = 0.f;
+	float BestRunS = 0.f;
+};
+
+/** Panel button pressed: Kind 0 = dribble behaviour, 1 = humanoid; Index into the lists given to SetDribbleFocus. */
+DECLARE_MULTICAST_DELEGATE_TwoParams(FStreetballDribbleUiRequest, int32 /*Kind*/, int32 /*Index*/);
 
 /**
  * PRD section 6 scoreboard, built entirely in C++ (no UMG asset): active tier, clean-dribble
@@ -46,7 +69,21 @@ public:
 	 *  key hints stack bottom-left above the version stamp and wrap, so nothing overlaps at 9:16. */
 	void ApplyLayout(const FVector2D& ViewSize);
 
+	/**
+	 * Dribble Lab (2026-11-24): a clickable top-left panel (behaviour buttons, humanoid buttons, live dribble stats)
+	 * replaces the five-tier scoreboard, milestone bar and mode banner, which are hidden (not removed). Buttons are
+	 * built once here; nothing is created per frame. Keys 1-4 / H do the same as the buttons (world input).
+	 */
+	void SetDribbleFocus(const TArray<FString>& Behaviours, const TArray<bool>& Trained, const TArray<FString>& Skins);
+	bool IsDribbleFocus() const { return DribblePanel != nullptr; }
+	void UpdateDribbleStats(const FStreetballDribbleStats& S);
+	bool IsPointerOverDribblePanel() const;
+	FStreetballDribbleUiRequest OnDribbleUiRequest;
+	static constexpr int32 MaxDribbleButtons = 6;
 	// exposed for tests
+	FString GetDribbleStatsText() const { return CachedDribbleStats; }
+	int32 GetActiveBehaviourButton() const { return ShownBehaviour; }
+	int32 GetActiveSkinButton() const { return ShownSkin; }
 	FString GetTierText() const;
 	FString GetStreakText() const;
 	FString GetDistanceText() const;
@@ -99,4 +136,34 @@ protected:
 	float WipeDuration = 0.18f;
 	float InputPulseTimer = 0.f;
 	FString CachedTier, CachedStreak, CachedDistance, CachedMilestone;
+
+	// Dribble Lab
+	UFUNCTION() void OnBehaviour0() { RequestDribble(0, 0); }
+	UFUNCTION() void OnBehaviour1() { RequestDribble(0, 1); }
+	UFUNCTION() void OnBehaviour2() { RequestDribble(0, 2); }
+	UFUNCTION() void OnBehaviour3() { RequestDribble(0, 3); }
+	UFUNCTION() void OnBehaviour4() { RequestDribble(0, 4); }
+	UFUNCTION() void OnBehaviour5() { RequestDribble(0, 5); }
+	UFUNCTION() void OnSkin0() { RequestDribble(1, 0); }
+	UFUNCTION() void OnSkin1() { RequestDribble(1, 1); }
+	UFUNCTION() void OnSkin2() { RequestDribble(1, 2); }
+	UFUNCTION() void OnSkin3() { RequestDribble(1, 3); }
+	UFUNCTION() void OnSkin4() { RequestDribble(1, 4); }
+	UFUNCTION() void OnSkin5() { RequestDribble(1, 5); }
+	void RequestDribble(int32 Kind, int32 Index);
+	UButton* MakeDribbleButton(UVerticalBox* Box, const FString& Label, int32 Kind, int32 Index, TArray<TObjectPtr<UTextBlock>>& OutLabels);
+	void StyleDribbleButtons(TArray<TObjectPtr<UButton>>& Buttons, TArray<TObjectPtr<UTextBlock>>& Labels, int32 Active);
+	UPROPERTY() TObjectPtr<UBorder> DribblePanel;
+	UPROPERTY() TArray<TObjectPtr<UButton>> BehaviourButtons;
+	UPROPERTY() TArray<TObjectPtr<UTextBlock>> BehaviourLabels;
+	UPROPERTY() TArray<TObjectPtr<UButton>> SkinButtons;
+	UPROPERTY() TArray<TObjectPtr<UTextBlock>> SkinLabels;
+	UPROPERTY() TObjectPtr<UTextBlock> DribbleStatsText;
+	UPROPERTY() TObjectPtr<UTextBlock> DribbleStatusText;
+	TArray<bool> BehaviourTrained;
+	TArray<FString> BehaviourNames;
+	int32 ShownBehaviour = -1;
+	int32 ShownSkin = -1;
+	double LastDribbleStatsS = -1.0;
+	FString CachedDribbleStats;
 };

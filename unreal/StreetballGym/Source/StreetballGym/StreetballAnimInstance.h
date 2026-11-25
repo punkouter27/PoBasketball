@@ -24,6 +24,8 @@ struct FStreetballAnimProxy : public FAnimInstanceProxy
 	virtual bool Evaluate(FPoseContext& Output) override;
 
 	FStreetballBoneTargets Targets;     // worker-thread copy
+	TArray<FName> CurveNames;           // worker-thread copy of the face curves (see SetFaceCurves)
+	TArray<float> CurveValues;
 };
 
 /**
@@ -41,10 +43,24 @@ public:
 	/** Game thread: replace the targets used at the next evaluation. */
 	void SetBoneTargets(const FStreetballBoneTargets& InTargets) { PendingTargets = InTargets; }
 	const FStreetballBoneTargets& GetPendingTargets() const { return PendingTargets; }
+	/**
+	 * Game thread: animation curves emitted with the pose (2026-11-24, MetaHuman expressions). The MetaHuman face's
+	 * ABP_Face copies the body's curves (CopyPoseFromMesh, bCopyCurves) and its post-process RigLogic turns
+	 * CTRL_expressions_* curves into face joints and blend shapes. Fixed-size arrays: no reallocation per frame.
+	 */
+	void SetFaceCurves(TConstArrayView<FName> Names, TConstArrayView<float> Values)
+	{
+		PendingCurveNames.Reset(); PendingCurveNames.Append(Names.GetData(), Names.Num());
+		PendingCurveValues.Reset(); PendingCurveValues.Append(Values.GetData(), Values.Num());
+	}
+	const TArray<FName>& GetPendingCurveNames() const { return PendingCurveNames; }
+	const TArray<float>& GetPendingCurveValues() const { return PendingCurveValues; }
 
 protected:
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override { return new FStreetballAnimProxy(this); }
 	virtual void DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy) override { delete InProxy; }
 
 	FStreetballBoneTargets PendingTargets;
+	TArray<FName> PendingCurveNames;
+	TArray<float> PendingCurveValues;
 };

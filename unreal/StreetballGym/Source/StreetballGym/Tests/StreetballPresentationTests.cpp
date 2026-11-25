@@ -11,6 +11,7 @@
 #include "BroadcastCamera.h"
 #include "CourtAudio.h"
 #include "MuJoCoSim.h"
+#include "MuJoCoBoneMapper.h"
 #include "ObsBuilder.h"
 #include "PolicyRunner.h"
 #include "Blueprint/UserWidget.h"
@@ -314,6 +315,99 @@ bool FStreetballHUDTest::RunTest(const FString&)
 	const FString Today = FDateTime::Now().ToString(TEXT("%y%m%d"));
 	AddInfo(FString::Printf(TEXT("build stamp %s (today %s); HUD text '%s'"), *Stamp, *Today, *HUD->GetBuildStampText()));
 	TestTrue(TEXT("HUD shows the stamp bottom-right"), HUD->GetBuildStampText() == FString::Printf(TEXT("v%s"), *Stamp));
+	return true;
+}
+
+// ---------------------------------------------------------------------------- Dribble Lab (2026-11-24)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStreetballDribbleLabTest, "Streetball.B10.DribbleLab", PFlags)
+bool FStreetballDribbleLabTest::RunTest(const FString&)
+{
+	FScopedGameWorld TW;
+	AStreetballWorld* W = TW.World->SpawnActor<AStreetballWorld>();
+	if (!TestNotNull(TEXT("world"), W)) return false;
+	if (!W->GetSim()) TestTrue(TEXT("Setup"), W->Setup(TW.World));
+	UStreetballDirector* D = W->GetDirector();
+	TestFalse(TEXT("automation worlds keep the classic tier run"), W->IsDribbleFocus());
+
+	// behaviours = director settings on the one dribble family
+	struct FCase { int32 B; int32 Tier; double Hand; EStreetballState State; };
+	const FCase Cases[] = { {0, 3, 1.0, EStreetballState::DribbleStationary}, {1, 3, -1.0, EStreetballState::DribbleStationary},
+	                        {2, 3, 0.0, EStreetballState::DribbleStationary}, {3, 4, 1.0, EStreetballState::DribbleMoving} };
+	for (const FCase& C : Cases)
+	{
+		W->SetDribbleBehaviour(C.B);
+		const FString N = AStreetballWorld::DribbleBehaviourName(C.B);
+		TestEqual(N + TEXT(": behaviour stored"), W->GetDribbleBehaviour(), C.B);
+		TestEqual(N + TEXT(": tier"), D->GetProgress().ActiveTier, C.Tier);
+		TestEqual(N + TEXT(": tier cap (no tier-up out of it)"), D->MaxTier, C.Tier);
+		TestEqual(N + TEXT(": forced hand"), D->ForcedHand, C.Hand);
+		TestEqual(N + TEXT(": state"), (int32)D->GetState(), (int32)C.State);
+		TestEqual(N + TEXT(": runs the dribble family"), D->PolicyFor(D->GetState()).ToString(), FString(TEXT("dribble")));
+		TestEqual(N + TEXT(": the switch is not counted as a reset"), W->GetSessionResets(), 0);
+	}
+	W->SetDribbleBehaviour(99);
+	TestEqual(TEXT("out-of-range behaviour ignored"), W->GetDribbleBehaviour(), 3);
+	TestTrue(TEXT("only the right hand is marked trained"), AStreetballWorld::IsDribbleBehaviourTrained(0) && !AStreetballWorld::IsDribbleBehaviourTrained(1)
+		&& !AStreetballWorld::IsDribbleBehaviourTrained(2) && !AStreetballWorld::IsDribbleBehaviourTrained(3));
+
+	// humanoid switch is visual only: the sim state (time, qpos) is untouched and the bone mapper re-binds
+	W->SetDribbleBehaviour(0);
+	for (int32 i = 0; i < 25; ++i) W->StepControl();
+	AStreetballCharacter* Ch = W->GetCharacter();
+	AddInfo(FString::Printf(TEXT("skins: [%s], active %d"), *FString::Join(Ch->GetSkinNames(), TEXT(", ")), Ch->GetActiveSkin()));
+	TestTrue(TEXT("Manny and Quinn always available"), Ch->GetSkinNames().Contains(TEXT("Manny")) && Ch->GetSkinNames().Contains(TEXT("Quinn")));
+	const float T0 = W->GetSim()->GetSimTime();
+	const TArray<double> Q0(W->GetSim()->QPos());
+	const int32 Resets0 = W->GetResetCount();
+	const int32 Target = (Ch->GetActiveSkin() + 1) % Ch->NumSkins();
+	TestTrue(TEXT("skin switch succeeds"), W->SetHumanoid(Target));
+	TestEqual(TEXT("active skin"), Ch->GetActiveSkin(), Target);
+	TestEqual(TEXT("mesh asset swapped"), (const USkeletalMesh*)Ch->Mesh->GetSkeletalMeshAsset(), (const USkeletalMesh*)Ch->SkinMeshes[Target].Get());
+	TestEqual(TEXT("sim time unchanged"), W->GetSim()->GetSimTime(), T0);
+	double MaxDq = 0.0;
+	for (int32 k = 0; k < Q0.Num(); ++k) MaxDq = FMath::Max(MaxDq, FMath::Abs(W->GetSim()->QPos()[k] - Q0[k]));
+	TestEqual(TEXT("qpos unchanged"), MaxDq, 0.0);
+	TestEqual(TEXT("no reset"), W->GetResetCount(), Resets0);
+	TestEqual(TEXT("bone mapper still drives 18 bones"), W->GetBoneMapper()->GetDrivenBones().Num(), 18);
+	TestFalse(TEXT("invalid skin rejected"), W->SetHumanoid(99));
+
+	// face mood: a reset snaps to a full frown with no smile, which then fades while the ball is in control
+	W->ResetEpisode();
+	W->TickFaceMoodForTest(0.016f);
+	TestEqual(TEXT("reset -> full frown"), W->GetFaceFrown(), 1.f);
+	TestEqual(TEXT("reset -> no smile"), W->GetFaceSmile(), 0.f);
+	const bool bLooseNow = D->GetProgress().bLoose || D->GetState() == EStreetballState::Scramble;
+	W->TickFaceMoodForTest(1.0f);
+	AddInfo(FString::Printf(TEXT("frown after 1 s: %.2f (loose %d); MetaHuman face curves: %d"), W->GetFaceFrown(), bLooseNow ? 1 : 0, Ch->NumFaceCurves()));
+	TestTrue(TEXT("frown fades (or holds at 0.75 while loose)"), W->GetFaceFrown() < 1.f && W->GetFaceFrown() >= (bLooseNow ? 0.75f - 1e-3f : 0.f));
+	// face camera: fifth mode in the C cycle, back to broadcast after it
+	ABroadcastCamera* Cam = W->GetCamera();
+	Cam->SetCameraMode(EStreetballCameraMode::Free);
+	TestEqual(TEXT("C after Free -> Face"), (int32)Cam->CycleCameraMode(), (int32)EStreetballCameraMode::Face);
+	TestEqual(TEXT("C after Face -> Broadcast"), (int32)Cam->CycleCameraMode(), (int32)EStreetballCameraMode::Broadcast);
+	FBroadcastInputs In; In.HeadUE = FVector(100.f, 200.f, 160.f); In.HeadingFwd = FVector2d(1.0, 0.0);
+	Cam->SetCameraMode(EStreetballCameraMode::Face);
+	for (int32 i = 0; i < 240; ++i) Cam->UpdateCamera(In, 1.f / 60.f);
+	const float CamToFace = FVector::Dist(Cam->GetActorLocation(), In.HeadUE + FVector(0.f, 0.f, 9.f));
+	TestTrue(FString::Printf(TEXT("face camera ~1.1 m from the face (%.0f cm)"), CamToFace), CamToFace > 90.f && CamToFace < 140.f);
+	TestTrue(TEXT("face camera in front of her (+x heading)"), Cam->GetActorLocation().X > In.HeadUE.X + 80.f);
+	Cam->SetCameraMode(EStreetballCameraMode::Broadcast);
+
+	// panel: buttons built once, active highlights follow the stats, numbers shown
+	UStreetballHUDWidget* HUD = CreateWidget<UStreetballHUDWidget>(TW.World, UStreetballHUDWidget::StaticClass());
+	HUD->TakeWidget();
+	HUD->SetDribbleFocus({ TEXT("Right hand"), TEXT("Left hand"), TEXT("Crossover"), TEXT("Moving dribble") }, { true, false, false, false }, Ch->GetSkinNames());
+	TestTrue(TEXT("panel built"), HUD->IsDribbleFocus());
+	FStreetballDribbleStats S; S.Behaviour = 2; S.Skin = 1; S.Bounces = 12; S.CleanBounces = 9; S.Streak = 4; S.Resets = 3; S.RunS = 5.5f; S.BestRunS = 8.f;
+	HUD->UpdateDribbleStats(S);
+	TestEqual(TEXT("behaviour button highlighted"), HUD->GetActiveBehaviourButton(), 2);
+	TestEqual(TEXT("skin button highlighted"), HUD->GetActiveSkinButton(), 1);
+	TestTrue(TEXT("stats text"), HUD->GetDribbleStatsText().Contains(TEXT("Bounces  12")) && HUD->GetDribbleStatsText().Contains(TEXT("Resets  3")));
+	TestTrue(TEXT("crossover shows hand switches"), HUD->GetDribbleStatsText().Contains(TEXT("Hand switches")));
+	int32 GotKind = -1, GotIndex = -1;
+	HUD->OnDribbleUiRequest.AddLambda([&](int32 K, int32 I) { GotKind = K; GotIndex = I; });
+	HUD->OnDribbleUiRequest.Broadcast(1, 2);
+	TestTrue(TEXT("button request delegate"), GotKind == 1 && GotIndex == 2);
 	return true;
 }
 

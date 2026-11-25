@@ -9,6 +9,157 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Rendering/DrawElements.h"
+#include "Components/Border.h"
+#include "Components/Button.h"
+#include "Components/ButtonSlot.h"
+#include "Framework/Application/SlateApplication.h"
+
+// ---------------------------------------------------------------------------- Dribble Lab
+void UStreetballHUDWidget::SetDribbleFocus(const TArray<FString>& Behaviours, const TArray<bool>& Trained, const TArray<FString>& Skins)
+{
+	UCanvasPanel* Canvas = WidgetTree ? Cast<UCanvasPanel>(WidgetTree->RootWidget) : nullptr;
+	if (DribblePanel || !Canvas) return;
+	using namespace StreetballUiTheme;
+	BehaviourNames = Behaviours;
+	BehaviourTrained = Trained;
+	// the five-tier scoreboard and the mode banner are hidden, not removed (-StreetballClassicHUD brings them back)
+	if (Root) Root->SetVisibility(ESlateVisibility::Collapsed);
+	if (ModeBannerText) ModeBannerText->SetVisibility(ESlateVisibility::Collapsed);
+
+	DribblePanel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("DribblePanel"));
+	DribblePanel->SetBrushColor(PanelBg);
+	DribblePanel->SetPadding(FMargin(Space4, Space3));
+	DribblePanel->SetVisibility(ESlateVisibility::Visible);
+	UCanvasPanelSlot* PS = Canvas->AddChildToCanvas(DribblePanel);
+	PS->SetAnchors(FAnchors(0.f, 0.f));
+	PS->SetPosition(FVector2D(SafeAreaMargin, SafeAreaMargin));
+	PS->SetAutoSize(true);
+	UVerticalBox* Box = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("DribbleBox"));
+	DribblePanel->SetContent(Box);
+
+	auto AddText = [this, Box](const TCHAR* Name, const FString& Text, int32 Size, const FLinearColor& Color, float PadTop) -> UTextBlock*
+	{
+		UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
+		FSlateFontInfo F = T->GetFont();
+		F.Size = Size;
+		T->SetFont(F);
+		T->SetColorAndOpacity(FSlateColor(Color));
+		T->SetText(FText::FromString(Text));
+		Box->AddChildToVerticalBox(T)->SetPadding(FMargin(0.f, PadTop, 0.f, Space1));
+		return T;
+	};
+	AddText(TEXT("DribbleTitle"), TEXT("DRIBBLE LAB"), FontL, AccentGold, 0.f);
+	AddText(TEXT("BehaviourHeader"), TEXT("Behaviour   [1-4]"), FontXS, TextMuted, Space2);
+	for (int32 b = 0; b < FMath::Min(Behaviours.Num(), MaxDribbleButtons); ++b)
+	{
+		const bool bTrained = Trained.IsValidIndex(b) && Trained[b];
+		BehaviourButtons.Add(MakeDribbleButton(Box, FString::Printf(TEXT("%d   %s   %s"), b + 1, *Behaviours[b], bTrained ? TEXT("trained") : TEXT("untrained")),
+			0, b, BehaviourLabels));
+	}
+	AddText(TEXT("SkinHeader"), TEXT("Humanoid   [H]"), FontXS, TextMuted, Space3);
+	for (int32 s = 0; s < FMath::Min(Skins.Num(), MaxDribbleButtons); ++s)
+		SkinButtons.Add(MakeDribbleButton(Box, Skins[s], 1, s, SkinLabels));
+	DribbleStatsText = AddText(TEXT("DribbleStats"), FString(), FontS, TextPrimary, Space3);
+	DribbleStatusText = AddText(TEXT("DribbleStatus"), FString(), FontXS, TextMuted, Space1);
+	DribbleStatusText->SetAutoWrapText(true);
+	DribbleStatusText->SetWrapTextAt(300.f);
+	ShownBehaviour = ShownSkin = -1;
+}
+
+UButton* UStreetballHUDWidget::MakeDribbleButton(UVerticalBox* Box, const FString& Label, int32 Kind, int32 Index, TArray<TObjectPtr<UTextBlock>>& OutLabels)
+{
+	using namespace StreetballUiTheme;
+	UButton* B = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+	UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+	FSlateFontInfo F = T->GetFont();
+	F.Size = FontS;
+	T->SetFont(F);
+	T->SetText(FText::FromString(Label));
+	if (UButtonSlot* BS = Cast<UButtonSlot>(B->AddChild(T)))
+	{
+		BS->SetPadding(FMargin(Space3, Space1));
+		BS->SetHorizontalAlignment(HAlign_Left);
+	}
+	UVerticalBoxSlot* S = Box->AddChildToVerticalBox(B);
+	S->SetPadding(FMargin(0.f, 2.f));
+	S->SetHorizontalAlignment(HAlign_Fill);
+	// AddDynamic needs a literal member function, hence one tiny UFUNCTION per slot
+	switch (Kind * MaxDribbleButtons + Index)
+	{
+	case 0: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour0); break;
+	case 1: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour1); break;
+	case 2: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour2); break;
+	case 3: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour3); break;
+	case 4: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour4); break;
+	case 5: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour5); break;
+	case 6: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin0); break;
+	case 7: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin1); break;
+	case 8: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin2); break;
+	case 9: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin3); break;
+	case 10: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin4); break;
+	case 11: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin5); break;
+	default: break;
+	}
+	OutLabels.Add(T);
+	return B;
+}
+
+void UStreetballHUDWidget::StyleDribbleButtons(TArray<TObjectPtr<UButton>>& Buttons, TArray<TObjectPtr<UTextBlock>>& Labels, int32 Active)
+{
+	static const FLinearColor Idle(0.10f, 0.13f, 0.18f, 0.92f);
+	static const FLinearColor ActiveText(0.06f, 0.06f, 0.06f, 1.f);
+	for (int32 i = 0; i < Buttons.Num(); ++i)
+	{
+		const bool bActive = i == Active;
+		if (Buttons[i]) Buttons[i]->SetBackgroundColor(bActive ? StreetballUiTheme::AccentGold : Idle);
+		if (Labels.IsValidIndex(i) && Labels[i]) Labels[i]->SetColorAndOpacity(FSlateColor(bActive ? ActiveText : StreetballUiTheme::TextPrimary));
+	}
+}
+
+void UStreetballHUDWidget::RequestDribble(int32 Kind, int32 Index)
+{
+	OnDribbleUiRequest.Broadcast(Kind, Index);
+	// hand the keyboard back to the game, so Space pauses instead of pressing the last clicked button again
+	if (FSlateApplication::IsInitialized()) FSlateApplication::Get().SetAllUserFocusToGameViewport();
+	TriggerInputPulse();
+}
+
+bool UStreetballHUDWidget::IsPointerOverDribblePanel() const
+{
+	return DribblePanel && DribblePanel->IsHovered();
+}
+
+void UStreetballHUDWidget::UpdateDribbleStats(const FStreetballDribbleStats& S)
+{
+	if (!DribblePanel) return;
+	using namespace StreetballUiTheme;
+	if (S.Behaviour != ShownBehaviour)
+	{
+		ShownBehaviour = S.Behaviour;
+		StyleDribbleButtons(BehaviourButtons, BehaviourLabels, S.Behaviour);
+		if (DribbleStatusText)
+		{
+			DribbleStatusText->SetText(FText::FromString(S.bTrained
+				? TEXT("Trained brain: passed its gate in training.")
+				: TEXT("Not trained yet: the right-hand brain is improvising, so expect lost balls and resets.")));
+			DribbleStatusText->SetColorAndOpacity(FSlateColor(S.bTrained ? PolicyRef : PolicyBot));
+		}
+	}
+	if (S.Skin != ShownSkin)
+	{
+		ShownSkin = S.Skin;
+		StyleDribbleButtons(SkinButtons, SkinLabels, S.Skin);
+	}
+	// numbers at 10 Hz (no string building on the other frames)
+	const double NowS = FPlatformTime::Seconds();
+	if (LastDribbleStatsS >= 0.0 && NowS - LastDribbleStatsS < 0.1) return;
+	LastDribbleStatsS = NowS;
+	const TCHAR* Hand = S.bScramble ? TEXT("chasing the ball") : S.bRightHand ? TEXT("right") : TEXT("left");
+	CachedDribbleStats = FString::Printf(TEXT("Hand  %s\nBounces  %d   (clean %d)\nClean streak  %d\nRun  %.1f s   (best %.1f s)\nResets  %d"),
+		Hand, S.Bounces, S.CleanBounces, S.Streak, S.RunS, S.BestRunS, S.Resets);
+	if (S.Behaviour == 2) CachedDribbleStats += FString::Printf(TEXT("\nHand switches  %d"), S.HandSwitches);
+	if (DribbleStatsText) DribbleStatsText->SetText(FText::FromString(CachedDribbleStats));
+}
 
 TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 {

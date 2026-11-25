@@ -1,0 +1,137 @@
+<title>Dribble Lab HUD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* Layout: one reading column, each section = short claim + evidence (media) + a plain "what it means" line. */
+:root {
+  --bg: #f6f5f2; --card: #ffffff; --ink: #15171b; --ink-2: #4c4f57; --muted: #868a93; --line: #e3e1db;
+  --new: #c98500; --new-soft: #fff4d6; --edit: #1f6fbf; --edit-soft: #e3effc; --warn: #b4441e; --warn-soft: #fbe9e2; --good: #006300;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif; --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111214; --card: #1b1c1f; --ink: #eeedea; --ink-2: #c2c1ba; --muted: #8b8c90; --line: #2d2e31;
+  --new: #f0b43a; --new-soft: #2e2610; --edit: #6fb1f2; --edit-soft: #13263a; --warn: #f08a63; --warn-soft: #34201a; --good: #3cc23c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111214; --card: #1b1c1f; --ink: #eeedea; --ink-2: #c2c1ba; --muted: #8b8c90; --line: #2d2e31;
+  --new: #f0b43a; --new-soft: #2e2610; --edit: #6fb1f2; --edit-soft: #13263a; --warn: #f08a63; --warn-soft: #34201a; --good: #3cc23c; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 15.5px/1.6 var(--font); }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 44px; }
+header { display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-size: clamp(26px, 4.2vw, 36px); line-height: 1.15; text-wrap: balance; }
+h2 { margin: 0; font-size: 21px; line-height: 1.25; text-wrap: balance; }
+h3 { margin: 0; font-size: 15px; }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+code { font: 13px var(--mono); }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.item { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pill { align-self: flex-start; font: 600 11.5px/1 var(--font); padding: 4px 9px; border-radius: 999px; }
+.pill.new { background: var(--new-soft); color: var(--new); }
+.pill.edit { background: var(--edit-soft); color: var(--edit); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.item b { font-size: 15px; }
+.item span { font-size: 13.5px; color: var(--ink-2); }
+section { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+figure img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); display: block; background: #000; }
+figcaption { font-size: 13px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.means { border-left: 3px solid var(--new); padding: 4px 0 4px 14px; color: var(--ink); max-width: 72ch; }
+.means.edit { border-color: var(--edit); }
+.means.warn { border-color: var(--warn); }
+.tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--ink-2); font-weight: 600; letter-spacing: .02em; }
+tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; white-space: nowrap; }
+pre { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font: 12.5px/1.5 var(--mono); color: var(--ink-2); }
+ol, ul { margin: 0; padding-left: 20px; color: var(--ink-2); display: flex; flex-direction: column; gap: 6px; max-width: 72ch; }
+footer { font-size: 12.5px; color: var(--muted); }
+</style>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">UI change · 2026-11-24 · before / after</span>
+    <h1>Dribble Lab: a HUD for the dribble skills only</h1>
+    <p>The game now opens on the stationary right-hand dribble, the most advanced trained skill. A panel on the left switches between the four dribble behaviours and the four humanoid skins, and shows live dribble numbers. The five-tier scoreboard and mode banner are hidden, not deleted: <code>-StreetballClassicHUD</code> brings them back.</p>
+  </header>
+
+  <section class="summary">
+    <div class="item"><span class="pill new">New</span><b>Behaviour buttons, keys 1-4</b><span>Right hand, left hand, crossover, moving dribble. Each one sets the existing director hand / tier settings on the same <code>dribble.onnx</code>; the tier is capped so it never moves on to another skill.</span></div>
+    <div class="item"><span class="pill new">New</span><b>Humanoid buttons, key H</b><span>Grandma (MetaHuman), Grandma, Manny, Quinn. All loaded at startup; a switch swaps the mesh on the one body and re-binds the bones. Physics and policy are unchanged.</span></div>
+    <div class="item"><span class="pill edit">Changed</span><b>Bone mapper re-init</b><span>The reference pose is now read once per sim. Before, every re-init reset the running sim (time, controls, warm start), which a mid-game skin swap would have hit.</span></div>
+    <div class="item"><span class="pill warn">Honest label</span><b>Only one behaviour is trained</b><span>Right hand passed its gate (100 %). Left hand, crossover and moving dribble are marked "untrained" in red and still reset often.</span></div>
+  </section>
+
+  <section>
+    <h2>Before and after</h2>
+    <div class="grid2">
+      <figure><img src="before_default.jpg" alt="Previous HUD: five-tier scoreboard, standing balance at startup"><figcaption>Before: tier 1 balance at startup, five-tier scoreboard, F1-F4 hint bar</figcaption></figure>
+      <figure><img src="after_right.jpg" alt="Dribble Lab panel with the right-hand dribble running"><figcaption>After: starts dribbling right-handed; behaviour and humanoid buttons, live stats</figcaption></figure>
+    </div>
+    <p class="means">One look tells you which skill is running, whether its brain is trained, and how it is doing right now.</p>
+  </section>
+
+  <section>
+    <h2>The four behaviours</h2>
+    <div class="grid2">
+      <figure><img src="after_left.jpg" alt="Left-hand dribble, untrained"><figcaption>2 Left hand (untrained)</figcaption></figure>
+      <figure><img src="after_crossover.jpg" alt="Crossover dribble, untrained"><figcaption>3 Crossover (untrained): commanded hand switches</figcaption></figure>
+      <figure><img src="after_moving.jpg" alt="Moving dribble, untrained"><figcaption>4 Moving dribble (untrained): tier 4, right hand</figcaption></figure>
+    </div>
+    <div class="tablewrap"><table>
+      <tr><th>Behaviour</th><th>Director setting</th><th>Gate</th><th class="num">Resets / 60 s</th></tr>
+      <tr><td>1 Right hand</td><td>tier 3, hand +1</td><td>passed (dribble_anchor10, 100 %)</td><td class="num">0</td></tr>
+      <tr><td>2 Left hand</td><td>tier 3, hand −1</td><td>0 %</td><td class="num">67</td></tr>
+      <tr><td>3 Crossover</td><td>tier 3, table hand switches</td><td>0 %</td><td class="num">34</td></tr>
+      <tr><td>4 Moving dribble</td><td>tier 4, hand +1</td><td>0 %</td><td class="num">26</td></tr>
+    </table></div>
+    <p class="means warn">Resets come from the playlist run before this change (60 s each, seed 7). The UI does not change the brains; it makes the gap visible.</p>
+  </section>
+
+  <section>
+    <h2>The four humanoids, same body and brain</h2>
+    <div class="grid2">
+      <figure><img src="after_skin1.jpg" alt="Grandma skin dribbling"><figcaption>Grandma</figcaption></figure>
+      <figure><img src="after_skin2.jpg" alt="Manny skin dribbling"><figcaption>Manny</figcaption></figure>
+      <figure><img src="after_skin3.jpg" alt="Quinn skin dribbling"><figcaption>Quinn</figcaption></figure>
+    </div>
+    <p class="means edit">Switching skins mid-dribble keeps the run going: no reset, same sim time and joint positions (checked by <code>Streetball.B10.DribbleLab</code>).</p>
+  </section>
+
+  <section>
+    <h2>Face camera and MetaHuman moods</h2>
+    <div class="grid2">
+      <figure><img src="face_mh_neutral.jpg" alt="MetaHuman grandma, neutral face at a short streak"><figcaption>Streak 3: neutral</figcaption></figure>
+      <figure><img src="face_mh_smile.jpg" alt="MetaHuman grandma grinning after a long clean streak"><figcaption>Long clean streak: full grin</figcaption></figure>
+      <figure><img src="face_mh_frown.jpg" alt="MetaHuman grandma scowling right after a reset"><figcaption>0.5 s after a reset: full frown</figcaption></figure>
+      <figure><img src="face_mh_frown_b.jpg" alt="MetaHuman grandma, frown fading"><figcaption>1.4 s after: the frown fades</figcaption></figure>
+    </div>
+    <p class="means">F (or the fifth C camera) frames her face from where it points, 25&deg; below eye level so a bowed head still reads. The smile grows with each clean bounce in a row (full at 8); a lost ball or reset snaps to a scowl that fades over 2.5 s and holds while the ball is loose. MetaHuman: 133 face controls from Epic's ARKit mapping, driven through RigLogic.</p>
+    <p class="means warn">The CC "Grandma" skin can't show it: her imported mesh has 0 morph targets although the FBX carries them, so her face (and the voice lip-sync and blinks) never moved. Needs a re-import with morph targets.</p>
+  </section>
+
+  <section>
+    <h2>The original grandma as a MetaHuman</h2>
+    <figure><img src="ccmh_landmarks.jpg" alt="Front portrait of the original grandma and the face landmarks Epic's tracker found"><figcaption>Her original head and the 16 face contours the tracker found</figcaption></figure>
+    <figure><img src="ccmh_conform_clay.jpg" alt="Clay renders: original head, conformed MetaHuman head, front and three-quarter"><figcaption>Clay: original, MetaHuman, original 3/4, MetaHuman 3/4 (hair and clothes left out of the fit)</figcaption></figure>
+    <div class="grid2">
+      <figure><img src="ccmh_body.jpg" alt="Original-look MetaHuman grandma dribbling in her own cardigan and red trousers"><figcaption>In game: her own clothes, MetaHuman face and blonde hair</figcaption></figure>
+      <figure><img src="ccmh_face_smile.jpg" alt="Face camera: original-look MetaHuman grinning"><figcaption>Face camera on a clean streak: grin</figcaption></figure>
+    </div>
+    <p class="means">Mesh to MetaHuman, all headless: face skin picked by texture colour, conformed head-only to her mesh with tracked landmarks, cloud auto-rig, built, and put on her own headless body. She is the new default humanoid; the Grace MetaHuman stays as a second choice.</p>
+  </section>
+
+  <section>
+    <h2>Controls</h2>
+    <pre>1-4  behaviour      H  next humanoid      F  face camera      C  camera      Space  pause      R  reset
+T    telemetry      Tab diagnostics       mouse: click the panel buttons
+-StreetballClassicHUD   old five-tier HUD and tier run
+-StreetballLabSteps=8:b2,14:h3   scripted switches (captures, tests)</pre>
+  </section>
+
+  <footer>Captured with <code>-StreetballCapture</code> at 1600×900, seed 7. Build v261124.</footer>
+</div>
+</body>

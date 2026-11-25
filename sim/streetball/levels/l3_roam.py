@@ -83,6 +83,16 @@ class L3MovingDribble(L1Traverse):
         tb[:, 6] = loco[:, 2]  # waypoint distance
         return tb if ids is None else tb[ids]
 
+    def task_mirror(self):
+        """2026-11-24 fix: this level inherited L1Traverse's mirror (flips slot 1), but here slot 1 is the apex height and
+        the heading-frame y of the waypoint is slot 5. Hand (slot 0) flips; one-handed (right) variants are not symmetric."""
+        if self.hand_mode != "random":
+            return None
+        sign = [1.0] * obs_spec.N_TASK
+        sign[0] = -1.0
+        sign[5] = -1.0
+        return list(range(obs_spec.N_TASK)), sign
+
     def reward(self) -> torch.Tensor:
         env = self.env
         r_loco = super().reward()
@@ -243,6 +253,14 @@ class L3DribbleWalk(L3MovingDribble):
         m["m/speed_cmd"] = self.speed_cmd.clone()
         m["m/succ_ema"] = torch.full((self.N,), self.succ_ema, device=self.dev)
         return m
+
+
+class L3DribbleWalkBoth(L3DribbleWalk):
+    """l3a_walk with the hand drawn per episode (2026-11-24): moving dribble with either hand; the symmetry loss is
+    available (L3MovingDribble.task_mirror)."""
+
+    name = "l3a_walk_both"
+    hand_mode = "random"
 
 
 class L3Scramble(Level):
