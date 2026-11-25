@@ -30,6 +30,10 @@ public:
 	void SetSubtitle(const FString& Text);
 	FString GetSubtitle() const;
 	bool IsTelemetryVisible() const { return bTelemetryVisible; }
+	/** Trigger a GPU-cheap Slate screen wipe on camera cuts or demo mode transitions. */
+	void TriggerScreenWipe(float DurationS = 0.18f);
+	/** Trigger a brief accent highlight on HUD badges when user input fires an action. */
+	void TriggerInputPulse();
 	/** Version stamp yyMMdd (UTC date of the HEAD commit, from StreetballGym.Build.cs). */
 	static FString BuildStampYYMMDD();
 	/** Text shown bottom-right ("build YYMMDD"); empty until the widget tree exists. */
@@ -77,8 +81,22 @@ protected:
 	float LayoutWidth = 0.f;
 
 	bool bLoose = false;
-	bool bTelemetryVisible = true;
+	bool bTelemetryVisible = false;
+	bool bTelemetryDirty = true;
+	double LastTelemetryUpdateS = -1.0;
+	FString LastModeLabel, LastCameraLabel, LastPolicyLabel, LastModeHint;
+	bool bLastPaused = false;
+	bool bLastFallbackPolicy = false;
+	float LastTimeScale = 1.f;
 	float CountdownFrac = 1.f;
 	float ProgressPercent = 0.f;
+	float DisplayedProgress01 = 0.f;
+	float TargetProgress01 = 0.f;
+	int32 LastTierNum = -1;
+	float TierPopTimer = 0.f;
+	float SubtitleFadeAlpha = 0.f;
+	float WipeTimer = 0.f;
+	float WipeDuration = 0.18f;
+	float InputPulseTimer = 0.f;
 	FString CachedTier, CachedStreak, CachedDistance, CachedMilestone;
 };

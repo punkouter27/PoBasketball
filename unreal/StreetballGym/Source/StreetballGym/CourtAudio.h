@@ -6,8 +6,19 @@
 
 class UMuJoCoSim;
 class USoundBase;
+class USoundAttenuation;
 class UAudioComponent;
 class AActor;
+
+UENUM(BlueprintType)
+enum class EStreetballSurface : uint8
+{
+	Unknown,
+	Asphalt,
+	WoodBoard,
+	SteelRim,
+	Leather
+};
 
 UENUM(BlueprintType)
 enum class ECourtSound : uint8
@@ -50,16 +61,23 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Mapping") float MinVolume = 0.15f;
 	/** Pitch = 1 + PitchRange * (speed/SpeedForFullVolume - 0.5), clamped. */
 	UPROPERTY(EditAnywhere, Category = "Mapping") float PitchRange = 0.4f;
+	/** Optional 3D attenuation asset applied to pooled impact components. */
+	UPROPERTY(EditAnywhere, Category = "Spatial") TObjectPtr<USoundAttenuation> SpatialAttenuation;
+	/** Ambience volume multiplier while voice/crowd is speaking (ducking). */
+	UPROPERTY(EditAnywhere, Category = "Spatial") float AmbienceDuckMultiplier = 0.55f;
 
 	USoundBase* SoundFor(ECourtSound S) const;
+	static float SurfaceHardness(EStreetballSurface S);
 };
 
 /** One fired event (also kept in a ring buffer for tests and debugging). */
 struct STREETBALLGYM_API FCourtAudioEvent
 {
 	ECourtSound Kind = ECourtSound::BallFloor;
+	EStreetballSurface Surface = EStreetballSurface::Unknown;
 	double Time = 0.0;              // sim time
 	FVector PositionUE = FVector::ZeroVector;
+	FVector NormalUE = FVector::UpVector;
 	float Speed = 0.f;              // impact speed m/s
 	float Volume = 1.f;
 	float Pitch = 1.f;
@@ -101,6 +119,12 @@ public:
 	void Play(const FCourtAudioEvent& E);
 	/** Start the looping ambience (2D). Call once after Initialize. */
 	void StartAmbience(AActor* Owner);
+	/** Smoothly duck ambience when voice/crowd plays and recover afterwards (called from Tick). */
+	void NotifyVoiceOrCrowd(float DurationS = 0.85f);
+	void Tick(float DeltaSeconds);
+	void SetTimeScale(float InTimeScale) { TimeScale = FMath::Clamp(InTimeScale, 0.1f, 4.f); }
+	/** Continuous lateral shoe slip speed (m/s) for procedural squeak modulation. */
+	void UpdateShoeSlip(float LateralSpeed, const FVector& PosUE);
 	bool HasBank() const { return Bank != nullptr; }
 	bool IsAmbiencePlaying() const;
 	int32 PlayedCount = 0;
@@ -108,5 +132,9 @@ private:
 	TWeakObjectPtr<UCourtAudioBank> Bank;
 	TArray<TWeakObjectPtr<UAudioComponent>> Pool;
 	TWeakObjectPtr<UAudioComponent> AmbienceComp;
+	TWeakObjectPtr<UAudioComponent> ShoeSqueakComp;
 	int32 Next = 0;
+	float TimeScale = 1.f;
+	float DuckTimer = 0.f;
+	float CurrentDuck = 1.f;
 };

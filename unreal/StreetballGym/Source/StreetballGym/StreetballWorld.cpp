@@ -33,6 +33,10 @@
 #include "GroomAsset.h"
 #include "GroomBindingAsset.h"
 
+DECLARE_CYCLE_STAT(TEXT("Streetball ObsBuild"), STAT_Streetball_ObsBuild, STATGROUP_Streetball);
+DECLARE_CYCLE_STAT(TEXT("Streetball PolicyEval"), STAT_Streetball_PolicyEval, STATGROUP_Streetball);
+DECLARE_CYCLE_STAT(TEXT("Streetball UpdateVisuals"), STAT_Streetball_UpdateVisuals, STATGROUP_Streetball);
+
 // ---------------------------------------------------------------------------- character
 AStreetballCharacter::AStreetballCharacter()
 {
@@ -362,6 +366,7 @@ void AStreetballWorld::HandleDemoCamera(FName CameraName, int32 Index)
 	else if (CameraName == TEXT("Orbit")) Camera->SetCameraMode(EStreetballCameraMode::Orbit);
 	else if (CameraName == TEXT("Free")) Camera->SetCameraMode(EStreetballCameraMode::Free);
 	else Camera->SetCameraMode(EStreetballCameraMode::Broadcast);
+	if (HUD) HUD->TriggerScreenWipe(0.18f);
 }
 
 bool AStreetballWorld::EnginePrimitiveForGeom(int32 GeomType, const FVector& SizeM, FString& OutMeshPath, FVector& OutScale)
@@ -479,6 +484,7 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	}
 
 	GeomActors.Reset();
+	DynamicGeomActors.Reset();
 	const int32 NG = Sim->NumGeoms();
 	for (int32 g = 0; g < NG; ++g)
 	{
@@ -518,6 +524,7 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		if (A->bDynamic) A->GeomInBody = GX.GetRelativeTransform(Sim->GetBodyTransformUE(Body));
 		else A->Mesh->SetMobility(EComponentMobility::Static);
 		GeomActors.Add(A);
+		if (A->bDynamic) DynamicGeomActors.Add(A);
 		if (Body == BallBody) BallActor = A;
 	}
 
@@ -586,6 +593,9 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	CtrlBuf.SetNumZeroed(Sim->NumActuators());
 	QBuf.SetNumZeroed(Sim->NumQ());
 	VBuf.SetNumZeroed(Sim->NumV());
+	BodyPosBuf.SetNumZeroed(Sim->NumBodies());
+	BodyRotBuf.SetNum(Sim->NumBodies());
+	for (FQuat& Q : BodyRotBuf) Q = FQuat::Identity;
 	{
 		const mjModel* M = Sim->GetModel();
 		RootQAdr = M->jnt_qposadr[Sim->JointId(TEXT("root"))];
@@ -839,8 +849,12 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 		FCourtFXCue Cue;
 		if (FXPlayer.GetMapping().FromAudioEvent(E, Cue)) FXPlayer.Play(Cue);
 		const FVector3d PSim(E.PositionUE.X / 100.0, -E.PositionUE.Y / 100.0, E.PositionUE.Z / 100.0);
-		if (E.Kind == ECourtSound::BallRim || E.Kind == ECourtSound::BallBoard) FXPlayer.KickNet(NearestRim(PSim), false, Now);
+		if (E.Kind == ECourtSound::BallRim || E.Kind == ECourtSound::BallBoard)
+		{
+			FXPlayer.KickNet(NearestRim(PSim), false, Now, FMath::Clamp(E.Speed / 6.f, 0.35f, 1.8f));
+		}
 		if (E.Kind == ECourtSound::BallFloor) FXPlayer.NotifyBallLanding(E.PositionUE, Now);
+		if (E.Kind == ECourtSound::ShoeFloor) AudioPlayer.UpdateShoeSlip(E.Speed, E.PositionUE);
 	}
 
 	// game events -> voice, crowd, grunts, sweat, net swish
@@ -852,7 +866,7 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 		{
 		case EPresentationEvent::Make:
 			AudioPlayer.Play(AudioProc.MakeEvent(ECourtSound::CrowdCheer, S.Time, S.RimPos[NearestRim(S.BallPos)], 6.f, TEXT("crowd")));
-			FXPlayer.KickNet(NearestRim(S.BallPos), true, Now);
+			FXPlayer.KickNet(NearestRim(S.BallPos), true, Now, 1.25f);
 			break;
 		case EPresentationEvent::Miss:
 		case EPresentationEvent::Fall:
@@ -861,7 +875,7 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 		case EPresentationEvent::ScrambleSave:
 		{
 			AudioPlayer.Play(AudioProc.MakeEvent(ECourtSound::CrowdCheer, S.Time, S.PelvisPos, 3.f, TEXT("crowd")));
-			FCourtFXCue Sweat; Sweat.Fx = ECourtFX::Sweat; Sweat.PositionUE = ToUE(S.PelvisPos) + FVector(0, 0, 85.0); Sweat.Scale = 1.f;
+			FCourtFXCue Sweat; Sweat.Fx = ECourtFX::Sweat; Sweat.PositionUE = ToUE(S.PelvisPos) + FVector(0, 0, 85.0); Sweat.Scale = FMath::Lerp(0.8f, 1.4f, Exertion01);
 			FXPlayer.Play(Sweat);
 			break;
 		}
@@ -995,8 +1009,16 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 	{
 		// UU_AGENT hand-over rule: PrevAction is passed through unchanged across policy switches.
 		const FTrackedState& T = Tracker->State();
-		ObsBuilder.Compute(InSim, PrevAction, TConstArrayView<float>(DirOut.Task, 12), T.InControl ? 1.f : 0.f, T.CountdownFrac, Obs);
-		if (Policy->Run(Obs, Action))
+		{
+			SCOPE_CYCLE_COUNTER(STAT_Streetball_ObsBuild);
+			ObsBuilder.Compute(InSim, PrevAction, TConstArrayView<float>(DirOut.Task, 12), T.InControl ? 1.f : 0.f, T.CountdownFrac, Obs);
+		}
+		bool bRanPolicy = false;
+		{
+			SCOPE_CYCLE_COUNTER(STAT_Streetball_PolicyEval);
+			bRanPolicy = Policy->Run(Obs, Action);
+		}
+		if (bRanPolicy)
 		{
 			if (UStreetballShowcaseSubsystem* Showcase = UStreetballShowcaseSubsystem::Get(this))
 			{
@@ -1048,6 +1070,71 @@ void AStreetballWorld::StepControl()
 	for (int32 i = 0; i < Clock->GetSubstepsPerControl(); ++i) { Sim->Step(1); OnPhysicsStep(Sim); }
 }
 
+void AStreetballWorld::HandlePlayerInput(float DeltaSeconds)
+{
+	UWorld* W = GetWorld();
+	APlayerController* PC = W ? UGameplayStatics::GetPlayerController(W, 0) : nullptr;
+	if (!PC) return;
+
+	if (PC->WasInputKeyJustPressed(EKeys::F1) || PC->WasInputKeyJustPressed(EKeys::M)) CycleAppMode();
+	if (PC->WasInputKeyJustPressed(EKeys::F2) || PC->WasInputKeyJustPressed(EKeys::C)) CycleCameraMode();
+	if (PC->WasInputKeyJustPressed(EKeys::F3) || PC->WasInputKeyJustPressed(EKeys::T)) ToggleTelemetry();
+	if (PC->WasInputKeyJustPressed(EKeys::F4) || PC->WasInputKeyJustPressed(EKeys::P)) CyclePolicyOverride();
+	if (PC->WasInputKeyJustPressed(EKeys::SpaceBar)) TogglePause();
+	if (PC->WasInputKeyJustPressed(EKeys::R)) ResetEpisode();
+
+	if (AppMode == EStreetballAppMode::Play || AppMode == EStreetballAppMode::Testbed)
+	{
+		if (PC->WasInputKeyJustPressed(EKeys::One)) JumpToTier(1);
+		if (PC->WasInputKeyJustPressed(EKeys::Two)) JumpToTier(2);
+		if (PC->WasInputKeyJustPressed(EKeys::Three)) JumpToTier(3);
+		if (PC->WasInputKeyJustPressed(EKeys::Four)) JumpToTier(4);
+		if (PC->WasInputKeyJustPressed(EKeys::Five)) JumpToTier(5);
+	}
+
+	PC->bShowMouseCursor = (AppMode == EStreetballAppMode::Play);
+	if (AppMode == EStreetballAppMode::Play)
+	{
+		if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+		{
+			FVector RayOrigin, RayDir;
+			if (PC->DeprojectMousePositionToWorld(RayOrigin, RayDir) && FMath::Abs(RayDir.Z) > 1e-4)
+			{
+				const double T = -RayOrigin.Z / RayDir.Z;
+				if (T > 0.0)
+				{
+					const FVector HitUE = RayOrigin + RayDir * T;
+					CommandCourtTarget(FVector2d(HitUE.X / 100.0, -HitUE.Y / 100.0));
+				}
+			}
+		}
+		if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton) || PC->WasInputKeyJustPressed(EKeys::B))
+		{
+			LobBallToAthlete();
+		}
+	}
+	else if (AppMode == EStreetballAppMode::Testbed)
+	{
+		if (PC->WasInputKeyJustPressed(EKeys::I)) ApplyTestbedPush(FVector2d(1.0, 0.0));
+		if (PC->WasInputKeyJustPressed(EKeys::K)) ApplyTestbedPush(FVector2d(-1.0, 0.0));
+		if (PC->WasInputKeyJustPressed(EKeys::J)) ApplyTestbedPush(FVector2d(0.0, 1.0));
+		if (PC->WasInputKeyJustPressed(EKeys::L)) ApplyTestbedPush(FVector2d(0.0, -1.0));
+		if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) StepTimeScale(-1);
+		if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) StepTimeScale(1);
+	}
+
+	if (Camera && Camera->GetCameraMode() == EStreetballCameraMode::Free)
+	{
+		FVector Move(0.f);
+		const float Speed = 450.f * DeltaSeconds;
+		if (PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up)) Move += Camera->GetActorForwardVector() * Speed;
+		if (PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down)) Move -= Camera->GetActorForwardVector() * Speed;
+		if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Move += Camera->GetActorRightVector() * Speed;
+		if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left)) Move -= Camera->GetActorRightVector() * Speed;
+		if (!Move.IsNearlyZero()) Camera->AddFreeOffset(Move);
+	}
+}
+
 void AStreetballWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -1058,69 +1145,7 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 		SmoothedFps = FMath::Lerp(SmoothedFps, 1.f / DeltaSeconds, 0.1f);
 	}
 
-	if (UWorld* W = GetWorld())
-	{
-		if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
-		{
-			if (PC->WasInputKeyJustPressed(EKeys::F1) || PC->WasInputKeyJustPressed(EKeys::M)) CycleAppMode();
-			if (PC->WasInputKeyJustPressed(EKeys::F2) || PC->WasInputKeyJustPressed(EKeys::C)) CycleCameraMode();
-			if (PC->WasInputKeyJustPressed(EKeys::F3) || PC->WasInputKeyJustPressed(EKeys::T)) ToggleTelemetry();
-			if (PC->WasInputKeyJustPressed(EKeys::F4) || PC->WasInputKeyJustPressed(EKeys::P)) CyclePolicyOverride();
-			if (PC->WasInputKeyJustPressed(EKeys::SpaceBar)) TogglePause();
-			if (PC->WasInputKeyJustPressed(EKeys::R)) ResetEpisode();
-
-			if (AppMode == EStreetballAppMode::Play || AppMode == EStreetballAppMode::Testbed)
-			{
-				if (PC->WasInputKeyJustPressed(EKeys::One)) JumpToTier(1);
-				if (PC->WasInputKeyJustPressed(EKeys::Two)) JumpToTier(2);
-				if (PC->WasInputKeyJustPressed(EKeys::Three)) JumpToTier(3);
-				if (PC->WasInputKeyJustPressed(EKeys::Four)) JumpToTier(4);
-				if (PC->WasInputKeyJustPressed(EKeys::Five)) JumpToTier(5);
-			}
-
-			PC->bShowMouseCursor = (AppMode == EStreetballAppMode::Play);
-			if (AppMode == EStreetballAppMode::Play)
-			{
-				if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
-				{
-					FVector RayOrigin, RayDir;
-					if (PC->DeprojectMousePositionToWorld(RayOrigin, RayDir) && FMath::Abs(RayDir.Z) > 1e-4)
-					{
-						const double T = -RayOrigin.Z / RayDir.Z;
-						if (T > 0.0)
-						{
-							const FVector HitUE = RayOrigin + RayDir * T;
-							CommandCourtTarget(FVector2d(HitUE.X / 100.0, -HitUE.Y / 100.0));
-						}
-					}
-				}
-				if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton) || PC->WasInputKeyJustPressed(EKeys::B))
-				{
-					LobBallToAthlete();
-				}
-			}
-			else if (AppMode == EStreetballAppMode::Testbed)
-			{
-				if (PC->WasInputKeyJustPressed(EKeys::I)) ApplyTestbedPush(FVector2d(1.0, 0.0));
-				if (PC->WasInputKeyJustPressed(EKeys::K)) ApplyTestbedPush(FVector2d(-1.0, 0.0));
-				if (PC->WasInputKeyJustPressed(EKeys::J)) ApplyTestbedPush(FVector2d(0.0, 1.0));
-				if (PC->WasInputKeyJustPressed(EKeys::L)) ApplyTestbedPush(FVector2d(0.0, -1.0));
-				if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) StepTimeScale(-1);
-				if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) StepTimeScale(1);
-			}
-
-			if (Camera && Camera->GetCameraMode() == EStreetballCameraMode::Free)
-			{
-				FVector Move(0.f);
-				const float Speed = 450.f * DeltaSeconds;
-				if (PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up)) Move += Camera->GetActorForwardVector() * Speed;
-				if (PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down)) Move -= Camera->GetActorForwardVector() * Speed;
-				if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Move += Camera->GetActorRightVector() * Speed;
-				if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left)) Move -= Camera->GetActorRightVector() * Speed;
-				if (!Move.IsNearlyZero()) Camera->AddFreeOffset(Move);
-			}
-		}
-	}
+	HandlePlayerInput(DeltaSeconds);
 
 	if (!bPaused)
 	{
@@ -1138,6 +1163,8 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 	UpdateVisuals();
 	UpdateCameraAndHUD(DeltaSeconds);
 	UpdatePresentation(DeltaSeconds);
+	AudioPlayer.SetTimeScale(GetTimeScale());
+	AudioPlayer.Tick(DeltaSeconds);
 	UpdateCaptureSchedule();
 	for (const FCourtAudioEvent& E : PendingEvents)
 	{
@@ -1151,17 +1178,23 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 EStreetballAppMode AStreetballWorld::CycleAppMode()
 {
 	AppMode = static_cast<EStreetballAppMode>((static_cast<int32>(AppMode) + 1) % 3);
+	if (HUD)
+	{
+		HUD->SetTelemetryVisible(AppMode == EStreetballAppMode::Testbed);
+		HUD->TriggerInputPulse();
+	}
 	return AppMode;
 }
 
 void AStreetballWorld::CycleCameraMode()
 {
 	if (Camera) Camera->CycleCameraMode();
+	if (HUD) { HUD->TriggerScreenWipe(0.16f); HUD->TriggerInputPulse(); }
 }
 
 void AStreetballWorld::ToggleTelemetry()
 {
-	if (HUD) HUD->SetTelemetryVisible(!HUD->IsTelemetryVisible());
+	if (HUD) { HUD->SetTelemetryVisible(!HUD->IsTelemetryVisible()); HUD->TriggerInputPulse(); }
 }
 
 void AStreetballWorld::CyclePolicyOverride()
@@ -1313,24 +1346,24 @@ void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 void AStreetballWorld::UpdateVisuals()
 {
 	if (!bReady) return;
+	SCOPE_CYCLE_COUNTER(STAT_Streetball_UpdateVisuals);
 	const int32 NB = Sim->NumBodies();
-	TArray<FVector> P; P.SetNum(NB);
-	TArray<FQuat> R; R.SetNum(NB);
+	BodyPosBuf.SetNum(NB, EAllowShrinking::No);
+	BodyRotBuf.SetNum(NB, EAllowShrinking::No);
 	for (int32 b = 0; b < NB; ++b)
 	{
 		const FTransform X = Clock->GetInterpolatedBody(b);
-		P[b] = X.GetLocation();
-		R[b] = X.GetRotation();
+		BodyPosBuf[b] = X.GetLocation();
+		BodyRotBuf[b] = X.GetRotation();
 	}
 	if (Character && PelvisBody >= 0)
 	{
-		Character->SetActorLocation(FVector(P[PelvisBody].X, P[PelvisBody].Y, 0.0));
-		BoneMapper->Apply(P, R);
+		Character->SetActorLocation(FVector(BodyPosBuf[PelvisBody].X, BodyPosBuf[PelvisBody].Y, 0.0));
+		BoneMapper->Apply(BodyPosBuf, BodyRotBuf);
 	}
-	for (AStreetballGeomActor* A : GeomActors)
+	for (AStreetballGeomActor* A : DynamicGeomActors)
 	{
-		if (!A->bDynamic) continue;
-		const FTransform BodyX(R[A->BodyId], P[A->BodyId]);
+		const FTransform BodyX(BodyRotBuf[A->BodyId], BodyPosBuf[A->BodyId]);
 		const FTransform GX = A->GeomInBody * BodyX;
 		A->SetActorTransform(FTransform(GX.GetRotation(), GX.GetLocation(), A->MeshScale));
 	}

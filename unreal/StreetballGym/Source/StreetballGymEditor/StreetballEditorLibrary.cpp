@@ -14,6 +14,8 @@
 #include "MaterialShared.h"
 #include "ShaderCompiler.h"
 #include "RHIShaderPlatform.h"
+#include "Engine/Texture2D.h"
+#include "Sound/SoundWave.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogStreetballEditor, Log, All);
 
@@ -249,4 +251,28 @@ TArray<FString> UStreetballEditorLibrary::GetMaterialCompileErrors(UMaterialInte
 		Out.Add(TEXT("no material resource for the shader platform"));
 	}
 	return Out;
+}
+
+bool UStreetballEditorLibrary::ApplyTextureImportPreset(UTexture2D* Texture, bool bNormalMap, int32 MaxTextureSize)
+{
+	if (!Texture) return false;
+	Texture->PreEditChange(nullptr);
+	Texture->CompressionSettings = bNormalMap ? TC_Normalmap : TC_BC7;
+	Texture->SRGB = !bNormalMap;
+	Texture->MaxTextureSize = FMath::Max(64, MaxTextureSize);
+	Texture->LODGroup = bNormalMap ? TEXTUREGROUP_WorldNormalMap : TEXTUREGROUP_World;
+	Texture->PostEditChange();
+	Texture->MarkPackageDirty();
+	return true;
+}
+
+bool UStreetballEditorLibrary::ApplyAudioImportPreset(USoundWave* Wave, int32 CompressionQuality)
+{
+	if (!Wave) return false;
+	Wave->PreEditChange(nullptr);
+	Wave->SoundGroup = SOUNDGROUP_Effects;
+	Wave->PostEditChange();
+	SetPropertyText(Wave, TEXT("CompressionQuality"), FString::FromInt(FMath::Clamp(CompressionQuality, 1, 100)));
+	Wave->MarkPackageDirty();
+	return true;
 }

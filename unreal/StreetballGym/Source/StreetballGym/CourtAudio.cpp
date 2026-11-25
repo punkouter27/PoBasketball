@@ -2,8 +2,21 @@
 #include "MuJoCoSim.h"
 #include "StreetballGym.h"
 #include "Components/AudioComponent.h"
+#include "Sound/SoundAttenuation.h"
 #include "Sound/SoundBase.h"
 #include "GameFramework/Actor.h"
+
+float UCourtAudioBank::SurfaceHardness(EStreetballSurface S)
+{
+	switch (S)
+	{
+	case EStreetballSurface::SteelRim:  return 1.0f;
+	case EStreetballSurface::Asphalt:   return 0.85f;
+	case EStreetballSurface::WoodBoard: return 0.60f;
+	case EStreetballSurface::Leather:   return 0.25f;
+	default:                            return 0.50f;
+	}
+}
 
 USoundBase* UCourtAudioBank::SoundFor(ECourtSound S) const
 {
@@ -75,16 +88,17 @@ void FContactAudioProcessor::Process(UMuJoCoSim* Sim, TArray<FCourtAudioEvent>& 
 		const bool HasBall = (g0 == Ball || g1 == Ball);
 		const bool HasFloor = (g0 == Floor || g1 == Floor);
 		const int32 Other = HasBall ? (g0 == Ball ? g1 : g0) : (g0 == Floor ? g1 : g0);
-		if (HasBall && HasFloor) { Kind = ECourtSound::BallFloor; Pair = TEXT("ball|floor"); Speed = (float)BallVel.Length(); bValid = true; }
-		else if (HasBall && (Other == Palm[0] || Other == Palm[1])) { Kind = ECourtSound::BallPalm; Pair = TEXT("ball|palm"); Speed = (float)BallVel.Length(); bValid = true; }
-		else if (HasBall && RimMask.IsValidIndex(Other) && RimMask[Other]) { Kind = ECourtSound::BallRim; Pair = TEXT("ball|rim"); Speed = (float)BallVel.Length(); bValid = true; }
-		else if (HasBall && BoardMask.IsValidIndex(Other) && BoardMask[Other]) { Kind = ECourtSound::BallBoard; Pair = TEXT("ball|board"); Speed = (float)BallVel.Length(); bValid = true; }
+		EStreetballSurface Surface = EStreetballSurface::Unknown;
+		if (HasBall && HasFloor) { Kind = ECourtSound::BallFloor; Surface = EStreetballSurface::Asphalt; Pair = TEXT("ball|floor"); Speed = (float)BallVel.Length(); bValid = true; }
+		else if (HasBall && (Other == Palm[0] || Other == Palm[1])) { Kind = ECourtSound::BallPalm; Surface = EStreetballSurface::Leather; Pair = TEXT("ball|palm"); Speed = (float)BallVel.Length(); bValid = true; }
+		else if (HasBall && RimMask.IsValidIndex(Other) && RimMask[Other]) { Kind = ECourtSound::BallRim; Surface = EStreetballSurface::SteelRim; Pair = TEXT("ball|rim"); Speed = (float)BallVel.Length(); bValid = true; }
+		else if (HasBall && BoardMask.IsValidIndex(Other) && BoardMask[Other]) { Kind = ECourtSound::BallBoard; Surface = EStreetballSurface::WoodBoard; Pair = TEXT("ball|board"); Speed = (float)BallVel.Length(); bValid = true; }
 		else if (HasFloor && (Other == Foot[0] || Other == Foot[1] || (Toe[0] >= 0 && Other == Toe[0]) || (Toe[1] >= 0 && Other == Toe[1])))
 		{
 			const int32 i = (Other == Foot[0] || Other == Toe[0]) ? 0 : 1;
 			const FVector3d FV = Sim->GetBodyLinearVelocitySim(FootBody[i]);
 			const double Lateral = FVector2d(FV.X, FV.Y).Length();
-			if (Lateral > ShoeLateralMin) { Kind = ECourtSound::ShoeFloor; Pair = i == 0 ? TEXT("foot_l|floor") : TEXT("foot_r|floor"); Speed = (float)Lateral; bValid = true; }
+			if (Lateral > ShoeLateralMin) { Kind = ECourtSound::ShoeFloor; Surface = EStreetballSurface::Asphalt; Pair = i == 0 ? TEXT("foot_l|floor") : TEXT("foot_r|floor"); Speed = (float)Lateral; bValid = true; }
 			else { Now.Add(Key(g0, g1)); continue; }   // quiet touchdown: still counts as active so no late trigger
 		}
 		if (!bValid) continue;
@@ -94,7 +108,12 @@ void FContactAudioProcessor::Process(UMuJoCoSim* Sim, TArray<FCourtAudioEvent>& 
 		const double* Last = LastFire.Find(K);
 		if (Last && (T - *Last) < DebounceS) continue;                // debounced
 		LastFire.Add(K, T);
-		Out.Add(MakeEvent(Kind, T, FVector3d(C.pos[0], C.pos[1], C.pos[2]), Speed, Pair));
+		FCourtAudioEvent Ev = MakeEvent(Kind, T, FVector3d(C.pos[0], C.pos[1], C.pos[2]), Speed, Pair);
+		Ev.Surface = Surface;
+		// MuJoCo contact frame[0..2] is the contact normal (sim Z-up RH -> UE Z-up LH).
+		FVector N(C.frame[0], -C.frame[1], C.frame[2]);
+		if (N.Normalize()) Ev.NormalUE = N;
+		Out.Add(Ev);
 	}
 	Swap(ActivePairs, ScratchPairs);
 }
@@ -110,9 +129,35 @@ void FCourtAudioPlayer::Initialize(AActor* Owner, UCourtAudioBank* InBank, int32
 		UAudioComponent* AC = NewObject<UAudioComponent>(Owner, *FString::Printf(TEXT("CourtAudio%d"), i));
 		AC->bAutoActivate = false;
 		AC->bAllowSpatialization = true;
+		if (InBank && InBank->SpatialAttenuation)
+		{
+			AC->AttenuationSettings = InBank->SpatialAttenuation;
+		}
+		else
+		{
+			AC->bOverrideAttenuation = true;
+			AC->AttenuationOverrides.bSpatialize = true;
+			AC->AttenuationOverrides.bAttenuate = true;
+			AC->AttenuationOverrides.FalloffDistance = 2400.f;
+			AC->AttenuationOverrides.bEnableListenerFocus = false;
+		}
 		AC->SetupAttachment(Owner->GetRootComponent());
 		AC->RegisterComponent();
 		Pool.Add(AC);
+	}
+	if (InBank && InBank->ShoeFloor)
+	{
+		UAudioComponent* SQ = NewObject<UAudioComponent>(Owner, TEXT("CourtAudioShoeSqueak"));
+		SQ->bAutoActivate = false;
+		SQ->bAllowSpatialization = true;
+		SQ->bOverrideAttenuation = true;
+		SQ->AttenuationOverrides.bSpatialize = true;
+		SQ->AttenuationOverrides.bAttenuate = true;
+		SQ->AttenuationOverrides.FalloffDistance = 1800.f;
+		SQ->SetSound(InBank->ShoeFloor);
+		SQ->SetupAttachment(Owner->GetRootComponent());
+		SQ->RegisterComponent();
+		ShoeSqueakComp = SQ;
 	}
 }
 
@@ -128,10 +173,49 @@ void FCourtAudioPlayer::Play(const FCourtAudioEvent& E)
 	AC->SetWorldLocation(E.PositionUE);
 	AC->SetSound(Snd);
 	AC->SetVolumeMultiplier(E.Volume);
-	AC->SetPitchMultiplier(E.Pitch);
-	// MetaSound input; ignored by plain waves.
+	// Scale pitch smoothly with sim TimeScale so slow-mo replays sound natural.
+	const float ScaledPitch = FMath::Clamp(E.Pitch * FMath::Lerp(1.f, TimeScale, 0.5f), 0.5f, 2.f);
+	AC->SetPitchMultiplier(ScaledPitch);
+	// MetaSound inputs; ignored by plain waves.
 	AC->SetFloatParameter(TEXT("Impact"), FMath::Clamp(E.Speed / FMath::Max(Bank->SpeedForFullVolume, 0.1f), 0.f, 1.f));
+	AC->SetFloatParameter(TEXT("SurfaceHardness"), UCourtAudioBank::SurfaceHardness(E.Surface));
 	AC->Play();
+	if (E.Kind == ECourtSound::CrowdCheer || E.Kind == ECourtSound::CrowdGroan || E.Kind == ECourtSound::Grunt)
+	{
+		NotifyVoiceOrCrowd(0.9f);
+	}
+}
+
+void FCourtAudioPlayer::NotifyVoiceOrCrowd(float DurationS)
+{
+	DuckTimer = FMath::Max(DuckTimer, DurationS);
+}
+
+void FCourtAudioPlayer::Tick(float DeltaSeconds)
+{
+	if (DuckTimer > 0.f) DuckTimer = FMath::Max(0.f, DuckTimer - DeltaSeconds);
+	const float TargetDuck = (DuckTimer > 0.f && Bank.IsValid()) ? Bank->AmbienceDuckMultiplier : 1.f;
+	CurrentDuck = FMath::FInterpTo(CurrentDuck, TargetDuck, DeltaSeconds, DuckTimer > 0.f ? 14.f : 4.f);
+	if (UAudioComponent* AC = AmbienceComp.Get())
+	{
+		if (Bank.IsValid()) AC->SetVolumeMultiplier(Bank->AmbienceVolume * CurrentDuck);
+	}
+}
+
+void FCourtAudioPlayer::UpdateShoeSlip(float LateralSpeed, const FVector& PosUE)
+{
+	UAudioComponent* SQ = ShoeSqueakComp.Get();
+	if (!SQ || !Bank.IsValid()) return;
+	if (LateralSpeed < 0.75f) return;
+	if (!SQ->IsPlaying())
+	{
+		SQ->SetWorldLocation(PosUE);
+		const float Norm = FMath::Clamp((LateralSpeed - 0.75f) / 4.f, 0.f, 1.f);
+		SQ->SetVolumeMultiplier(FMath::Lerp(0.08f, 0.45f, Norm));
+		SQ->SetPitchMultiplier(FMath::Clamp(0.9f + 0.5f * Norm, 0.7f, 1.6f));
+		SQ->SetFloatParameter(TEXT("Impact"), Norm);
+		SQ->Play();
+	}
 }
 
 void FCourtAudioPlayer::StartAmbience(AActor* Owner)

@@ -185,6 +185,7 @@ public:
 private:
 	void OnControlStep(UMuJoCoSim* InSim);
 	void OnPhysicsStep(UMuJoCoSim* InSim);
+	void HandlePlayerInput(float DeltaSeconds);
 	void UpdateVisuals();
 	void UpdatePresentation(float Dt);
 	void SetupPresentation();
@@ -213,6 +214,7 @@ private:
 	/** Visual-only ground apron outside the fence (not part of the sim). */
 	UPROPERTY() TObjectPtr<AStreetballGeomActor> Surroundings;
 	UPROPERTY() TArray<TObjectPtr<AStreetballGeomActor>> GeomActors;
+	UPROPERTY() TArray<TObjectPtr<AStreetballGeomActor>> DynamicGeomActors;
 	UPROPERTY() TObjectPtr<AStreetballGeomActor> BallActor;
 	UPROPERTY() TObjectPtr<ABroadcastCamera> Camera;
 	UPROPERTY() TObjectPtr<UCourtAudioBank> AudioBank;
@@ -243,9 +245,11 @@ private:
 	TArray<FString> RealPolicies;
 	FStreetballDirectorOutput DirOut;
 	FName LastPolicyName;
-	// pre-sized scratch for the control step (UU_AGENT: no heap allocation in the real-time loop)
+	// pre-sized scratch for the control step & render sync (UU_AGENT: no heap allocation in the real-time loop)
 	TArray<float> CtrlBuf;
 	TArray<double> QBuf, VBuf;
+	TArray<FVector> BodyPosBuf;
+	TArray<FQuat> BodyRotBuf;
 	int32 RootQAdr = INDEX_NONE, BallQAdr = INDEX_NONE, BallVAdr = INDEX_NONE;
 	int32 UnloggedResets = 0;                    // resets applied inside the step, logged from Tick
 	const TCHAR* LastResetReason = TEXT("");
