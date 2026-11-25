@@ -30,7 +30,7 @@ TAG = time.strftime("%m%d")
 
 # warm-started dribble brains: small steps, the mirror term does the left/right transfer; no strong anchor to the
 # right-only start brain (it would hold the left hand back)
-DRIBBLE = "--freeze-norm --kl-target 0.02 --epochs 3 --lr-max 1e-4 --lr-min 1e-6 --anchor-coef 0.05 --assist-anneal-steps 1"
+DRIBBLE = "--freeze-norm --kl-target 0.02 --epochs 3 --lr-max 1e-4 --lr-min 1e-6 --anchor-coef 0.05 --assist-anneal-steps 1 --init-std 0.1"
 
 
 def note(msg: str) -> None:
@@ -105,7 +105,7 @@ def main() -> None:
 
     a = f"both_dribble_{TAG}"
     stage(hb, "A both-hand dribble", "l2_both_time", "l2_both", a, m,
-          f"--init runs/production/dribble_anchor10.pt --init-actor-only {DRIBBLE} --sym-coef 0.2", args.ckpt_every)
+          f"--init runs/production/dribble_anchor10.pt --init-actor-only {DRIBBLE} --sym-coef 0.1", args.ckpt_every)
     a_best, _ = best_ckpt(a)
     if a_best is not None:
         # how each hand does on its own one-hand gate
