@@ -12,12 +12,21 @@
   "interface_sha": "32f5b79d3216e8a3",
   "physics_sha": "319cd05af6f00d17+c1c2207912c56781",
   "fall_rate": 0.019999999552965164,
-  "mean_episode_s": 61.38869857788086,
+  "mean_episode_s": 60.08799743652344,
   "metrics": {
-    "m/waypoints": 4.522716045379639,
-    "m/wp_dist": 7.547176361083984,
-    "m/speed": 1.8770164251327515,
-    "m/arm_carry": 0.11435231566429138
+    "m/waypoints": 4.513880729675293,
+    "m/wp_dist": 7.388269901275635,
+    "m/speed": 1.865415334701538,
+    "m/arm_carry": 0.11558960378170013,
+    "m/pen_torque_sq": -0.027512960135936737,
+    "m/pen_joint_ang_vel_sq": -0.004023415967822075,
+    "m/pen_action_rate_sq": -0.0023931427858769894,
+    "m/pen_foot_slip": -0.1953524500131607,
+    "m/pen_power_abs": 0.0,
+    "m/pen_com_offset": -0.039616458117961884,
+    "m/pen_com_vel_z_sq": 0.0,
+    "m/pen_ang_vel_xy_sq": -0.018074098974466324,
+    "m/pen_short_swing": 0.0
   },
-  "wall_s": 146.12017959999866
+  "wall_s": 117.25156789999983
 }
