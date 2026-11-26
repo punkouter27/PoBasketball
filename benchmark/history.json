@@ -172,6 +172,95 @@
    "workload_changes": [
     "config_hash: '9cb15f' -> '563914'"
    ]
+  },
+  {
+   "when": "2026-11-26T11:59:05-05:00",
+   "ok": false,
+   "error": "FileNotFoundError: [Errno 2] No such file or directory: 'runs/production/dribble_anchor_init.pt'",
+   "machine": {
+    "hostname": "C4T4V44",
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13850HX (28 threads)",
+    "gpu": "NVIDIA RTX 2000 Ada Generation Laptop GPU",
+    "vram_gb": 8.0,
+    "ram_gb": 63.8,
+    "gpu_driver": "581.95",
+    "os": "Windows 11 (10.0.26100)"
+   },
+   "load_before": {
+    "cpu_pct": 8,
+    "cpu_max_core_pct": 48,
+    "trainer_cpu_cores": 0.0,
+    "trainer_thread_pct": 0,
+    "ram_used_gb": 26.2,
+    "gpu_pct": 1.0,
+    "gpu_mem_pct": 2.0,
+    "vram_used_gb": 1.8,
+    "gpu_temp_c": 55.0,
+    "sm_clock_mhz": 390.0,
+    "sm_clock_max_mhz": 3105.0,
+    "power_w": 8.35,
+    "power_limit_w": 67.93,
+    "pstate": "P8",
+    "clock_reasons": [],
+    "display_active": true,
+    "pcie": "gen 1 x8",
+    "on_battery": false,
+    "gpu_processes": [
+     "Code.exe",
+     "Creative Cloud UI Helper.exe",
+     "CrossDeviceResume.exe",
+     "Docker Desktop.exe",
+     "PhoneExperienceHost.exe",
+     "SearchHost.exe",
+     "ShellExperienceHost.exe",
+     "ShellHost.exe",
+     "StartMenuExperienceHost.exe",
+     "TeamViewer.exe",
+     "TextInputHost.exe",
+     "ZSATray.exe",
+     "[Insufficient Permissions]",
+     "explorer.exe",
+     "ms-teams.exe",
+     "msedge.exe",
+     "msedgewebview2.exe"
+    ]
+   },
+   "load_during": {},
+   "busy": false,
+   "workload_id": "e3af9a",
+   "workload": {
+    "repo": "PoBasketball",
+    "trainer": "streetball PPO (own) on mujoco_warp 4.0.0",
+    "script": "sim/streetball/train.py",
+    "args": "--level l2a_time --num-envs 4096 --steps-per-env 24 --init runs/production/dribble_anchor_init.pt --freeze-norm --horizon0 45 --kl-target 0.02 --epochs 2 --lr-max 2e-5 --lr-min 1e-7 --anchor-coef 1.0 --assist-anneal-steps 1 --run-name _benchmark --steps 5e9 --ckpt-every-steps 0 --save-every 1000000",
+    "num_envs": 4096,
+    "horizon": 24,
+    "net": [
+     512,
+     256,
+     128
+    ],
+    "n_obs": 125,
+    "n_act": 29,
+    "init": "runs/production/dribble_anchor_init.pt",
+    "config_hash": "563914"
+   },
+   "result": null,
+   "git_commit": "78bac5c",
+   "versions": {
+    "python": "3.12.16",
+    "torch": "2.14.1+cu130",
+    "mujoco": "4.0.0",
+    "mujoco_warp": "4.0.0",
+    "warp": "1.19.0"
+   },
+   "context": {
+    "power_plan": "Balanced",
+    "power_mode": null,
+    "gpu_scheduling": null
+   },
+   "verdict": [],
+   "workload_changes": []
   }
  ]
 }
