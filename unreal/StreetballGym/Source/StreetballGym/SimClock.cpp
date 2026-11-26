@@ -1,5 +1,8 @@
 #include "SimClock.h"
+#include "StreetballGym.h"
 #include "MuJoCoSim.h"
+
+DECLARE_CYCLE_STAT(TEXT("Streetball SimStep"), STAT_Streetball_SimStep, STATGROUP_Streetball);
 
 void USimClock::Initialize(UMuJoCoSim* InSim, int32 InSubstepsPerControl)
 {
@@ -20,15 +23,19 @@ int32 USimClock::Advance(double DeltaSeconds)
 	if (!Sim || !Sim->IsLoaded()) return 0;
 	const double Scale = FMath::Clamp(static_cast<double>(TimeScale), 0.1, 4.0);
 	Accumulator += FMath::Clamp(DeltaSeconds, 0.0, MaxFrameDelta) * Scale;
+	const int32 StepCap = FMath::Max(1, MaxSubstepsPerFrame);
 	int32 Steps = 0;
-	while (Accumulator >= Timestep)
+	while (Accumulator >= Timestep && Steps < StepCap)
 	{
 		if (SubstepInControl == 0)
 		{
 			OnControlStep.ExecuteIfBound(Sim);
 			++ControlCount;
 		}
-		Sim->Step(1);
+		{
+			SCOPE_CYCLE_COUNTER(STAT_Streetball_SimStep);
+			Sim->Step(1);
+		}
 		++StepCount;
 		OnPhysicsStep.ExecuteIfBound(Sim);
 		SubstepInControl = (SubstepInControl + 1) % SubstepsPerControl;
@@ -38,6 +45,11 @@ int32 USimClock::Advance(double DeltaSeconds)
 		// than Curr (continuous interpolation regardless of how many steps a frame took).
 		TakeSnapshot(Snapshots[PrevIdx]);
 		PrevIdx = 1 - PrevIdx;
+	}
+	if (Steps >= StepCap && Accumulator >= Timestep)
+	{
+		// Drop excess residual time so a frame hitch never cascades into multi-frame sub-step spikes.
+		Accumulator = FMath::Fmod(Accumulator, Timestep);
 	}
 	return Steps;
 }

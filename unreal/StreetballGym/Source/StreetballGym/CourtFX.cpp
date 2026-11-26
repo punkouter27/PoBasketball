@@ -25,6 +25,9 @@ bool FCourtFXMapping::FromAudioEvent(const FCourtAudioEvent& E, FCourtFXCue& Out
 {
 	const float S01 = FMath::Clamp(E.Speed / SpeedForFull, 0.f, 1.f);
 	Out.PositionUE = E.PositionUE;
+	Out.NormalUE = E.NormalUE;
+	Out.Surface = E.Surface;
+	Out.ImpactSpeed = E.Speed;
 	switch (E.Kind)
 	{
 	case ECourtSound::BallFloor:
@@ -119,17 +122,22 @@ void FCourtFXPlayer::Play(const FCourtFXCue& Cue)
 	N = (N + 1) % Pool.Num();
 	if (!C) return;
 	C->SetWorldLocation(Cue.PositionUE);
+	const FVector NormalDir = Cue.NormalUE.GetSafeNormal();
+	C->SetWorldRotation(NormalDir.IsNearlyZero() ? FQuat::Identity : FRotationMatrix::MakeFromZ(NormalDir).ToQuat());
 	C->SetWorldScale3D(FVector(Cue.Scale));
+	C->SetFloatParameter(TEXT("User.ImpactSpeed"), Cue.ImpactSpeed);
+	C->SetFloatParameter(TEXT("User.SurfaceHardness"), UCourtAudioBank::SurfaceHardness(Cue.Surface));
 	C->Activate(true);
 }
 
-void FCourtFXPlayer::KickNet(int32 RimIndex, bool bSwish, double Now)
+void FCourtFXPlayer::KickNet(int32 RimIndex, bool bSwish, double Now, float Intensity)
 {
 	if (RimIndex < 0 || RimIndex > 1) return;
 	++NetKicks;
 	if (UMaterialInstanceDynamic* MID = NetMID[RimIndex].Get())
 	{
 		MID->SetScalarParameterValue(bSwish ? TEXT("SwishTime") : TEXT("HitTime"), (float)Now);
+		MID->SetScalarParameterValue(bSwish ? TEXT("SwishIntensity") : TEXT("HitIntensity"), FMath::Clamp(Intensity, 0.2f, 2.f));
 	}
 }
 

@@ -140,7 +140,7 @@ void ABroadcastCamera::SetCameraMode(EStreetballCameraMode InMode)
 
 EStreetballCameraMode ABroadcastCamera::CycleCameraMode()
 {
-	const int32 Next = (static_cast<int32>(CameraMode) + 1) % 4;
+	const int32 Next = (static_cast<int32>(CameraMode) + 1) % 5;
 	const EStreetballCameraMode Mode = static_cast<EStreetballCameraMode>(Next);
 	SetCameraMode(Mode);
 	return Mode;
@@ -185,6 +185,28 @@ void ABroadcastCamera::UpdateCamera(const FBroadcastInputs& In, float Dt)
 		T.LookAt = SimToUE(Subject);
 		T.FovDeg = 48.f;
 	}
+	else if (CameraMode == EStreetballCameraMode::Face)
+	{
+		// 1.1 m out along where the face points (she bows over the ball, so this is usually low and in front), a touch
+		// to her right. The face centre sits ~9 cm out from the head bone. Never below 35 cm off the ground.
+		// Yaw from where the face points (blended with the body heading, which is steadier when she bows), pitch fixed:
+		// the camera sits 25 deg below the face looking up, so a bowed head still shows the face.
+		const FVector2d H = In.HeadingFwd.IsNearlyZero() ? FVector2d(1.0, 0.0) : In.HeadingFwd.GetSafeNormal();
+		const FVector Heading(H.X, -H.Y, 0.0);              // sim y-left -> UE y-right
+		FVector Horiz = Heading * 0.6f;
+		if (!In.FaceDirUE.IsNearlyZero()) Horiz += FVector(In.FaceDirUE.X, In.FaceDirUE.Y, 0.f);
+		Horiz = Horiz.GetSafeNormal2D();
+		if (Horiz.IsNearlyZero()) Horiz = Heading;
+		const float Pitch = FMath::DegreesToRadians(25.f);
+		const FVector Dir = Horiz * FMath::Cos(Pitch) - FVector::UpVector * FMath::Sin(Pitch);
+		const FVector Head = In.HeadUE.IsNearlyZero() ? SimToUE(In.Character + FVector3d(0.0, 0.0, 0.7)) : In.HeadUE;
+		const FVector Face = Head + Horiz * 9.f + FVector(0.f, 0.f, 4.f);
+		const FVector Right = FVector::CrossProduct(FVector::UpVector, Dir).GetSafeNormal();
+		T.Position = Face + Dir * 110.f + Right * 22.f;
+		T.Position.Z = FMath::Max(T.Position.Z, 35.0);
+		T.LookAt = Face;
+		T.FovDeg = 28.f;
+	}
 	else
 	{
 		T.Position = FreePosUE.IsNearlyZero() ? GetActorLocation() : FreePosUE;
@@ -195,6 +217,9 @@ void ABroadcastCamera::UpdateCamera(const FBroadcastInputs& In, float Dt)
 
 	FVector Pos = GetActorLocation();
 	float Fov = Camera->FieldOfView;
+	// The face close-up sits ~1 m from her: after a reset teleport (or on entering the mode) a damped glide would pass
+	// through her head, so it cuts instead.
+	if (CameraMode == EStreetballCameraMode::Face && FVector::Dist(Pos, T.Position) > 60.f) bCut = true;
 	if (bCut)
 	{
 		++CutCount;
@@ -209,8 +234,9 @@ void ABroadcastCamera::UpdateCamera(const FBroadcastInputs& In, float Dt)
 	}
 	else
 	{
-		Pos = FCriticalDamper::Damp(Pos, T.Position, PosVel, PositionSmoothTime, Dt);
-		LookAt = FCriticalDamper::Damp(LookAt, T.LookAt, LookVel, LookSmoothTime, Dt);
+		const float K = CameraMode == EStreetballCameraMode::Face ? 0.3f : 1.f;   // the close-up must keep up with her head
+		Pos = FCriticalDamper::Damp(Pos, T.Position, PosVel, PositionSmoothTime * K, Dt);
+		LookAt = FCriticalDamper::Damp(LookAt, T.LookAt, LookVel, LookSmoothTime * K, Dt);
 		Fov = FCriticalDamper::Damp(Fov, T.FovDeg, FovVel, FovSmoothTime, Dt);
 	}
 	SetActorLocation(Pos);
@@ -218,7 +244,7 @@ void ABroadcastCamera::UpdateCamera(const FBroadcastInputs& In, float Dt)
 	Camera->SetFieldOfView(Fov);
 
 	// CineCamera manual focus pull on the athlete + brief motion-blur suppression right after a cut.
-	const FVector AthleteUE = SimToUE(In.Character + FVector3d(0.0, 0.0, 0.9));
+	const FVector AthleteUE = (CameraMode == EStreetballCameraMode::Face && !In.HeadUE.IsNearlyZero()) ? In.HeadUE : SimToUE(In.Character + FVector3d(0.0, 0.0, 0.9));
 	Camera->FocusSettings.FocusMethod = ECameraFocusMethod::Manual;
 	Camera->FocusSettings.ManualFocusDistance = FMath::Clamp((float)FVector::Dist(Pos, AthleteUE), 150.f, 6000.f);
 	CutBlurSuppression = FMath::Max(0.f, CutBlurSuppression - Dt);

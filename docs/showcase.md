@@ -39,5 +39,32 @@ then quits. `-ShowcaseIdle=<s>` overrides the idle threshold; `-ShowcaseBenchmar
 `overlay_on.png` shows its result. Run it at `-ResX=1600 -ResY=900` and `-ResX=450 -ResY=800`: below 900 px wide (or
 portrait) the HUD stacks its banner, policy badge, telemetry and key hints bottom-left above the version stamp.
 
-Automation tests: `Streetball.Showcase.IdleDemoIgnoresLongFrames`, `.OverlayAndSimBenchmark`,
+Automation tests: `Streetball.Showcase.IdleDemoIgnoresLongFrames`, `.OverlayAndSimBenchmark`, `.TimeOfDayModel`,
 `.HUDLayoutLandscapeAndPortrait`, `.ConfigDataAssets` (the reward DataAsset equals `shared/reward_config.json`).
+
+## Time of day (2026-11-24)
+`UCourtTimeOfDaySubsystem` (`CourtTimeOfDay.h/.cpp`) moves the level's movable directional light through a 24 h day, turns
+it into a dim blue moon below −3° sun elevation, scales the sky light, and from `LampsOnHour` to `LampsOffHour` lights one
+spot light per `SM_StreetLight` PCG instance (created once, after the PCG output has stopped growing). An unbound
+post-process volume holds exposure at `NightExposureEV100` at night (blended by sun angle). Settings: `DA_ShowcaseConfig`
+› TimeOfDay. `StartHour = -1` starts at the hour matching the level's saved sun, so the first frame matches the old look.
+Command line: `-TimeOfDay=<hour>`, `-TimeOfDayFreeze`. Captures: `Scripts/capture_time_of_day.ps1`; report:
+`SCREENSHOTS/20261124_time_of_day/index.html`. MegaLights is not enabled (needs hardware ray tracing; see DefaultEngine.ini).
+Test: `Streetball.Showcase.TimeOfDayModel`.
+
+## Broadcast replays (Movie Render Queue, 2026-11-24)
+`Scripts/make_broadcast_render.py` (run once through `run_headless.ps1 -ExecutePythonScript=...`) builds
+`/Game/Project/Core/Cinematics/LS_Broadcast` (empty 12 s sequence: with no camera cut MRQ renders through the player's
+camera, the live broadcast camera) and `MRQ_Broadcast` (1920x1080 PNG, 30 fps, 8 temporal samples, 60 warm-up frames,
+game mode kept as `StreetballGameMode`). `Scripts/render_broadcast.ps1 [game args]` renders the live game into
+`Saved/MovieRenders/<date>_<time>/`. The sim steps on MRQ's fixed frame time (USimClock accumulator), so a render is
+reproducible from its arguments. No HUD in the frames.
+
+## Local Megascans (2026-11-24)
+Fab Megascans (Standard License) are used **locally only**: this repo is public and the licence does not allow
+redistributing the files, so `Content/Art/Raw/Megascans/` and `/Game/Project/Environments/Megascans/` are git-ignored.
+`Content/Art/megascans.json` lists the Fab listings, their 2K zips and the material parameters they fill;
+`Scripts/import_megascans.py` imports whatever zips are in `~/Downloads` (or `STREETBALL_DOWNLOADS`), and
+`AStreetballWorld::ApplyLocalScans` applies a target only when all its textures load. Without them (fresh clone) the
+procedural materials render as before. In use: the asphalt scan under `M_CourtAsphalt` (`ScanAmount` etc.). Report:
+`SCREENSHOTS/20261124_megascans/index.html`.

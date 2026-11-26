@@ -75,8 +75,7 @@ def test_step_random_actions(env):
 
 
 def test_every_penalty_term_is_charged_and_logged(env):
-    """torque^2, joint angular velocity^2, action rate^2 and foot slip are each charged (weight < 0, term > 0 for some
-    worlds) and reported separately as info["m/pen_<term>"] (the trainer writes every m/ key to TensorBoard)."""
+    """Every term with a weight < 0 is charged (term > 0 for some worlds); every term is reported separately as info["m/pen_<term>"] (the trainer writes every m/ key to TensorBoard)."""
     from streetball import reward_config
 
     env.reset(torch.arange(env.N, device=env.device))
@@ -90,8 +89,37 @@ def test_every_penalty_term_is_charged_and_logged(env):
             assert (v <= 0).all(), f"{t} is a penalty"
             seen[t] = min(seen[t], float(v.min()))
     print({t: f"{v:.3e}" for t, v in seen.items()})
+    w = reward_config.penalty_weights(env.level.name)
     for t, v in seen.items():
-        assert v < 0, f"{t} was never charged under random actions"
+        if w[t] == 0.0:  # 2026-11-24 terms ship switched off: charged exactly 0 (raw values: next test)
+            assert v == 0.0, f"{t} has weight 0 but was charged"
+        else:
+            assert v < 0, f"{t} was never charged under random actions"
+
+
+def test_shaping_terms_measure_something(env):
+    """The weight-0 shaping terms (power, CoM offset, CoM bounce, roll/pitch rate, short swing) are finite, >= 0 and
+    non-zero somewhere under random actions, so switching one on in reward_config.json actually shapes the reward."""
+    lvl = env.level
+    env.reset(torch.arange(env.N, device=env.device))
+    fns = {
+        "power_abs": lvl.p_power,
+        "com_offset": lvl.p_com_offset,
+        "com_vel_z_sq": lvl.p_com_vel_z,
+        "ang_vel_xy_sq": lvl.p_ang_vel_xy,
+        "short_swing": lvl.p_short_swing,
+    }
+    peak = {t: 0.0 for t in fns}
+    for _ in range(60):
+        a = torch.rand(env.N, env.N_ACT, device=env.device, generator=env.gen) * 2 - 1
+        env.step(a)
+        for t, f in fns.items():
+            v = f()
+            assert v.shape == (env.N,) and torch.isfinite(v).all() and (v >= 0).all(), t
+            peak[t] = max(peak[t], float(v.max()))
+    print(peak)
+    for t, v in peak.items():
+        assert v > 0, f"{t} is always 0"
 
 
 def test_randomisation_varies(env):

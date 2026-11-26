@@ -24,6 +24,7 @@ from dataclasses import asdict
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+from streetball import mirror
 from streetball.env_base import EnvConfig, RandomizationConfig, StreetballEnv
 from streetball.levels import make
 from streetball.ppo import PPO, PPOConfig
@@ -126,6 +127,20 @@ def parse():
     ap.add_argument(
         "--ckpt-every-steps", type=float, default=25e6, help="also save ckpt_<Msteps>.pt at these milestones"
     )
+    ap.add_argument(
+        "--sym-coef",
+        type=float,
+        default=0.0,
+        help="left/right symmetry loss weight (0 = off); only on levels that declare Level.task_mirror()",
+    )
+    ap.add_argument("--motor-kd", type=float, nargs=2, default=(1.0, 1.0), help="kv randomisation range (1 1 = off)")
+    ap.add_argument("--latency-max", type=int, default=1, help="max control steps of actuator latency (1 or 2)")
+    ap.add_argument(
+        "--freeze-trunk-layers",
+        type=int,
+        default=0,
+        help="freeze the first N Linear layers of Actor.net during transfer",
+    )
     ap.add_argument("--save-every", type=int, default=50, help="iterations")
     ap.add_argument(
         "--horizon0",
@@ -149,7 +164,12 @@ def main():
     env_cfg = EnvConfig(
         num_envs=args.num_envs,
         seed=args.seed,
-        randomization=RandomizationConfig(enabled=not args.no_randomization, push_force=(0.0, args.push_max)),
+        randomization=RandomizationConfig(
+            enabled=not args.no_randomization,
+            push_force=(0.0, args.push_max),
+            motor_kd=tuple(args.motor_kd),
+            action_latency_max_steps=max(1, int(args.latency_max)),
+        ),
     )
     ppo_cfg = PPOConfig(
         lr=args.lr,
@@ -160,6 +180,7 @@ def main():
         lr_min=args.lr_min,
         epochs=args.epochs,
         anchor_coef=args.anchor_coef,
+        sym_coef=args.sym_coef,
     )
     level = make(args.level)
     env = StreetballEnv(level, env_cfg)
@@ -168,7 +189,16 @@ def main():
         sd = torch.load(args.init, map_location=env.device)
         agent.load_state_dict(sd, actor_only=args.init_actor_only)
         print(f"initialised from {args.init} (actor_only={args.init_actor_only})")
+    if args.sym_coef > 0.0:
+        tm = level.task_mirror()
+        if tm is None:
+            raise SystemExit(f"--sym-coef: level {level.name} is not left/right symmetric (Level.task_mirror is None)")
+        agent.set_mirror(mirror.build(env.mjm, env.ix, *tm))
+        print(f"symmetry loss on, weight {args.sym_coef}")
     agent.freeze_norm = args.freeze_norm
+    if args.freeze_trunk_layers > 0:
+        n_frozen = agent.freeze_trunk_layers(args.freeze_trunk_layers)
+        print(f"froze {n_frozen} trunk Linear layer(s) of Actor.net")
     if args.anchor_coef > 0.0:
         agent.set_anchor()  # anchor = the actor as initialised (the --init brain)
     if args.reset_std is not None:

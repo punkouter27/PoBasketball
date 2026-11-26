@@ -83,6 +83,16 @@ class L3MovingDribble(L1Traverse):
         tb[:, 6] = loco[:, 2]  # waypoint distance
         return tb if ids is None else tb[ids]
 
+    def task_mirror(self):
+        """2026-11-24 fix: this level inherited L1Traverse's mirror (flips slot 1), but here slot 1 is the apex height and
+        the heading-frame y of the waypoint is slot 5. Hand (slot 0) flips; one-handed (right) variants are not symmetric."""
+        if self.hand_mode != "random":
+            return None
+        sign = [1.0] * obs_spec.N_TASK
+        sign[0] = -1.0
+        sign[5] = -1.0
+        return list(range(obs_spec.N_TASK)), sign
+
     def reward(self) -> torch.Tensor:
         env = self.env
         r_loco = super().reward()
@@ -104,12 +114,22 @@ class L3MovingDribble(L1Traverse):
         self.dist_travelled += (xy - self.prev_xy).norm(dim=-1)
         self.prev_xy = xy.clone()
         self.control_steps += env.in_control
+        # Momentum-aware turning: reward horizontal pelvis velocity aligned with commanded waypoint direction
+        v_xy = env.v_pelvis[:, :2]
+        v_norm = v_xy.norm(dim=-1, keepdim=True).clamp(min=1e-4)
+        cmd_dir_w = (
+            (env.H[:, :2, 0] * self._loco_dir[:, 0:1] + env.H[:, :2, 1] * self._loco_dir[:, 1:2])
+            if hasattr(self, "_loco_dir")
+            else fwd
+        )
+        turn_align = ((v_xy / v_norm) * cmd_dir_w).sum(-1).clamp(min=0.0) * env.in_control
         r = (
             r_loco
             + 1.0 * torch.exp(-((spot_d / 0.35) ** 2))
             + 3.0 * r_apex
             + 0.3 * r_palm
             + 0.5 * env.in_control
+            + 0.25 * turn_align
             - 2.0 * (ball_z - 1.25).clamp(min=0.0)
         )
         return r
@@ -233,6 +253,14 @@ class L3DribbleWalk(L3MovingDribble):
         m["m/speed_cmd"] = self.speed_cmd.clone()
         m["m/succ_ema"] = torch.full((self.N,), self.succ_ema, device=self.dev)
         return m
+
+
+class L3DribbleWalkBoth(L3DribbleWalk):
+    """l3a_walk with the hand drawn per episode (2026-11-24): moving dribble with either hand; the symmetry loss is
+    available (L3MovingDribble.task_mirror)."""
+
+    name = "l3a_walk_both"
+    hand_mode = "random"
 
 
 class L3Scramble(Level):

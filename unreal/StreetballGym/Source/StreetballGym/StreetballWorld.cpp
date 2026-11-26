@@ -23,6 +23,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/Texture.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "UObject/ConstructorHelpers.h"
@@ -31,6 +32,11 @@
 #include "EngineUtils.h"
 #include "GroomAsset.h"
 #include "GroomBindingAsset.h"
+#include "Animation/PoseAsset.h"
+
+DECLARE_CYCLE_STAT(TEXT("Streetball ObsBuild"), STAT_Streetball_ObsBuild, STATGROUP_Streetball);
+DECLARE_CYCLE_STAT(TEXT("Streetball PolicyEval"), STAT_Streetball_PolicyEval, STATGROUP_Streetball);
+DECLARE_CYCLE_STAT(TEXT("Streetball UpdateVisuals"), STAT_Streetball_UpdateVisuals, STATGROUP_Streetball);
 
 // ---------------------------------------------------------------------------- character
 AStreetballCharacter::AStreetballCharacter()
@@ -63,6 +69,8 @@ FString AStreetballCharacter::ApplyMainCharacterMesh()
 		TArray<FString, TInlineAllocator<3>> Candidates;
 		FString Override;
 		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballCharacterMesh="), Override) && !Override.IsEmpty()) Candidates.Add(Override);
+		TSharedPtr<FJsonObject> MH;
+		if (!FParse::Param(FCommandLine::Get(), TEXT("StreetballNoMetaHuman")) && LoadMetaHumanParts(MH)) Candidates.Add(MH->GetStringField(TEXT("body")));
 		if (!FParse::Param(FCommandLine::Get(), TEXT("StreetballNoCloth"))) Candidates.Add(GrandmaClothMeshPath);
 		Candidates.Add(GrandmaMeshPath);
 		bool bFound = false;
@@ -78,10 +86,95 @@ FString AStreetballCharacter::ApplyMainCharacterMesh()
 		}
 		if (!bFound) UE_LOG(LogStreetball, Log, TEXT("Character: %s not imported yet, using Manny"), GrandmaMeshPath);
 	}
+	BuildSkins();
 	const USkeletalMesh* InUse = Mesh->GetSkeletalMeshAsset();
 	const FString Name = InUse ? InUse->GetName() : FString(TEXT("none"));
-	UE_LOG(LogStreetball, Log, TEXT("Character mesh: %s (cloth %s)"), *Name, HasCloth() ? TEXT("yes") : TEXT("no"));
+	UE_LOG(LogStreetball, Log, TEXT("Character mesh: %s (cloth %s), %d skins preloaded"), *Name, HasCloth() ? TEXT("yes") : TEXT("no"), SkinMeshes.Num());
 	return Name;
+}
+
+void AStreetballCharacter::BuildSkins()
+{
+	SkinMeshes.Reset(); SkinNames.Reset(); SkinKinds.Reset();
+	auto Add = [this](const FString& Path, const TCHAR* Label, uint8 Kind) -> bool
+	{
+		USkeletalMesh* SM = Path.IsEmpty() ? nullptr : LoadObject<USkeletalMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!SM || SkinMeshes.Contains(SM)) return false;
+		SkinMeshes.Add(SM); SkinNames.Add(Label); SkinKinds.Add(Kind);
+		return true;
+	};
+	FString Override;
+	if (FParse::Value(FCommandLine::Get(), TEXT("StreetballCharacterMesh="), Override)) Add(Override, TEXT("Custom"), SkinKindPlain);
+	SkinMHSlot.SetNum(SkinMeshes.Num());
+	for (int32& S : SkinMHSlot) S = INDEX_NONE;
+	if (!FParse::Param(FCommandLine::Get(), TEXT("StreetballNoMetaHuman")))
+		for (int32 Slot = 0; Slot < NumMetaHumanSlots; ++Slot)
+		{
+			TSharedPtr<FJsonObject> MH;
+			if (LoadMetaHumanParts(Slot, MH) && Add(MH->GetStringField(TEXT("body")), MetaHumanSlotLabel(Slot), SkinKindMetaHuman))
+				SkinMHSlot.Add(Slot);
+		}
+	const bool bCloth = !FParse::Param(FCommandLine::Get(), TEXT("StreetballNoCloth")) && Add(GrandmaClothMeshPath, TEXT("Grandma"), SkinKindGrandma);
+	if (!bCloth) Add(GrandmaMeshPath, TEXT("Grandma"), SkinKindGrandma);
+	Add(MannyMeshPath, TEXT("Manny"), SkinKindPlain);
+	Add(QuinnMeshPath, TEXT("Quinn"), SkinKindPlain);
+	USkeletalMesh* Current = Mesh ? Mesh->GetSkeletalMeshAsset() : nullptr;
+	ActiveSkin = SkinMeshes.IndexOfByKey(Current);
+	if (ActiveSkin == INDEX_NONE && Current)
+	{
+		ActiveSkin = SkinMeshes.Add(Current);
+		SkinNames.Add(Current->GetName());
+		SkinKinds.Add(SkinKindPlain);
+	}
+	SkinMHSlot.SetNum(SkinMeshes.Num());   // non-MetaHuman skins added after the slots: INDEX_NONE
+	for (int32 i = 0; i < SkinMHSlot.Num(); ++i) if (SkinKinds[i] != SkinKindMetaHuman) SkinMHSlot[i] = INDEX_NONE;
+	MHFaces.SetNum(NumMetaHumanSlots);
+	MHOutfits.SetNum(NumMetaHumanSlots);
+}
+
+int32 AStreetballCharacter::ActiveMetaHumanSlot() const
+{
+	return SkinMHSlot.IsValidIndex(ActiveSkin) ? SkinMHSlot[ActiveSkin] : INDEX_NONE;
+}
+
+const TCHAR* AStreetballCharacter::MetaHumanSlotLabel(int32 Slot)
+{
+	return Slot == 0 ? TEXT("Grandma (original, MetaHuman)") : TEXT("Grandma (MetaHuman)");
+}
+
+bool AStreetballCharacter::SetSkin(int32 Index)
+{
+	if (!Mesh || !SkinMeshes.IsValidIndex(Index) || !SkinMeshes[Index]) return false;
+	if (Index == ActiveSkin) return true;
+	Mesh->SetSkeletalMeshAsset(SkinMeshes[Index]);   // keeps the component, its anim class and attachments
+	ActiveSkin = Index;
+	for (USkeletalMeshComponent* O : MHOutfits) if (O) O->SetLeaderPoseComponent(Mesh, true);
+	ApplySkinExtrasVisibility();
+	UE_LOG(LogStreetball, Log, TEXT("Character: skin -> %s (%s)"), *SkinNames[Index], *SkinMeshes[Index]->GetName());
+	return true;
+}
+
+void AStreetballCharacter::ApplySkinExtrasVisibility()
+{
+	const uint8 Kind = SkinKinds.IsValidIndex(ActiveSkin) ? SkinKinds[ActiveSkin] : SkinKindPlain;
+	const bool bGrandma = Kind == SkinKindGrandma;
+	const int32 Slot = ActiveMetaHumanSlot();
+	for (int32 s = 0; s < MHFaces.Num(); ++s)
+	{
+		const bool bOn = s == Slot;
+		if (MHOutfits[s]) MHOutfits[s]->SetVisibility(bOn);
+		if (MHFaces[s]) { MHFaces[s]->SetVisibility(bOn); MHFaces[s]->SetComponentTickEnabled(bOn); }
+	}
+	FaceMesh = MHFaces.IsValidIndex(Slot) ? MHFaces[Slot].Get() : nullptr;   // the active MetaHuman's face (or none)
+	OutfitMesh = MHOutfits.IsValidIndex(Slot) ? MHOutfits[Slot].Get() : nullptr;
+	for (UGroomComponent* G : Grooms)
+	{
+		if (!G) continue;
+		bool bOn = bGrandma && G->ComponentHasTag(TEXT("GrandmaSkin"));
+		for (int32 s = 0; s < NumMetaHumanSlots; ++s)
+			if (G->ComponentHasTag(FName(*FString::Printf(TEXT("MetaHuman%d"), s)))) bOn = s == Slot;
+		G->SetVisibility(bOn);
+	}
 }
 
 bool AStreetballCharacter::HasCloth() const
@@ -93,16 +186,223 @@ bool AStreetballCharacter::HasCloth() const
 int32 AStreetballCharacter::NumGrooms() const
 {
 	int32 N = 0;
-	for (const UGroomComponent* G : Grooms) N += (G && G->GroomAsset) ? 1 : 0;
+	for (const UGroomComponent* G : Grooms) N += (G && G->GroomAsset && G->IsVisible()) ? 1 : 0;   // the active skin's grooms
 	return N;
+}
+
+bool AStreetballCharacter::LoadMetaHumanParts(int32 Slot, TSharedPtr<FJsonObject>& Out)
+{
+	// slot 0: the original grandma's own face as a MetaHuman on her own clothed body (Scripts/build_grandma_cc_metahuman.py)
+	// slot 1: the Grace-preset MetaHuman grandma (Scripts/build_grandma_metahuman.py). Both local only (git-ignored).
+	static const TCHAR* Files[NumMetaHumanSlots] = { TEXT("Art/Exports/GrandmaCCMH/parts.json"), TEXT("Art/Exports/GrandmaMH/parts.json") };
+	if (Slot < 0 || Slot >= NumMetaHumanSlots) return false;
+	FString Text;
+	const FString Path = FPaths::Combine(FPaths::ProjectContentDir(), Files[Slot]);
+	return FFileHelper::LoadFileToString(Text, *Path) && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Out) && Out.IsValid()
+		&& Out->HasTypedField<EJson::String>(TEXT("body"));
+}
+
+bool AStreetballCharacter::LoadMetaHumanParts(TSharedPtr<FJsonObject>& Out)
+{
+	for (int32 Slot = 0; Slot < NumMetaHumanSlots; ++Slot)
+		if (LoadMetaHumanParts(Slot, Out)) return true;
+	return false;
+}
+
+void AStreetballCharacter::AttachMetaHuman(const TSharedPtr<FJsonObject>& Parts, int32 Slot)
+{
+	const FName SlotTag(*FString::Printf(TEXT("MetaHuman%d"), Slot));
+	USkeletalMeshComponent* SlotOutfit = nullptr;
+	USkeletalMeshComponent* SlotFace = nullptr;
+	// Outfit (optional: the original grandma wears her own clothes, part of her body mesh): skinned to the same
+	// re-proportioned skeleton, follows the driven body bone for bone.
+	FString OutfitPath;
+	if (Parts->TryGetStringField(TEXT("outfit"), OutfitPath))
+	if (USkeletalMesh* O = LoadObject<USkeletalMesh>(nullptr, *OutfitPath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+	{
+		SlotOutfit = NewObject<USkeletalMeshComponent>(this, *FString::Printf(TEXT("MetaHumanOutfit%d"), Slot));
+		SlotOutfit->SetupAttachment(Mesh);
+		SlotOutfit->SetSkeletalMeshAsset(O);
+		SlotOutfit->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		SlotOutfit->SetLeaderPoseComponent(Mesh);
+		SlotOutfit->RegisterComponent();
+	}
+	// Face: the native MetaHuman head (RigLogic DNA kept); ABP_Face copies body bones from its attach parent and keeps
+	// the facial joints in their own local space, so the head follows the physics-driven neck.
+	FString FacePath, AnimPath;
+	if (Parts->TryGetStringField(TEXT("face"), FacePath))
+	{
+		if (USkeletalMesh* F = LoadObject<USkeletalMesh>(nullptr, *FacePath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			SlotFace = NewObject<USkeletalMeshComponent>(this, *FString::Printf(TEXT("MetaHumanFace%d"), Slot));
+			SlotFace->SetupAttachment(Mesh);
+			SlotFace->SetSkeletalMeshAsset(F);
+			SlotFace->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			SlotFace->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+			if (Parts->TryGetStringField(TEXT("face_anim_class"), AnimPath))
+				if (UClass* C = LoadObject<UClass>(nullptr, *AnimPath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+				{
+					SlotFace->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+					SlotFace->SetAnimInstanceClass(C);
+				}
+			SlotFace->RegisterComponent();
+			// mesh tick after the body, so the copied pose is this frame's
+			SlotFace->AddTickPrerequisiteComponent(Mesh);
+		}
+	}
+	const TSharedPtr<FJsonObject>* Grooms_ = nullptr;
+	if (SlotFace && Parts->TryGetObjectField(TEXT("grooms"), Grooms_))
+	{
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& G : (*Grooms_)->Values)
+		{
+			const TSharedPtr<FJsonObject> O = G.Value->AsObject();
+			UGroomAsset* GA = LoadObject<UGroomAsset>(nullptr, *O->GetStringField(TEXT("groom")), nullptr, LOAD_NoWarn | LOAD_Quiet);
+			UGroomBindingAsset* B = LoadObject<UGroomBindingAsset>(nullptr, *O->GetStringField(TEXT("binding")), nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (!GA || !B) continue;
+			UGroomComponent* GC = NewObject<UGroomComponent>(this, *FString::Printf(TEXT("MetaHuman%d%s"), Slot, *G.Key));
+			GC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			if (!FParse::Param(FCommandLine::Get(), TEXT("StreetballGroomBinding")))
+			{
+				// Rigid on the face's head bone (strands are authored in the face's bind-pose space). The mesh binding
+				// renders nothing on this setup (2026-11-24: bound grooms invisible with or without the skin cache and a
+				// forced LOD, while Epic's own Blueprint renders them); a short bob does not need to deform with the face.
+				const FReferenceSkeleton& Ref = SlotFace->GetSkeletalMeshAsset()->GetRefSkeleton();
+				FTransform HeadCS = FTransform::Identity;
+				for (int32 b = Ref.FindBoneIndex(TEXT("head")); b != INDEX_NONE; b = Ref.GetParentIndex(b)) HeadCS = HeadCS * Ref.GetRefBonePose()[b];
+				GC->SetupAttachment(SlotFace, TEXT("head"));
+				GC->SetRelativeTransform(HeadCS.Inverse());
+				GC->SetGroomAsset(GA);
+				// Without a binding the automatic LOD switch crashed the game at the first close-up camera cut (the
+				// close LODs expect a skinned binding); hold one card LOD. -StreetballGroomLOD=<n> overrides.
+				int32 RigidLOD = 5; // 5-7 are the rigid helmet meshes; the card LODs (0-4) render nothing without a binding
+				FParse::Value(FCommandLine::Get(), TEXT("StreetballGroomLOD="), RigidLOD);
+				GC->SetForcedLOD(RigidLOD);
+			}
+			else
+			{
+				GC->SetupAttachment(SlotFace);
+				GC->SetGroomAsset(GA, B);
+			}
+			// The Blueprint's component override materials (hair colour, cards, helmet); without them nothing renders.
+			const TArray<TSharedPtr<FJsonValue>>* Mats = nullptr;
+			if (O->TryGetArrayField(TEXT("materials"), Mats))
+				for (int32 m = 0; m < Mats->Num(); ++m)
+					if (UMaterialInterface* MI = LoadObject<UMaterialInterface>(nullptr, *(*Mats)[m]->AsString(), nullptr, LOAD_NoWarn | LOAD_Quiet))
+						GC->SetMaterial(m, MI);
+			GC->ComponentTags.Add(TEXT("MetaHumanSkin"));
+			GC->ComponentTags.Add(SlotTag);
+			GC->RegisterComponent();
+			Grooms.Add(GC);
+			UE_LOG(LogStreetball, Log, TEXT("Character: MetaHuman groom %s: asset %s, binding %s (target %s), %d LODs, visible %d"),
+				*G.Key, *GA->GetName(), *B->GetName(), B->GetTargetSkeletalMesh() ? *B->GetTargetSkeletalMesh()->GetName() : TEXT("none"),
+				GA->GetLODCount(), GC->IsVisible() ? 1 : 0);
+		}
+	}
+	// Debug: the assembled Blueprint itself, 1.5 m to the side, to compare hair/skin with Epic's own setup.
+	if (FParse::Param(FCommandLine::Get(), TEXT("StreetballMetaHumanBP")))
+		if (UClass* BPC = LoadObject<UClass>(nullptr, TEXT("/Game/Project/Agents/GrandmaMH/Build/MHC_Grandma/BP_MHC_Grandma.BP_MHC_Grandma_C"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+			GetWorld()->SpawnActor<AActor>(BPC, FTransform(FRotator(0, 90, 0), GetActorLocation() + FVector(0, 150, 0)));
+	if (FaceCurveNames.Num() == 0) BuildFaceRig();   // one ARKit mapping serves every MetaHuman face
+	if (MHFaces.IsValidIndex(Slot)) { MHFaces[Slot] = SlotFace; MHOutfits[Slot] = SlotOutfit; }
+	UE_LOG(LogStreetball, Log, TEXT("Character: MetaHuman slot %d %s (outfit %s, face %s, %d grooms total)"), Slot, MetaHumanSlotLabel(Slot),
+		SlotOutfit ? TEXT("yes") : TEXT("no"), SlotFace ? TEXT("yes") : TEXT("no"), Grooms.Num());
 }
 
 void AStreetballCharacter::AttachExtras()
 {
-	const USkeletalMesh* SM = Mesh->GetSkeletalMeshAsset();
-	if (!SM || !SM->GetName().StartsWith(TEXT("SK_Grandma")) || FParse::Param(FCommandLine::Get(), TEXT("StreetballNoGroom"))) return;
+	// 2026-11-24: the extras of every preloaded skin are attached once here (live skin switch, no runtime spawning);
+	// ApplySkinExtrasVisibility shows only the active skin's.
+	for (int32 i = 0; i < SkinMHSlot.Num(); ++i)
+	{
+		TSharedPtr<FJsonObject> MH;
+		if (SkinMHSlot[i] != INDEX_NONE && LoadMetaHumanParts(SkinMHSlot[i], MH)) AttachMetaHuman(MH, SkinMHSlot[i]);
+	}
+	const int32 GrandmaSkin = SkinKinds.IndexOfByKey(SkinKindGrandma);
+	const USkeletalMesh* SM = GrandmaSkin != INDEX_NONE ? SkinMeshes[GrandmaSkin].Get() : nullptr;
+	if (SM && !FParse::Param(FCommandLine::Get(), TEXT("StreetballNoGroom"))) AttachGrandmaGrooms(SM, SkinMeshes.Num() > 1);
+	ApplySkinExtrasVisibility();
+}
+
+void AStreetballCharacter::BuildFaceRig()
+{
+	// Exaggerated (owner choice, 2026-11-24). ARKit pose -> weight; each pose's CTRL curve values come from Epic's mapping.
+	struct FMix { const TCHAR* Pose; float W; };
+	static const FMix Smile[] = { {TEXT("MouthSmileLeft"), 1.f}, {TEXT("MouthSmileRight"), 1.f}, {TEXT("CheekSquintLeft"), 0.9f},
+		{TEXT("CheekSquintRight"), 0.9f}, {TEXT("EyeSquintLeft"), 0.45f}, {TEXT("EyeSquintRight"), 0.45f}, {TEXT("MouthDimpleLeft"), 0.4f},
+		{TEXT("MouthDimpleRight"), 0.4f}, {TEXT("MouthUpperUpLeft"), 0.25f}, {TEXT("MouthUpperUpRight"), 0.25f}, {TEXT("JawOpen"), 0.12f},
+		{TEXT("BrowOuterUpLeft"), 0.2f}, {TEXT("BrowOuterUpRight"), 0.2f} };
+	static const FMix Frown[] = { {TEXT("MouthFrownLeft"), 1.f}, {TEXT("MouthFrownRight"), 1.f}, {TEXT("BrowDownLeft"), 1.f},
+		{TEXT("BrowDownRight"), 1.f}, {TEXT("MouthShrugLower"), 0.6f}, {TEXT("MouthPressLeft"), 0.4f}, {TEXT("MouthPressRight"), 0.4f},
+		{TEXT("NoseSneerLeft"), 0.45f}, {TEXT("NoseSneerRight"), 0.45f}, {TEXT("MouthStretchLeft"), 0.25f}, {TEXT("MouthStretchRight"), 0.25f} };
+	FaceCurveNames.Reset(); FaceSmileW.Reset(); FaceFrownW.Reset();
+	const UPoseAsset* PA = LoadObject<UPoseAsset>(nullptr, ARKitMappingPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (!PA) { UE_LOG(LogStreetball, Warning, TEXT("Character: no ARKit mapping pose asset, MetaHuman face moods off")); return; }
+	const TArray<FName> Curves = PA->GetCurveFNames();
+	const TArray<FName>& Poses = PA->GetPoseFNames();
+	TArray<float> SmileAll, FrownAll;
+	SmileAll.SetNumZeroed(Curves.Num()); FrownAll.SetNumZeroed(Curves.Num());
+	auto Accumulate = [&](const FMix* Mix, int32 N, TArray<float>& Out)
+	{
+		for (int32 m = 0; m < N; ++m)
+		{
+			const int32 P = Poses.IndexOfByKey(FName(Mix[m].Pose));
+			if (P == INDEX_NONE) { UE_LOG(LogStreetball, Warning, TEXT("Character: ARKit pose %s missing"), Mix[m].Pose); continue; }
+			const TArray<float>& V = PA->GetCurveValues(P);
+			for (int32 c = 0; c < FMath::Min(V.Num(), Curves.Num()); ++c) Out[c] += Mix[m].W * V[c];
+		}
+	};
+	Accumulate(Smile, UE_ARRAY_COUNT(Smile), SmileAll);
+	Accumulate(Frown, UE_ARRAY_COUNT(Frown), FrownAll);
+	for (int32 c = 0; c < Curves.Num(); ++c)
+	{
+		if (FMath::Abs(SmileAll[c]) < 1e-3f && FMath::Abs(FrownAll[c]) < 1e-3f) continue;   // keep only the controls these moods move
+		FaceCurveNames.Add(Curves[c]);
+		FaceSmileW.Add(FMath::Clamp(SmileAll[c], -1.f, 1.f));
+		FaceFrownW.Add(FMath::Clamp(FrownAll[c], -1.f, 1.f));
+	}
+	FaceCurveValues.SetNumZeroed(FaceCurveNames.Num());
+	FString Sample;
+	for (int32 i = 0; i < FMath::Min(6, FaceCurveNames.Num()); ++i) Sample += FaceCurveNames[i].ToString() + TEXT(" ");
+	UE_LOG(LogStreetball, Log, TEXT("Character: MetaHuman face moods drive %d CTRL curves (%s...)"), FaceCurveNames.Num(), *Sample);
+}
+
+void AStreetballCharacter::SetFaceMood(float Smile01, float Frown01)
+{
+	if (FaceCurveNames.Num() == 0 || !Mesh) return;
+	const bool bOn = IsMetaHuman();
+	for (int32 i = 0; i < FaceCurveNames.Num(); ++i)
+		FaceCurveValues[i] = bOn ? FMath::Clamp(Smile01 * FaceSmileW[i] + Frown01 * FaceFrownW[i], -1.f, 1.f) : 0.f;
+	if (UStreetballAnimInstance* Anim = Cast<UStreetballAnimInstance>(Mesh->GetAnimInstance())) Anim->SetFaceCurves(FaceCurveNames, FaceCurveValues);
+}
+
+FVector AStreetballCharacter::GetHeadLocationUE() const
+{
+	if (Mesh && Mesh->DoesSocketExist(TEXT("head"))) return Mesh->GetSocketLocation(TEXT("head"));
+	return GetActorLocation() + FVector(0.f, 0.f, 160.f);
+}
+
+FVector AStreetballCharacter::GetFaceDirectionUE() const
+{
+	// The face looks along mesh +Y in the bind pose (all skins). Express that in the head bone's frame once per mesh,
+	// then rotate by the head's current world rotation: follows her when she bows over the ball.
+	const USkeletalMesh* SM = Mesh ? Mesh->GetSkeletalMeshAsset() : nullptr;
+	if (!SM || !Mesh->DoesSocketExist(TEXT("head"))) return GetActorForwardVector();
+	if (SM != FaceDirMesh)
+	{
+		const FReferenceSkeleton& Ref = SM->GetRefSkeleton();
+		FTransform HeadCS = FTransform::Identity;
+		for (int32 b = Ref.FindBoneIndex(TEXT("head")); b != INDEX_NONE; b = Ref.GetParentIndex(b)) HeadCS = HeadCS * Ref.GetRefBonePose()[b];
+		FaceDirInHead = HeadCS.GetRotation().Inverse().RotateVector(FVector(0.f, 1.f, 0.f));
+		FaceDirMesh = SM;
+	}
+	return Mesh->GetSocketQuaternion(TEXT("head")).RotateVector(FaceDirInHead).GetSafeNormal();
+}
+
+void AStreetballCharacter::AttachGrandmaGrooms(const USkeletalMesh* SM, bool bForceRigid)
+{
 	// Strands are authored in the grandma's bind-pose mesh space. With a binding asset they skin with the mesh;
-	// without one they ride rigidly on the head bone (offset = inverse of the head's bind transform).
+	// without one they ride rigidly on the head bone (offset = inverse of the head's bind transform). With more than
+	// one skin the body mesh can change under them, so they always ride rigidly then (a binding targets one mesh).
 	const FReferenceSkeleton& Ref = SM->GetRefSkeleton();
 	FTransform HeadCS = FTransform::Identity;
 	for (int32 b = Ref.FindBoneIndex(TEXT("head")); b != INDEX_NONE; b = Ref.GetParentIndex(b)) HeadCS = HeadCS * Ref.GetRefBonePose()[b];
@@ -112,9 +412,10 @@ void AStreetballCharacter::AttachExtras()
 		UGroomAsset* GA = LoadObject<UGroomAsset>(nullptr, Paths[i], nullptr, LOAD_NoWarn | LOAD_Quiet);
 		if (!GA) continue;
 		const FString BindingPath = FString(Paths[i]).Replace(TEXT("GR_"), TEXT("GB_"));
-		UGroomBindingAsset* Binding = LoadObject<UGroomBindingAsset>(nullptr, *BindingPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		UGroomBindingAsset* Binding = bForceRigid ? nullptr : LoadObject<UGroomBindingAsset>(nullptr, *BindingPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
 		UGroomComponent* G = NewObject<UGroomComponent>(this, *FString::Printf(TEXT("Groom%d"), i));
 		G->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		G->ComponentTags.Add(TEXT("GrandmaSkin"));
 		if (Binding)
 		{
 			G->SetupAttachment(Mesh);
@@ -160,6 +461,49 @@ AStreetballWorld::AStreetballWorld()
 	GeomMaterialOverrides.Add(TEXT("fence_"), TEXT("/Game/Project/Environments/Materials/MI_ChainLink.MI_ChainLink"));
 }
 
+int32 AStreetballWorld::ApplyLocalScans()
+{
+	const FString Path = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Art/megascans.json"));
+	FString Text;
+	TSharedPtr<FJsonObject> Root;
+	if (!FFileHelper::LoadFileToString(Text, *Path) || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root) || !Root.IsValid()) return 0;
+	const TSharedPtr<FJsonObject>* Targets = nullptr;
+	if (!Root->TryGetObjectField(TEXT("targets"), Targets)) return 0;
+	int32 Applied = 0;
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& T : (*Targets)->Values)
+	{
+		const TSharedPtr<FJsonObject> Cfg = T.Value->AsObject();
+		TMap<FName, UTexture*> Textures;
+		bool bAll = true;
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& P : Cfg->GetObjectField(TEXT("textures"))->Values)
+		{
+			UTexture* Tex = LoadObject<UTexture>(nullptr, *P.Value->AsString(), nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (!Tex) { bAll = false; break; }
+			Textures.Add(FName(*P.Key), Tex);
+		}
+		if (!bAll) continue; // not imported on this machine (fresh clone): keep the procedural material
+		UMaterialInstanceDynamic* MID = nullptr;
+		for (TPair<FString, TObjectPtr<UMaterialInterface>>& O : LoadedOverrides)
+		{
+			if (!O.Value || O.Value->GetPathName() != T.Key) continue;
+			if (!MID)
+			{
+				MID = UMaterialInstanceDynamic::Create(O.Value, this);
+				for (const TPair<FName, UTexture*>& X : Textures) MID->SetTextureParameterValue(X.Key, X.Value);
+				for (const TPair<FString, TSharedPtr<FJsonValue>>& S : Cfg->GetObjectField(TEXT("scalars"))->Values)
+					MID->SetScalarParameterValue(FName(*S.Key), (float)S.Value->AsNumber());
+			}
+			O.Value = MID;
+		}
+		if (MID)
+		{
+			++Applied;
+			UE_LOG(LogTemp, Log, TEXT("StreetballWorld: local Megascans applied to %s (%d textures)"), *T.Key, Textures.Num());
+		}
+	}
+	return Applied;
+}
+
 UMaterialInterface* AStreetballWorld::MaterialOverrideFor(const FString& GeomName) const
 {
 	UMaterialInterface* Best = nullptr;
@@ -181,6 +525,13 @@ void AStreetballWorld::BeginPlay()
 		if (Camera) PC->SetViewTarget(Camera);
 		HUD = CreateWidget<UStreetballHUDWidget>(PC, UStreetballHUDWidget::StaticClass());
 		if (HUD) HUD->AddToViewport(10);
+		const TCHAR* Cmd = FCommandLine::Get();
+		int32 IgnoredTier = 0;
+		if (HUD && !FParse::Param(Cmd, TEXT("StreetballClassicHUD")) && !FParse::Param(Cmd, TEXT("StreetballDemoFeatures"))
+			&& !FParse::Value(Cmd, TEXT("StreetballStartTier="), IgnoredTier))
+		{
+			EnableDribbleFocus();
+		}
 	}
 	if (UStreetballShowcaseSubsystem* Showcase = UStreetballShowcaseSubsystem::Get(this))
 	{
@@ -196,7 +547,8 @@ void AStreetballWorld::HandleDemoMode(bool bActive)
 		PreDemoAppMode = AppMode;
 		PreDemoCameraMode = Camera ? static_cast<uint8>(Camera->GetCameraMode()) : 0;
 		AppMode = EStreetballAppMode::Watch;   // the director hands every skill to the trained policies
-		if (HUD) HUD->SetVisibility(ESlateVisibility::Collapsed);
+		// Dribble Lab keeps its panel: the demo only cycles the showcase cameras on the chosen behaviour
+		if (HUD && !bDribbleFocus) HUD->SetVisibility(ESlateVisibility::Collapsed);
 	}
 	else
 	{
@@ -213,6 +565,7 @@ void AStreetballWorld::HandleDemoCamera(FName CameraName, int32 Index)
 	else if (CameraName == TEXT("Orbit")) Camera->SetCameraMode(EStreetballCameraMode::Orbit);
 	else if (CameraName == TEXT("Free")) Camera->SetCameraMode(EStreetballCameraMode::Free);
 	else Camera->SetCameraMode(EStreetballCameraMode::Broadcast);
+	if (HUD) HUD->TriggerScreenWipe(0.18f);
 }
 
 bool AStreetballWorld::EnginePrimitiveForGeom(int32 GeomType, const FVector& SizeM, FString& OutMeshPath, FVector& OutScale)
@@ -326,9 +679,11 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		{
 			if (UMaterialInterface* MI = LoadObject<UMaterialInterface>(nullptr, *P.Value, nullptr, LOAD_NoWarn | LOAD_Quiet)) LoadedOverrides.Add(P.Key, MI);
 		}
+		LocalScanCount = ApplyLocalScans();
 	}
 
 	GeomActors.Reset();
+	DynamicGeomActors.Reset();
 	const int32 NG = Sim->NumGeoms();
 	for (int32 g = 0; g < NG; ++g)
 	{
@@ -368,6 +723,7 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 		if (A->bDynamic) A->GeomInBody = GX.GetRelativeTransform(Sim->GetBodyTransformUE(Body));
 		else A->Mesh->SetMobility(EComponentMobility::Static);
 		GeomActors.Add(A);
+		if (A->bDynamic) DynamicGeomActors.Add(A);
 		if (Body == BallBody) BallActor = A;
 	}
 
@@ -436,6 +792,9 @@ bool AStreetballWorld::Setup(UWorld* InWorld)
 	CtrlBuf.SetNumZeroed(Sim->NumActuators());
 	QBuf.SetNumZeroed(Sim->NumQ());
 	VBuf.SetNumZeroed(Sim->NumV());
+	BodyPosBuf.SetNumZeroed(Sim->NumBodies());
+	BodyRotBuf.SetNum(Sim->NumBodies());
+	for (FQuat& Q : BodyRotBuf) Q = FQuat::Identity;
 	{
 		const mjModel* M = Sim->GetModel();
 		RootQAdr = M->jnt_qposadr[Sim->JointId(TEXT("root"))];
@@ -501,6 +860,8 @@ void AStreetballWorld::UpdateCaptureSchedule()
 	static TArray<FCaptureJob> Jobs;
 	static TArray<float> Drops;
 	static float QuitAfter = -1.f;
+	struct FLabStep { float T; TCHAR Kind; int32 Index; };
+	static TArray<FLabStep> LabSteps;
 	static int32 FeatureStep = -1;
 	if (!bParsed)
 	{
@@ -530,6 +891,19 @@ void AStreetballWorld::UpdateCaptureSchedule()
 			for (const FString& P : Parts) Drops.Add(FCString::Atof(*P));
 		}
 		FParse::Value(FCommandLine::Get(), TEXT("StreetballQuitAfter="), QuitAfter);
+		// -StreetballLabSteps=8:b2,14:h3   Dribble Lab switches at game time t: bN behaviour N, hN humanoid N, cN camera mode N
+		//                                  (4 = face), r reset (captures, tests)
+		FString LabList;
+		if (FParse::Value(FCommandLine::Get(), TEXT("StreetballLabSteps="), LabList, false))
+		{
+			TArray<FString> Parts;
+			LabList.ParseIntoArray(Parts, TEXT(","));
+			for (const FString& P : Parts)
+			{
+				FString TS, Cmd;
+				if (P.Split(TEXT(":"), &TS, &Cmd) && Cmd.Len() >= 1) LabSteps.Add({ FCString::Atof(*TS), Cmd[0], FCString::Atoi(*Cmd.Mid(1)) });
+			}
+		}
 		if (Jobs.Num() > 0)
 		{
 			// capture cameras cut every job; motion blur would smear those frames
@@ -540,6 +914,15 @@ void AStreetballWorld::UpdateCaptureSchedule()
 	if (!W || !W->IsGameWorld() || !Camera) return;
 	const float T = W->GetTimeSeconds();
 
+	for (int32 i = LabSteps.Num() - 1; i >= 0; --i)
+	{
+		if (T < LabSteps[i].T) continue;
+		if (LabSteps[i].Kind == TEXT('b')) SetDribbleBehaviour(LabSteps[i].Index);
+		else if (LabSteps[i].Kind == TEXT('h')) SetHumanoid(LabSteps[i].Index);
+		else if (LabSteps[i].Kind == TEXT('r')) ResetEpisode();
+		else if (LabSteps[i].Kind == TEXT('c')) Camera->SetCameraMode(static_cast<EStreetballCameraMode>(FMath::Clamp(LabSteps[i].Index, 0, 4)));
+		LabSteps.RemoveAt(i);
+	}
 	for (int32 i = Drops.Num() - 1; i >= 0; --i)
 	{
 		if (T < Drops[i]) continue;
@@ -689,8 +1072,12 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 		FCourtFXCue Cue;
 		if (FXPlayer.GetMapping().FromAudioEvent(E, Cue)) FXPlayer.Play(Cue);
 		const FVector3d PSim(E.PositionUE.X / 100.0, -E.PositionUE.Y / 100.0, E.PositionUE.Z / 100.0);
-		if (E.Kind == ECourtSound::BallRim || E.Kind == ECourtSound::BallBoard) FXPlayer.KickNet(NearestRim(PSim), false, Now);
+		if (E.Kind == ECourtSound::BallRim || E.Kind == ECourtSound::BallBoard)
+		{
+			FXPlayer.KickNet(NearestRim(PSim), false, Now, FMath::Clamp(E.Speed / 6.f, 0.35f, 1.8f));
+		}
 		if (E.Kind == ECourtSound::BallFloor) FXPlayer.NotifyBallLanding(E.PositionUE, Now);
+		if (E.Kind == ECourtSound::ShoeFloor) AudioPlayer.UpdateShoeSlip(E.Speed, E.PositionUE);
 	}
 
 	// game events -> voice, crowd, grunts, sweat, net swish
@@ -702,7 +1089,7 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 		{
 		case EPresentationEvent::Make:
 			AudioPlayer.Play(AudioProc.MakeEvent(ECourtSound::CrowdCheer, S.Time, S.RimPos[NearestRim(S.BallPos)], 6.f, TEXT("crowd")));
-			FXPlayer.KickNet(NearestRim(S.BallPos), true, Now);
+			FXPlayer.KickNet(NearestRim(S.BallPos), true, Now, 1.25f);
 			break;
 		case EPresentationEvent::Miss:
 		case EPresentationEvent::Fall:
@@ -711,7 +1098,7 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 		case EPresentationEvent::ScrambleSave:
 		{
 			AudioPlayer.Play(AudioProc.MakeEvent(ECourtSound::CrowdCheer, S.Time, S.PelvisPos, 3.f, TEXT("crowd")));
-			FCourtFXCue Sweat; Sweat.Fx = ECourtFX::Sweat; Sweat.PositionUE = ToUE(S.PelvisPos) + FVector(0, 0, 85.0); Sweat.Scale = 1.f;
+			FCourtFXCue Sweat; Sweat.Fx = ECourtFX::Sweat; Sweat.PositionUE = ToUE(S.PelvisPos) + FVector(0, 0, 85.0); Sweat.Scale = FMath::Lerp(0.8f, 1.4f, Exertion01);
 			FXPlayer.Play(Sweat);
 			break;
 		}
@@ -751,6 +1138,7 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 	const FVector FocusUE = (Director->GetProgress().ActiveTier >= 3) ? ToUE(S.BallPos) : ToUE(S.PelvisPos);
 	Crowd.Tick(Now, FocusUE);
 
+	UpdateFaceMood(Dt);
 	Voice.Tick(Now, Dt);
 	if (HUD) HUD->SetSubtitle(Now < Voice.GetSubtitleUntil() ? Voice.GetSubtitle() : FString());
 }
@@ -758,6 +1146,7 @@ void AStreetballWorld::UpdatePresentation(float Dt)
 void AStreetballWorld::ApplyReset(const FStreetballResetSpec& Spec)
 {
 	++ResetCount;
+	BestRunS = FMath::Max(BestRunS, GetCurrentRunSeconds());   // Dribble Lab: longest run without a reset
 	Sim->ResetToKeyframe(KeyframeName);
 	TArray<double>& Q = QBuf;                    // pre-sized in Setup: no allocation here
 	const TConstArrayView<double> Q0 = Sim->QPos();
@@ -801,6 +1190,7 @@ void AStreetballWorld::ApplyReset(const FStreetballResetSpec& Spec)
 	for (float& A : PrevAction) A = 0.f;
 	EpisodeReward = 0.f;
 	if (Clock) Clock->Resnapshot();
+	LastResetSimTime = Sim->GetSimTime();
 	++UnloggedResets;                            // logged from Tick, outside the control step
 	LastResetReason = Spec.Reason;
 }
@@ -822,6 +1212,8 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 	const FTrackedState& S = Tracker->Update(Dt);
 	Director->Update(S, Dt, DirOut);
 	EventDetector.Update(S, DirOut, Director->GetProgress(), Director->GetState(), PendingPresentation);   // pre-reserved, read only
+	SessionBounces += DirOut.bBounceEvent ? 1 : 0;
+	SessionCleanBounces += DirOut.bCleanBounce ? 1 : 0;
 	if (DirOut.bScoreEvent)
 	{
 		FCourtAudioEvent E = AudioProc.MakeEvent(ECourtSound::NetRattle, S.Time, S.RimPos[0], 4.f, TEXT("score"));
@@ -845,8 +1237,16 @@ void AStreetballWorld::OnControlStep(UMuJoCoSim* InSim)
 	{
 		// UU_AGENT hand-over rule: PrevAction is passed through unchanged across policy switches.
 		const FTrackedState& T = Tracker->State();
-		ObsBuilder.Compute(InSim, PrevAction, TConstArrayView<float>(DirOut.Task, 12), T.InControl ? 1.f : 0.f, T.CountdownFrac, Obs);
-		if (Policy->Run(Obs, Action))
+		{
+			SCOPE_CYCLE_COUNTER(STAT_Streetball_ObsBuild);
+			ObsBuilder.Compute(InSim, PrevAction, TConstArrayView<float>(DirOut.Task, 12), T.InControl ? 1.f : 0.f, T.CountdownFrac, Obs);
+		}
+		bool bRanPolicy = false;
+		{
+			SCOPE_CYCLE_COUNTER(STAT_Streetball_PolicyEval);
+			bRanPolicy = Policy->Run(Obs, Action);
+		}
+		if (bRanPolicy)
 		{
 			if (UStreetballShowcaseSubsystem* Showcase = UStreetballShowcaseSubsystem::Get(this))
 			{
@@ -898,6 +1298,86 @@ void AStreetballWorld::StepControl()
 	for (int32 i = 0; i < Clock->GetSubstepsPerControl(); ++i) { Sim->Step(1); OnPhysicsStep(Sim); }
 }
 
+void AStreetballWorld::HandlePlayerInput(float DeltaSeconds)
+{
+	UWorld* W = GetWorld();
+	APlayerController* PC = W ? UGameplayStatics::GetPlayerController(W, 0) : nullptr;
+	if (!PC) return;
+
+	if (PC->WasInputKeyJustPressed(EKeys::F1) || PC->WasInputKeyJustPressed(EKeys::M)) CycleAppMode();
+	if (PC->WasInputKeyJustPressed(EKeys::F2) || PC->WasInputKeyJustPressed(EKeys::C)) CycleCameraMode();
+	if (PC->WasInputKeyJustPressed(EKeys::F) && Camera)
+	{
+		// face close-up toggle: back to the broadcast camera when already on the face
+		Camera->SetCameraMode(Camera->GetCameraMode() == EStreetballCameraMode::Face ? EStreetballCameraMode::Broadcast : EStreetballCameraMode::Face);
+		if (HUD) { HUD->TriggerScreenWipe(0.16f); HUD->TriggerInputPulse(); }
+	}
+	if (PC->WasInputKeyJustPressed(EKeys::F3) || PC->WasInputKeyJustPressed(EKeys::T)) ToggleTelemetry();
+	if (PC->WasInputKeyJustPressed(EKeys::F4) || PC->WasInputKeyJustPressed(EKeys::P)) CyclePolicyOverride();
+	if (PC->WasInputKeyJustPressed(EKeys::SpaceBar)) TogglePause();
+	if (PC->WasInputKeyJustPressed(EKeys::R)) ResetEpisode();
+
+	if (bDribbleFocus)
+	{
+		// Dribble Lab: 1-4 pick the behaviour in every mode, H the humanoid
+		const FKey BehaviourKeys[NumDribbleBehaviours] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four };
+		for (int32 b = 0; b < NumDribbleBehaviours; ++b)
+			if (PC->WasInputKeyJustPressed(BehaviourKeys[b])) SetDribbleBehaviour(b);
+		if (PC->WasInputKeyJustPressed(EKeys::H)) CycleHumanoid();
+	}
+	else if (AppMode == EStreetballAppMode::Play || AppMode == EStreetballAppMode::Testbed)
+	{
+		if (PC->WasInputKeyJustPressed(EKeys::One)) JumpToTier(1);
+		if (PC->WasInputKeyJustPressed(EKeys::Two)) JumpToTier(2);
+		if (PC->WasInputKeyJustPressed(EKeys::Three)) JumpToTier(3);
+		if (PC->WasInputKeyJustPressed(EKeys::Four)) JumpToTier(4);
+		if (PC->WasInputKeyJustPressed(EKeys::Five)) JumpToTier(5);
+	}
+
+	PC->bShowMouseCursor = (AppMode == EStreetballAppMode::Play) || bDribbleFocus;
+	if (AppMode == EStreetballAppMode::Play)
+	{
+		// a click on the Dribble Lab panel is a button press, not a court waypoint
+		if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton) && !(HUD && HUD->IsPointerOverDribblePanel()))
+		{
+			FVector RayOrigin, RayDir;
+			if (PC->DeprojectMousePositionToWorld(RayOrigin, RayDir) && FMath::Abs(RayDir.Z) > 1e-4)
+			{
+				const double T = -RayOrigin.Z / RayDir.Z;
+				if (T > 0.0)
+				{
+					const FVector HitUE = RayOrigin + RayDir * T;
+					CommandCourtTarget(FVector2d(HitUE.X / 100.0, -HitUE.Y / 100.0));
+				}
+			}
+		}
+		if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton) || PC->WasInputKeyJustPressed(EKeys::B))
+		{
+			LobBallToAthlete();
+		}
+	}
+	else if (AppMode == EStreetballAppMode::Testbed)
+	{
+		if (PC->WasInputKeyJustPressed(EKeys::I)) ApplyTestbedPush(FVector2d(1.0, 0.0));
+		if (PC->WasInputKeyJustPressed(EKeys::K)) ApplyTestbedPush(FVector2d(-1.0, 0.0));
+		if (PC->WasInputKeyJustPressed(EKeys::J)) ApplyTestbedPush(FVector2d(0.0, 1.0));
+		if (PC->WasInputKeyJustPressed(EKeys::L)) ApplyTestbedPush(FVector2d(0.0, -1.0));
+		if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) StepTimeScale(-1);
+		if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) StepTimeScale(1);
+	}
+
+	if (Camera && Camera->GetCameraMode() == EStreetballCameraMode::Free)
+	{
+		FVector Move(0.f);
+		const float Speed = 450.f * DeltaSeconds;
+		if (PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up)) Move += Camera->GetActorForwardVector() * Speed;
+		if (PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down)) Move -= Camera->GetActorForwardVector() * Speed;
+		if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Move += Camera->GetActorRightVector() * Speed;
+		if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left)) Move -= Camera->GetActorRightVector() * Speed;
+		if (!Move.IsNearlyZero()) Camera->AddFreeOffset(Move);
+	}
+}
+
 void AStreetballWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -908,69 +1388,7 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 		SmoothedFps = FMath::Lerp(SmoothedFps, 1.f / DeltaSeconds, 0.1f);
 	}
 
-	if (UWorld* W = GetWorld())
-	{
-		if (APlayerController* PC = UGameplayStatics::GetPlayerController(W, 0))
-		{
-			if (PC->WasInputKeyJustPressed(EKeys::F1) || PC->WasInputKeyJustPressed(EKeys::M)) CycleAppMode();
-			if (PC->WasInputKeyJustPressed(EKeys::F2) || PC->WasInputKeyJustPressed(EKeys::C)) CycleCameraMode();
-			if (PC->WasInputKeyJustPressed(EKeys::F3) || PC->WasInputKeyJustPressed(EKeys::T)) ToggleTelemetry();
-			if (PC->WasInputKeyJustPressed(EKeys::F4) || PC->WasInputKeyJustPressed(EKeys::P)) CyclePolicyOverride();
-			if (PC->WasInputKeyJustPressed(EKeys::SpaceBar)) TogglePause();
-			if (PC->WasInputKeyJustPressed(EKeys::R)) ResetEpisode();
-
-			if (AppMode == EStreetballAppMode::Play || AppMode == EStreetballAppMode::Testbed)
-			{
-				if (PC->WasInputKeyJustPressed(EKeys::One)) JumpToTier(1);
-				if (PC->WasInputKeyJustPressed(EKeys::Two)) JumpToTier(2);
-				if (PC->WasInputKeyJustPressed(EKeys::Three)) JumpToTier(3);
-				if (PC->WasInputKeyJustPressed(EKeys::Four)) JumpToTier(4);
-				if (PC->WasInputKeyJustPressed(EKeys::Five)) JumpToTier(5);
-			}
-
-			PC->bShowMouseCursor = (AppMode == EStreetballAppMode::Play);
-			if (AppMode == EStreetballAppMode::Play)
-			{
-				if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
-				{
-					FVector RayOrigin, RayDir;
-					if (PC->DeprojectMousePositionToWorld(RayOrigin, RayDir) && FMath::Abs(RayDir.Z) > 1e-4)
-					{
-						const double T = -RayOrigin.Z / RayDir.Z;
-						if (T > 0.0)
-						{
-							const FVector HitUE = RayOrigin + RayDir * T;
-							CommandCourtTarget(FVector2d(HitUE.X / 100.0, -HitUE.Y / 100.0));
-						}
-					}
-				}
-				if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton) || PC->WasInputKeyJustPressed(EKeys::B))
-				{
-					LobBallToAthlete();
-				}
-			}
-			else if (AppMode == EStreetballAppMode::Testbed)
-			{
-				if (PC->WasInputKeyJustPressed(EKeys::I)) ApplyTestbedPush(FVector2d(1.0, 0.0));
-				if (PC->WasInputKeyJustPressed(EKeys::K)) ApplyTestbedPush(FVector2d(-1.0, 0.0));
-				if (PC->WasInputKeyJustPressed(EKeys::J)) ApplyTestbedPush(FVector2d(0.0, 1.0));
-				if (PC->WasInputKeyJustPressed(EKeys::L)) ApplyTestbedPush(FVector2d(0.0, -1.0));
-				if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) StepTimeScale(-1);
-				if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) StepTimeScale(1);
-			}
-
-			if (Camera && Camera->GetCameraMode() == EStreetballCameraMode::Free)
-			{
-				FVector Move(0.f);
-				const float Speed = 450.f * DeltaSeconds;
-				if (PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up)) Move += Camera->GetActorForwardVector() * Speed;
-				if (PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down)) Move -= Camera->GetActorForwardVector() * Speed;
-				if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Move += Camera->GetActorRightVector() * Speed;
-				if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left)) Move -= Camera->GetActorRightVector() * Speed;
-				if (!Move.IsNearlyZero()) Camera->AddFreeOffset(Move);
-			}
-		}
-	}
+	HandlePlayerInput(DeltaSeconds);
 
 	if (!bPaused)
 	{
@@ -988,6 +1406,8 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 	UpdateVisuals();
 	UpdateCameraAndHUD(DeltaSeconds);
 	UpdatePresentation(DeltaSeconds);
+	AudioPlayer.SetTimeScale(GetTimeScale());
+	AudioPlayer.Tick(DeltaSeconds);
 	UpdateCaptureSchedule();
 	for (const FCourtAudioEvent& E : PendingEvents)
 	{
@@ -1001,17 +1421,23 @@ void AStreetballWorld::Tick(float DeltaSeconds)
 EStreetballAppMode AStreetballWorld::CycleAppMode()
 {
 	AppMode = static_cast<EStreetballAppMode>((static_cast<int32>(AppMode) + 1) % 3);
+	if (HUD)
+	{
+		HUD->SetTelemetryVisible(AppMode == EStreetballAppMode::Testbed);
+		HUD->TriggerInputPulse();
+	}
 	return AppMode;
 }
 
 void AStreetballWorld::CycleCameraMode()
 {
 	if (Camera) Camera->CycleCameraMode();
+	if (HUD) { HUD->TriggerScreenWipe(0.16f); HUD->TriggerInputPulse(); }
 }
 
 void AStreetballWorld::ToggleTelemetry()
 {
-	if (HUD) HUD->SetTelemetryVisible(!HUD->IsTelemetryVisible());
+	if (HUD) { HUD->SetTelemetryVisible(!HUD->IsTelemetryVisible()); HUD->TriggerInputPulse(); }
 }
 
 void AStreetballWorld::CyclePolicyOverride()
@@ -1040,6 +1466,9 @@ void AStreetballWorld::ResetEpisode()
 	FStreetballResetSpec Spec;
 	Spec.bRequested = true;
 	Spec.Reason = TEXT("manual reset (R)");
+	// 2026-11-24: start like the director's own resets (ball parked for tiers 1-2, at the dribble hand for 3-4).
+	// Before, R left the ball at the keyframe spot, so every manual reset in a dribble tier began with a lost ball.
+	if (Director && Director->GetProgress().ActiveTier <= 4) Director->PrepareReset(Director->GetProgress().ActiveTier, Spec);
 	ApplyReset(Spec);
 }
 
@@ -1053,6 +1482,110 @@ void AStreetballWorld::JumpToTier(int32 Tier)
 	Spec.Reason = TEXT("tier jump");
 	Director->PrepareReset(Tier, Spec);
 	ApplyReset(Spec);
+}
+
+// ---------------------------------------------------------------------------- Dribble Lab
+const TCHAR* AStreetballWorld::DribbleBehaviourName(int32 Behaviour)
+{
+	switch (Behaviour)
+	{
+	case 0: return TEXT("Right hand");
+	case 1: return TEXT("Left hand");
+	case 2: return TEXT("Crossover");
+	case 3: return TEXT("Moving dribble");
+	default: return TEXT("?");
+	}
+}
+
+void AStreetballWorld::EnableDribbleFocus()
+{
+	if (!bReady || !Director) return;
+	bDribbleFocus = true;
+	if (HUD)
+	{
+		TArray<FString> Names;
+		TArray<bool> Trained;
+		for (int32 b = 0; b < NumDribbleBehaviours; ++b) { Names.Add(DribbleBehaviourName(b)); Trained.Add(IsDribbleBehaviourTrained(b)); }
+		HUD->SetDribbleFocus(Names, Trained, Character ? Character->GetSkinNames() : TArray<FString>());
+		HUD->OnDribbleUiRequest.AddUObject(this, &AStreetballWorld::HandleDribbleUiRequest);
+	}
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+	{
+		FInputModeGameAndUI Mode;
+		Mode.SetHideCursorDuringCapture(false);
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PC->SetInputMode(Mode);
+		PC->bShowMouseCursor = true;
+	}
+	// -StreetballDribbleHand=left still picks the start behaviour
+	SetDribbleBehaviour(Director->ForcedHand < 0.0 ? 1 : 0);
+	UE_LOG(LogStreetball, Log, TEXT("Dribble Lab: on (%d behaviours, %d humanoids)"), NumDribbleBehaviours, Character ? Character->NumSkins() : 0);
+}
+
+void AStreetballWorld::SetDribbleBehaviour(int32 Behaviour)
+{
+	if (!bReady || !Director || Behaviour < 0 || Behaviour >= NumDribbleBehaviours) return;
+	DribbleBehaviour = Behaviour;
+	static constexpr double Hands[NumDribbleBehaviours] = { 1.0, -1.0, 0.0, 1.0 };   // 0 = table: random hand + commanded crossovers
+	const int32 Tier = Behaviour == 3 ? 4 : 3;
+	Director->ForcedHand = Hands[Behaviour];
+	Director->MaxTier = Tier;                    // no tier-up out of the chosen behaviour
+	JumpToTier(Tier);
+	SessionResetBase = ResetCount;               // the switch itself is not counted
+	SessionBounces = SessionCleanBounces = 0;
+	BestRunS = 0.0;
+	if (HUD) { HUD->TriggerScreenWipe(0.16f); HUD->TriggerInputPulse(); }
+	UE_LOG(LogStreetball, Log, TEXT("Dribble Lab: behaviour %d %s (tier %d, hand %s)"), Behaviour, DribbleBehaviourName(Behaviour), Tier,
+		Hands[Behaviour] > 0 ? TEXT("right") : Hands[Behaviour] < 0 ? TEXT("left") : TEXT("table"));
+}
+
+bool AStreetballWorld::SetHumanoid(int32 SkinIndex)
+{
+	if (!bReady || !Character || !BoneMapper) return false;
+	if (SkinIndex == Character->GetActiveSkin()) return true;
+	if (!Character->SetSkin(SkinIndex)) return false;
+	// bind offsets are captured per mesh; the sim body is untouched
+	BoneMapper->Initialize(Character->Mesh, Sim, Streetball::HumanoidSpecPath());
+	Character->Mesh->ForceClothNextUpdateTeleportAndReset();
+	UpdateVisuals();
+	if (HUD) HUD->TriggerInputPulse();
+	return true;
+}
+
+void AStreetballWorld::CycleHumanoid()
+{
+	if (Character && Character->NumSkins() > 1) SetHumanoid((Character->GetActiveSkin() + 1) % Character->NumSkins());
+}
+
+double AStreetballWorld::GetCurrentRunSeconds() const
+{
+	return Sim ? FMath::Max(0.0, Sim->GetSimTime() - LastResetSimTime) : 0.0;
+}
+
+void AStreetballWorld::UpdateFaceMood(float Dt)
+{
+	// 2026-11-24 (owner: "when training is going well have grandma slowly smile more and more; when it fails show a
+	// frown"): the live dribble is the signal. Every clean bounce of the current streak raises the smile target
+	// (full grin at FaceSmileFullStreak); a lost ball or a reset snaps to a full frown that fades over FaceFrownFadeS,
+	// and holds while the ball is loose.
+	if (!Director) return;
+	const FStreetballProgress& P = Director->GetProgress();
+	const bool bLoose = P.bLoose || Director->GetState() == EStreetballState::Scramble || Director->GetState() == EStreetballState::HardReset;
+	const bool bFailed = ResetCount != MoodResetCount || (bLoose && !bMoodLoose);
+	MoodResetCount = ResetCount;
+	bMoodLoose = bLoose;
+	if (bFailed) { FaceFrown = 1.f; FaceSmile = 0.f; }
+	else FaceFrown = bLoose ? FMath::Max(FaceFrown - Dt / FaceFrownFadeS, 0.75f) : FMath::Max(0.f, FaceFrown - Dt / FaceFrownFadeS);
+	const float Target = bLoose ? 0.f : FMath::Clamp((float)P.CleanStreak / FaceSmileFullStreak, 0.f, 1.f) * (1.f - FaceFrown);
+	FaceSmile = FMath::FInterpConstantTo(FaceSmile, Target, Dt, Target > FaceSmile ? 0.35f : 1.5f);   // slow up, quick down
+	if (Character) Character->SetFaceMood(FaceSmile, FaceFrown);
+	Voice.SetBaseMood(FaceSmile, FaceFrown);
+}
+
+void AStreetballWorld::HandleDribbleUiRequest(int32 Kind, int32 Index)
+{
+	if (Kind == 0) SetDribbleBehaviour(Index);
+	else SetHumanoid(Index);
 }
 
 void AStreetballWorld::CommandCourtTarget(const FVector2d& SimXY)
@@ -1121,6 +1654,9 @@ void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 		In.Speed = S.Speed();
 		In.State = Director->GetState();
 		In.Rim[0] = S.RimPos[0]; In.Rim[1] = S.RimPos[1];
+		In.HeadUE = Character ? Character->GetHeadLocationUE() : FVector::ZeroVector;
+		In.HeadingFwd = S.HeadingFwd;
+		In.FaceDirUE = Character ? Character->GetFaceDirectionUE() : FVector::ZeroVector;
 		Camera->UpdateCamera(In, Dt);
 	}
 	if (HUD)
@@ -1137,6 +1673,7 @@ void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 			case EStreetballCameraMode::Follow: CamLabel = TEXT("Follow"); break;
 			case EStreetballCameraMode::Orbit: CamLabel = TEXT("Orbit"); break;
 			case EStreetballCameraMode::Free: CamLabel = TEXT("Free"); break;
+			case EStreetballCameraMode::Face: CamLabel = TEXT("Face"); break;
 			default: break;
 			}
 		}
@@ -1145,7 +1682,27 @@ void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 		if (UStreetballShowcaseSubsystem* Showcase = UStreetballShowcaseSubsystem::Get(this)) Showcase->ReportEpisodeReward(EpisodeReward);
 		HUD->UpdateTelemetry(ModeLabel, CamLabel, PolicyLabel, DirectorSeed, EpisodeReward, NanInfCount, SmoothedFps, bPaused, !bUsingReal,
 			Exertion01, LastPowerW, GetTimeScale());
-		if (AppMode == EStreetballAppMode::Play)
+		if (bDribbleFocus)
+		{
+			const FStreetballProgress& P = Director->GetProgress();
+			FStreetballDribbleStats St;
+			St.Behaviour = DribbleBehaviour;
+			St.Skin = Character ? Character->GetActiveSkin() : 0;
+			St.bTrained = IsDribbleBehaviourTrained(DribbleBehaviour);
+			St.bRightHand = Director->GetHand() > 0.0;
+			St.bScramble = Director->GetState() == EStreetballState::Scramble;
+			St.bLoose = P.bLoose;
+			St.Resets = GetSessionResets();
+			St.Bounces = SessionBounces;
+			St.CleanBounces = SessionCleanBounces;
+			St.Streak = P.CleanStreak;
+			St.HandSwitches = P.HandSwitches;
+			St.RunS = (float)GetCurrentRunSeconds();
+			St.BestRunS = (float)GetBestRunSeconds();
+			HUD->UpdateDribbleStats(St);
+			HUD->SetModeHint(TEXT("1-4 Behaviour  |  H Humanoid  |  F Face cam  |  C Camera  |  Space Pause  |  R Reset  |  T Telemetry  |  Tab Diagnostics"));
+		}
+		else if (AppMode == EStreetballAppMode::Play)
 		{
 			HUD->SetModeHint(TEXT("M/F1 Mode  |  LMB Waypoint  |  RMB/B Lob Ball  |  1-5 Tier  |  C/F2 Cam  |  Space Pause  |  R Reset"));
 		}
@@ -1163,24 +1720,24 @@ void AStreetballWorld::UpdateCameraAndHUD(float Dt)
 void AStreetballWorld::UpdateVisuals()
 {
 	if (!bReady) return;
+	SCOPE_CYCLE_COUNTER(STAT_Streetball_UpdateVisuals);
 	const int32 NB = Sim->NumBodies();
-	TArray<FVector> P; P.SetNum(NB);
-	TArray<FQuat> R; R.SetNum(NB);
+	BodyPosBuf.SetNum(NB, EAllowShrinking::No);
+	BodyRotBuf.SetNum(NB, EAllowShrinking::No);
 	for (int32 b = 0; b < NB; ++b)
 	{
 		const FTransform X = Clock->GetInterpolatedBody(b);
-		P[b] = X.GetLocation();
-		R[b] = X.GetRotation();
+		BodyPosBuf[b] = X.GetLocation();
+		BodyRotBuf[b] = X.GetRotation();
 	}
 	if (Character && PelvisBody >= 0)
 	{
-		Character->SetActorLocation(FVector(P[PelvisBody].X, P[PelvisBody].Y, 0.0));
-		BoneMapper->Apply(P, R);
+		Character->SetActorLocation(FVector(BodyPosBuf[PelvisBody].X, BodyPosBuf[PelvisBody].Y, 0.0));
+		BoneMapper->Apply(BodyPosBuf, BodyRotBuf);
 	}
-	for (AStreetballGeomActor* A : GeomActors)
+	for (AStreetballGeomActor* A : DynamicGeomActors)
 	{
-		if (!A->bDynamic) continue;
-		const FTransform BodyX(R[A->BodyId], P[A->BodyId]);
+		const FTransform BodyX(BodyRotBuf[A->BodyId], BodyPosBuf[A->BodyId]);
 		const FTransform GX = A->GeomInBody * BodyX;
 		A->SetActorTransform(FTransform(GX.GetRotation(), GX.GetLocation(), A->MeshScale));
 	}

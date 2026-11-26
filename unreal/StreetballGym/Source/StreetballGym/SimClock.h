@@ -61,6 +61,8 @@ public:
 
 	/** Upper bound on simulated time per frame (seconds). */
 	double MaxFrameDelta = 0.1;
+	/** Hard cap on physics sub-steps executed in a single frame (prevents spiral-of-death spikes at high TimeScale). */
+	int32 MaxSubstepsPerFrame = 50;
 	/** Playback speed multiplier (Testbed slow-mo / fast-forward); 1.0 = exact 1x real-time. */
 	float TimeScale = 1.f;
 

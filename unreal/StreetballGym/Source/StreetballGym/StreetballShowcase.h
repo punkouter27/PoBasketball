@@ -82,6 +82,40 @@ public:
 	/** Show the 44 px corner button that toggles the overlay on touch devices. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Overlay")
 	bool bTouchCornerButton = true;
+
+	// ---- time of day (UCourtTimeOfDaySubsystem, 2026-11-24). Command line: -TimeOfDay=21.5 sets the start hour,
+	// -TimeOfDayFreeze stops the clock (screenshots).
+	/** Move the sun through the day and light the streetlights at night. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TimeOfDay")
+	bool bTimeOfDay = true;
+
+	/** Start hour (0-24). Negative: the hour that matches the level's own sun, so the first frame looks as before. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TimeOfDay", meta = (ClampMax = "24.0"))
+	float StartHour = -1.f;
+
+	/** Real minutes for a full 24 h day. 0 = the clock does not run. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TimeOfDay", meta = (ClampMin = "0.0"))
+	float DayLengthMinutes = 20.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TimeOfDay", meta = (ClampMin = "10.0", ClampMax = "90.0"))
+	float NoonElevationDeg = 60.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TimeOfDay", meta = (ClampMin = "0.0", ClampMax = "24.0"))
+	float LampsOnHour = 17.9f; // dusk: on before the sun has set, so twilight is never unlit
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TimeOfDay", meta = (ClampMin = "0.0", ClampMax = "24.0"))
+	float LampsOffHour = 6.1f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TimeOfDay", meta = (ClampMin = "0.0"))
+	float LampLumens = 6000.f;
+
+	/** Fixed exposure (EV100) at night; blends in as the sun sets. Lower = brighter picture. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TimeOfDay")
+	float NightExposureEV100 = 0.5f;
+
+	/** Lamp head in SM_StreetLight's own space (cm): 1.85 m out along the arm, just under the 6.25 m shade. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TimeOfDay")
+	FVector LampLocalOffsetCm = FVector(185.f, 0.f, 620.f);
 };
 
 /** Picks the DataAssets the game uses (Project Settings > Game > Streetball Showcase). Empty = built-in defaults. */

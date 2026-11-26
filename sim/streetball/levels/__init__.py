@@ -6,13 +6,17 @@ from streetball.levels.l1_traverse import L1Traverse, L1TraverseAMP
 from streetball.levels.l2_dribble import (
     L2Crossover,
     L2Dribble,
+    L2DribbleBoth,
+    L2DribbleBothTime,
     L2DribbleCycles,
     L2DribbleLeft,
     L2DribblePush,
     L2DribbleTime,
 )
-from streetball.levels.l3_roam import L3DribbleWalk, L3MovingDribble, L3Scramble
+from streetball.levels.l3_pickup import L3Pickup
+from streetball.levels.l3_roam import L3DribbleWalk, L3DribbleWalkBoth, L3MovingDribble, L3Scramble
 from streetball.levels.l4_shot import L4JumpShot
+from streetball.levels.l5_getup import L5GetUp
 
 LEVELS: dict[str, type[Level]] = {
     L0Stand.name: L0Stand,
@@ -27,7 +31,12 @@ LEVELS: dict[str, type[Level]] = {
     L3MovingDribble.name: L3MovingDribble,
     L3DribbleWalk.name: L3DribbleWalk,
     L3Scramble.name: L3Scramble,
+    L2DribbleBoth.name: L2DribbleBoth,
+    L2DribbleBothTime.name: L2DribbleBothTime,
+    L3DribbleWalkBoth.name: L3DribbleWalkBoth,
+    L3Pickup.name: L3Pickup,
     L4JumpShot.name: L4JumpShot,
+    L5GetUp.name: L5GetUp,
 }
 
 

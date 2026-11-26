@@ -12,6 +12,7 @@ UStreetballRewardConfig::UStreetballRewardConfig()
 	AddStage(TEXT("l3a_moving_dribble"), 0.75f, TEXT("eval success rate (Level.pass_fraction)"));
 	AddStage(TEXT("l3b_scramble"), 0.8f, TEXT("eval success rate (Level.pass_fraction)"));
 	AddStage(TEXT("l4_jump_shot"), 0.3f, TEXT("eval success rate (Level.pass_fraction)"));
+	AddStage(TEXT("l5_getup"), 0.8f, TEXT("eval success rate (Level.pass_fraction)"));
 }
 
 void UStreetballRewardConfig::AddStage(const TCHAR* Stage, float Threshold, const TCHAR* Metric)

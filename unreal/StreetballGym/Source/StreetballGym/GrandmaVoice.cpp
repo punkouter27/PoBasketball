@@ -114,6 +114,21 @@ void FGrandmaVoicePlayer::ApplyMood(FName InMood, float Strength)
 	}
 }
 
+void FGrandmaVoicePlayer::ApplyBaseMood(float Smile, float Frown)
+{
+	USkeletalMeshComponent* F = Face.Get();
+	if (!F) return;
+	// Exaggerated CC expression (owner choice): a toothy grin with raised cheeks, or a scowl with a pressed, turned-down mouth.
+	struct FShape { const TCHAR* Morph; float S; float Fr; };
+	static const FShape Shapes[] = {
+		{TEXT("Mouth_Smile_L"), 1.f, 0.f}, {TEXT("Mouth_Smile_R"), 1.f, 0.f}, {TEXT("Cheek_Raise_L"), 0.9f, 0.f}, {TEXT("Cheek_Raise_R"), 0.9f, 0.f},
+		{TEXT("Eye_Squint_L"), 0.4f, 0.2f}, {TEXT("Eye_Squint_R"), 0.4f, 0.2f}, {TEXT("Mouth_Frown_L"), 0.f, 1.f}, {TEXT("Mouth_Frown_R"), 0.f, 1.f},
+		{TEXT("Brow_Drop_L"), 0.f, 1.f}, {TEXT("Brow_Drop_R"), 0.f, 1.f}, {TEXT("Nose_Sneer_L"), 0.f, 0.45f}, {TEXT("Nose_Sneer_R"), 0.f, 0.45f},
+		{TEXT("Mouth_Press_L"), 0.f, 0.4f}, {TEXT("Mouth_Press_R"), 0.f, 0.4f}, {TEXT("Brow_Raise_Outer_L"), 0.2f, 0.f}, {TEXT("Brow_Raise_Outer_R"), 0.2f, 0.f} };
+	for (const FShape& S : Shapes) F->SetMorphTarget(S.Morph, FMath::Clamp(Smile * S.S + Frown * S.Fr, 0.f, 1.f), false);
+	if (Active == INDEX_NONE) F->SetMorphTarget(TEXT("Jaw_Open"), 0.12f * Smile, false);   // the jaw belongs to lip-sync while she talks
+}
+
 void FGrandmaVoicePlayer::Tick(double GameTime, float DeltaSeconds)
 {
 	USkeletalMeshComponent* F = Face.Get();
@@ -160,8 +175,16 @@ void FGrandmaVoicePlayer::Tick(double GameTime, float DeltaSeconds)
 	F->SetMorphTarget(TEXT("Eye_Blink_L"), Blink, false);
 	F->SetMorphTarget(TEXT("Eye_Blink_R"), Blink, false);
 
+	// Dribble Lab mood (smile grows with the clean streak, frown on a lost ball): owns the face between lines.
+	// A failure frown wins over a voice line's own mood (lip-sync keeps the jaw); the smile only shows between lines.
+	const bool bQuiet = Active == INDEX_NONE && MoodWeight <= 0.01f;
+	const bool bBase = (bQuiet && BaseSmile > 0.05f) || BaseFrown > 0.05f;
+	if (bBase) ApplyBaseMood(BaseSmile, BaseFrown);
+	else if (bBaseMoodApplied) ApplyBaseMood(0.f, 0.f);   // hand the morphs back once
+	bBaseMoodApplied = bBase;
+
 	// Torque-driven exertion & breathing layer when not speaking (never overrides active lip-sync or mood).
-	if (Active == INDEX_NONE && MoodWeight <= 0.01f)
+	if (bQuiet && !bBase)
 	{
 		const float E = Exertion01;
 		const float BreathRate = 2.0f + 3.5f * E;

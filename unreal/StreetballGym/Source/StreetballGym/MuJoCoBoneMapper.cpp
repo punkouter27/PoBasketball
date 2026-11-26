@@ -94,11 +94,21 @@ bool UMuJoCoBoneMapper::Initialize(USkeletalMeshComponent* InMesh, UMuJoCoSim* I
 	}
 
 	// ---- capture offsets at the reference pose (qpos = 0) --------------------
-	TArray<double> SavedQ(Sim->QPos()), SavedV(Sim->QVel());
-	Sim->ResetData();
-	TArray<FQuat> RefRot;
-	RefRot.SetNum(Sim->NumBodies());
-	for (int32 b = 0; b < RefRot.Num(); ++b) RefRot[b] = Sim->GetBodyTransformUE(b).GetRotation();
+	// The reference body rotations depend only on the model: read them once per sim. A re-initialisation for another
+	// skin (Dribble Lab humanoid switch, 2026-11-24) then leaves the running sim untouched; ResetData would also clear
+	// time, ctrl and the solver warm start mid-episode.
+	const bool bHaveRef = RefSim.Get() == Sim && RefRot.Num() == Sim->NumBodies();
+	if (!bHaveRef)
+	{
+		TArray<double> SavedQ(Sim->QPos()), SavedV(Sim->QVel());
+		Sim->ResetData();
+		RefRot.SetNum(Sim->NumBodies());
+		for (int32 b = 0; b < RefRot.Num(); ++b) RefRot[b] = Sim->GetBodyTransformUE(b).GetRotation();
+		Sim->SetQPos(SavedQ);
+		Sim->SetQVel(SavedV);
+		Sim->Forward();
+		RefSim = Sim;
+	}
 
 	TArray<FTransform> BindCS;
 	BindPoseComponentSpace(Mesh, BindCS);
@@ -109,9 +119,6 @@ bool UMuJoCoBoneMapper::Initialize(USkeletalMeshComponent* InMesh, UMuJoCoSim* I
 		const FQuat BindWorld = CompRot * BindCS[D.BoneIndex].GetRotation();
 		D.Offset = QRef.Inverse() * BindWorld;
 	}
-	Sim->SetQPos(SavedQ);
-	Sim->SetQVel(SavedV);
-	Sim->Forward();
 
 	UE_LOG(LogStreetball, Log, TEXT("BoneMapper: %d driven bones"), Driven.Num());
 	return Driven.Num() > 0;

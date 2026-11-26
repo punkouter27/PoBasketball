@@ -9,6 +9,157 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Rendering/DrawElements.h"
+#include "Components/Border.h"
+#include "Components/Button.h"
+#include "Components/ButtonSlot.h"
+#include "Framework/Application/SlateApplication.h"
+
+// ---------------------------------------------------------------------------- Dribble Lab
+void UStreetballHUDWidget::SetDribbleFocus(const TArray<FString>& Behaviours, const TArray<bool>& Trained, const TArray<FString>& Skins)
+{
+	UCanvasPanel* Canvas = WidgetTree ? Cast<UCanvasPanel>(WidgetTree->RootWidget) : nullptr;
+	if (DribblePanel || !Canvas) return;
+	using namespace StreetballUiTheme;
+	BehaviourNames = Behaviours;
+	BehaviourTrained = Trained;
+	// the five-tier scoreboard and the mode banner are hidden, not removed (-StreetballClassicHUD brings them back)
+	if (Root) Root->SetVisibility(ESlateVisibility::Collapsed);
+	if (ModeBannerText) ModeBannerText->SetVisibility(ESlateVisibility::Collapsed);
+
+	DribblePanel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("DribblePanel"));
+	DribblePanel->SetBrushColor(PanelBg);
+	DribblePanel->SetPadding(FMargin(Space4, Space3));
+	DribblePanel->SetVisibility(ESlateVisibility::Visible);
+	UCanvasPanelSlot* PS = Canvas->AddChildToCanvas(DribblePanel);
+	PS->SetAnchors(FAnchors(0.f, 0.f));
+	PS->SetPosition(FVector2D(SafeAreaMargin, SafeAreaMargin));
+	PS->SetAutoSize(true);
+	UVerticalBox* Box = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("DribbleBox"));
+	DribblePanel->SetContent(Box);
+
+	auto AddText = [this, Box](const TCHAR* Name, const FString& Text, int32 Size, const FLinearColor& Color, float PadTop) -> UTextBlock*
+	{
+		UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
+		FSlateFontInfo F = T->GetFont();
+		F.Size = Size;
+		T->SetFont(F);
+		T->SetColorAndOpacity(FSlateColor(Color));
+		T->SetText(FText::FromString(Text));
+		Box->AddChildToVerticalBox(T)->SetPadding(FMargin(0.f, PadTop, 0.f, Space1));
+		return T;
+	};
+	AddText(TEXT("DribbleTitle"), TEXT("DRIBBLE LAB"), FontL, AccentGold, 0.f);
+	AddText(TEXT("BehaviourHeader"), TEXT("Behaviour   [1-4]"), FontXS, TextMuted, Space2);
+	for (int32 b = 0; b < FMath::Min(Behaviours.Num(), MaxDribbleButtons); ++b)
+	{
+		const bool bTrained = Trained.IsValidIndex(b) && Trained[b];
+		BehaviourButtons.Add(MakeDribbleButton(Box, FString::Printf(TEXT("%d   %s   %s"), b + 1, *Behaviours[b], bTrained ? TEXT("trained") : TEXT("untrained")),
+			0, b, BehaviourLabels));
+	}
+	AddText(TEXT("SkinHeader"), TEXT("Humanoid   [H]"), FontXS, TextMuted, Space3);
+	for (int32 s = 0; s < FMath::Min(Skins.Num(), MaxDribbleButtons); ++s)
+		SkinButtons.Add(MakeDribbleButton(Box, Skins[s], 1, s, SkinLabels));
+	DribbleStatsText = AddText(TEXT("DribbleStats"), FString(), FontS, TextPrimary, Space3);
+	DribbleStatusText = AddText(TEXT("DribbleStatus"), FString(), FontXS, TextMuted, Space1);
+	DribbleStatusText->SetAutoWrapText(true);
+	DribbleStatusText->SetWrapTextAt(300.f);
+	ShownBehaviour = ShownSkin = -1;
+}
+
+UButton* UStreetballHUDWidget::MakeDribbleButton(UVerticalBox* Box, const FString& Label, int32 Kind, int32 Index, TArray<TObjectPtr<UTextBlock>>& OutLabels)
+{
+	using namespace StreetballUiTheme;
+	UButton* B = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+	UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
+	FSlateFontInfo F = T->GetFont();
+	F.Size = FontS;
+	T->SetFont(F);
+	T->SetText(FText::FromString(Label));
+	if (UButtonSlot* BS = Cast<UButtonSlot>(B->AddChild(T)))
+	{
+		BS->SetPadding(FMargin(Space3, Space1));
+		BS->SetHorizontalAlignment(HAlign_Left);
+	}
+	UVerticalBoxSlot* S = Box->AddChildToVerticalBox(B);
+	S->SetPadding(FMargin(0.f, 2.f));
+	S->SetHorizontalAlignment(HAlign_Fill);
+	// AddDynamic needs a literal member function, hence one tiny UFUNCTION per slot
+	switch (Kind * MaxDribbleButtons + Index)
+	{
+	case 0: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour0); break;
+	case 1: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour1); break;
+	case 2: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour2); break;
+	case 3: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour3); break;
+	case 4: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour4); break;
+	case 5: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnBehaviour5); break;
+	case 6: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin0); break;
+	case 7: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin1); break;
+	case 8: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin2); break;
+	case 9: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin3); break;
+	case 10: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin4); break;
+	case 11: B->OnClicked.AddDynamic(this, &UStreetballHUDWidget::OnSkin5); break;
+	default: break;
+	}
+	OutLabels.Add(T);
+	return B;
+}
+
+void UStreetballHUDWidget::StyleDribbleButtons(TArray<TObjectPtr<UButton>>& Buttons, TArray<TObjectPtr<UTextBlock>>& Labels, int32 Active)
+{
+	static const FLinearColor Idle(0.10f, 0.13f, 0.18f, 0.92f);
+	static const FLinearColor ActiveText(0.06f, 0.06f, 0.06f, 1.f);
+	for (int32 i = 0; i < Buttons.Num(); ++i)
+	{
+		const bool bActive = i == Active;
+		if (Buttons[i]) Buttons[i]->SetBackgroundColor(bActive ? StreetballUiTheme::AccentGold : Idle);
+		if (Labels.IsValidIndex(i) && Labels[i]) Labels[i]->SetColorAndOpacity(FSlateColor(bActive ? ActiveText : StreetballUiTheme::TextPrimary));
+	}
+}
+
+void UStreetballHUDWidget::RequestDribble(int32 Kind, int32 Index)
+{
+	OnDribbleUiRequest.Broadcast(Kind, Index);
+	// hand the keyboard back to the game, so Space pauses instead of pressing the last clicked button again
+	if (FSlateApplication::IsInitialized()) FSlateApplication::Get().SetAllUserFocusToGameViewport();
+	TriggerInputPulse();
+}
+
+bool UStreetballHUDWidget::IsPointerOverDribblePanel() const
+{
+	return DribblePanel && DribblePanel->IsHovered();
+}
+
+void UStreetballHUDWidget::UpdateDribbleStats(const FStreetballDribbleStats& S)
+{
+	if (!DribblePanel) return;
+	using namespace StreetballUiTheme;
+	if (S.Behaviour != ShownBehaviour)
+	{
+		ShownBehaviour = S.Behaviour;
+		StyleDribbleButtons(BehaviourButtons, BehaviourLabels, S.Behaviour);
+		if (DribbleStatusText)
+		{
+			DribbleStatusText->SetText(FText::FromString(S.bTrained
+				? TEXT("Trained brain: passed its gate in training.")
+				: TEXT("Not trained yet: the right-hand brain is improvising, so expect lost balls and resets.")));
+			DribbleStatusText->SetColorAndOpacity(FSlateColor(S.bTrained ? PolicyRef : PolicyBot));
+		}
+	}
+	if (S.Skin != ShownSkin)
+	{
+		ShownSkin = S.Skin;
+		StyleDribbleButtons(SkinButtons, SkinLabels, S.Skin);
+	}
+	// numbers at 10 Hz (no string building on the other frames)
+	const double NowS = FPlatformTime::Seconds();
+	if (LastDribbleStatsS >= 0.0 && NowS - LastDribbleStatsS < 0.1) return;
+	LastDribbleStatsS = NowS;
+	const TCHAR* Hand = S.bScramble ? TEXT("chasing the ball") : S.bRightHand ? TEXT("right") : TEXT("left");
+	CachedDribbleStats = FString::Printf(TEXT("Hand  %s\nBounces  %d   (clean %d)\nClean streak  %d\nRun  %.1f s   (best %.1f s)\nResets  %d"),
+		Hand, S.Bounces, S.CleanBounces, S.Streak, S.RunS, S.BestRunS, S.Resets);
+	if (S.Behaviour == 2) CachedDribbleStats += FString::Printf(TEXT("\nHand switches  %d"), S.HandSwitches);
+	if (DribbleStatsText) DribbleStatsText->SetText(FText::FromString(CachedDribbleStats));
+}
 
 TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 {
@@ -30,7 +181,7 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 			T->SetFont(F);
 			T->SetColorAndOpacity(FSlateColor(Color));
 			T->SetShadowOffset(FVector2D(1.f, 1.f));
-			T->SetShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.8f));
+			T->SetShadowColorAndOpacity(StreetballUiTheme::TextShadow);
 			return T;
 		};
 
@@ -71,8 +222,9 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 		RightSlot->SetPosition(FVector2D(-StreetballUiTheme::SafeAreaMargin, StreetballUiTheme::SafeAreaMargin));
 		RightSlot->SetAutoSize(true);
 
-		// Anchor 4: Bottom-Left RL telemetry (reward / NaN-Inf)
+		// Anchor 4: Bottom-Left RL telemetry (reward / NaN-Inf); collapsed by default in Watch/Play
 		TelemetryText = MakeStyledText(TEXT("Telemetry"), StreetballUiTheme::FontXS, StreetballUiTheme::TextMuted);
+		TelemetryText->SetVisibility(bTelemetryVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 		UCanvasPanelSlot* BLSlot = Canvas->AddChildToCanvas(TelemetryText);
 		BLSlot->SetAnchors(FAnchors(0.f, 1.f));
 		BLSlot->SetAlignment(FVector2D(0.f, 1.f));
@@ -91,7 +243,7 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 		// Voice subtitle (bottom-centre, above the hint bar)
 		SubtitleText = MakeStyledText(TEXT("Subtitle"), StreetballUiTheme::FontL, StreetballUiTheme::AccentGold);
 		SubtitleText->SetShadowOffset(FVector2D(1.f, 1.f));
-		SubtitleText->SetShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.85f));
+		SubtitleText->SetShadowColorAndOpacity(StreetballUiTheme::SubtitleShadow);
 		SubtitleText->SetVisibility(ESlateVisibility::Collapsed);
 		UCanvasPanelSlot* SubSlot = Canvas->AddChildToCanvas(SubtitleText);
 		SubSlot->SetAnchors(FAnchors(0.5f, 1.f));
@@ -104,9 +256,9 @@ TSharedRef<SWidget> UStreetballHUDWidget::RebuildWidget()
 		FSlateFontInfo SF = Stamp->GetFont();
 		SF.Size = StreetballUiTheme::FontXS;
 		Stamp->SetFont(SF);
-		Stamp->SetColorAndOpacity(FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.9f)));   // readable over the light floor
+		Stamp->SetColorAndOpacity(FSlateColor(StreetballUiTheme::TextStamp));   // readable over the light floor
 		Stamp->SetShadowOffset(FVector2D(1.f, 1.f));
-		Stamp->SetShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.8f));
+		Stamp->SetShadowColorAndOpacity(StreetballUiTheme::TextShadow);
 		Stamp->SetText(FText::FromString(FString::Printf(TEXT("v%s"), *BuildStampYYMMDD())));
 		StampText = Stamp;
 		UCanvasPanelSlot* StampSlot = Canvas->AddChildToCanvas(Stamp);
@@ -122,6 +274,50 @@ void UStreetballHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 	ApplyLayout(MyGeometry.GetLocalSize());
+
+	// Eased progress bar interpolation
+	DisplayedProgress01 = FMath::FInterpTo(DisplayedProgress01, TargetProgress01, InDeltaTime, 10.f);
+	if (ProgressBar) ProgressBar->SetPercent(DisplayedProgress01);
+
+	// Tier-up scale pop (cubic ease-out)
+	if (TierPopTimer > 0.f)
+	{
+		TierPopTimer = FMath::Max(0.f, TierPopTimer - InDeltaTime);
+		if (TierText)
+		{
+			const float T = TierPopTimer / 0.35f;
+			const float S = 1.f + 0.22f * T * T;
+			TierText->SetRenderScale(FVector2D(S, S));
+		}
+	}
+
+	// Smooth subtitle fade-in / fade-out
+	const float TargetSubAlpha = LastSubtitle.IsEmpty() ? 0.f : 1.f;
+	SubtitleFadeAlpha = FMath::FInterpTo(SubtitleFadeAlpha, TargetSubAlpha, InDeltaTime, 12.f);
+	if (SubtitleText)
+	{
+		SubtitleText->SetRenderOpacity(SubtitleFadeAlpha);
+		if (LastSubtitle.IsEmpty() && SubtitleFadeAlpha < 0.02f)
+		{
+			SubtitleText->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+
+	// Screen wipe & input pulse timers
+	if (WipeTimer > 0.f) WipeTimer = FMath::Max(0.f, WipeTimer - InDeltaTime);
+	if (InputPulseTimer > 0.f) InputPulseTimer = FMath::Max(0.f, InputPulseTimer - InDeltaTime);
+}
+
+void UStreetballHUDWidget::TriggerScreenWipe(float DurationS)
+{
+	WipeDuration = FMath::Max(0.05f, DurationS);
+	WipeTimer = WipeDuration;
+}
+
+void UStreetballHUDWidget::TriggerInputPulse()
+{
+	InputPulseTimer = 0.16f;
+	bTelemetryDirty = true;
 }
 
 void UStreetballHUDWidget::ApplyLayout(const FVector2D& ViewSize)
@@ -196,12 +392,22 @@ void UStreetballHUDWidget::UpdateFromProgress(const FStreetballProgress& P, EStr
 	bLoose = P.bLoose;
 	CountdownFrac = P.CountdownFrac;
 
-	if (TierText) TierText->SetText(FText::FromString(CachedTier));
+	if (TierText)
+	{
+		TierText->SetText(FText::FromString(CachedTier));
+		if (LastTierNum >= 0 && P.ActiveTier != LastTierNum) TierPopTimer = 0.35f;
+		LastTierNum = P.ActiveTier;
+	}
 	if (StateText) StateText->SetText(FText::FromString(UStreetballDirector::StateName(State)));
 	if (StreakText) StreakText->SetText(FText::FromString(CachedStreak));
 	if (DistanceText) DistanceText->SetText(FText::FromString(CachedDistance));
 	if (MilestoneText) MilestoneText->SetText(FText::FromString(CachedMilestone));
-	if (ProgressBar) ProgressBar->SetPercent(P.Progress01);
+	TargetProgress01 = P.Progress01;
+	if (ProgressBar && FMath::IsNearlyZero(DisplayedProgress01) && P.Progress01 > 0.f)
+	{
+		DisplayedProgress01 = P.Progress01;
+		ProgressBar->SetPercent(DisplayedProgress01);
+	}
 	if (CountdownText)
 	{
 		CountdownText->SetText(FText::FromString(bLoose ? FString::Printf(TEXT("LOOSE BALL  %.1f s"), 3.f * CountdownFrac) : FString()));
@@ -219,6 +425,7 @@ FString UStreetballHUDWidget::GetBuildStampText() const { return StampText ? Sta
 void UStreetballHUDWidget::SetTelemetryVisible(bool bVisible)
 {
 	bTelemetryVisible = bVisible;
+	bTelemetryDirty = true;
 	if (TelemetryText)
 	{
 		TelemetryText->SetVisibility(bVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
@@ -229,39 +436,92 @@ void UStreetballHUDWidget::UpdateTelemetry(const FString& ModeLabel, const FStri
                                            int32 Seed, float EpisodeReward, int32 NanInfCount, float Fps, bool bPaused, bool bFallbackPolicy,
                                            float Exertion01, float PowerW, float TimeScale)
 {
-	if (ModeBannerText)
+	const double NowS = FPlatformTime::Seconds();
+	const bool bStateChanged = bTelemetryDirty
+		|| ModeLabel != LastModeLabel
+		|| CameraLabel != LastCameraLabel
+		|| PolicyLabel != LastPolicyLabel
+		|| bPaused != bLastPaused
+		|| bFallbackPolicy != bLastFallbackPolicy
+		|| !FMath::IsNearlyEqual(TimeScale, LastTimeScale, 0.01f);
+
+	// Throttle steady-state numeric refreshes to 10 Hz; apply immediately on state transitions or active pulse.
+	const bool bDue = LastTelemetryUpdateS < 0.0 || (NowS - LastTelemetryUpdateS) >= 0.1;
+	if (!bStateChanged && !bDue && InputPulseTimer <= 0.f)
 	{
-		const FString ScaleStr = FMath::IsNearlyEqual(TimeScale, 1.f, 0.02f) ? FString() : FString::Printf(TEXT("  |  %.2fx"), TimeScale);
-		ModeBannerText->SetText(FText::FromString(FString::Printf(
-			TEXT("%s  |  Cam: %s  |  Seed: %d%s%s"), *ModeLabel, *CameraLabel, Seed, *ScaleStr, bPaused ? TEXT("  |  PAUSED") : TEXT(""))));
+		return;
 	}
+
+	if (bStateChanged || bDue)
+	{
+		LastTelemetryUpdateS = NowS;
+		bTelemetryDirty = false;
+		LastModeLabel = ModeLabel;
+		LastCameraLabel = CameraLabel;
+		LastPolicyLabel = PolicyLabel;
+		bLastPaused = bPaused;
+		bLastFallbackPolicy = bFallbackPolicy;
+		LastTimeScale = TimeScale;
+
+		if (ModeBannerText)
+		{
+			const FString ScaleStr = FMath::IsNearlyEqual(TimeScale, 1.f, 0.02f) ? FString() : FString::Printf(TEXT("  |  %.2fx"), TimeScale);
+			ModeBannerText->SetText(FText::FromString(FString::Printf(
+				TEXT("%s  |  Cam: %s  |  Seed: %d%s%s"), *ModeLabel, *CameraLabel, Seed, *ScaleStr, bPaused ? TEXT("  |  PAUSED") : TEXT(""))));
+		}
+		if (PolicyFpsText)
+		{
+			PolicyFpsText->SetText(FText::FromString(FString::Printf(TEXT("%.0f FPS  |  Policy: %s"), Fps, *PolicyLabel)));
+		}
+		if (TelemetryText)
+		{
+			TelemetryText->SetVisibility(bTelemetryVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+			if (bTelemetryVisible)
+			{
+				TelemetryText->SetColorAndOpacity(FSlateColor(NanInfCount > 0 ? StreetballUiTheme::PolicyBot : StreetballUiTheme::TextMuted));
+				TelemetryText->SetText(FText::FromString(FString::Printf(
+					TEXT("Reward: %.2f  |  Power: %.0f W (Exertion %.0f%%)  |  NaN/Inf: %d"),
+					EpisodeReward, PowerW, Exertion01 * 100.f, NanInfCount)));
+			}
+		}
+	}
+
 	if (PolicyFpsText)
 	{
-		PolicyFpsText->SetColorAndOpacity(FSlateColor(bFallbackPolicy ? StreetballUiTheme::PolicyBot : StreetballUiTheme::PolicyRef));
-		PolicyFpsText->SetText(FText::FromString(FString::Printf(TEXT("%.0f FPS  |  Policy: %s"), Fps, *PolicyLabel)));
-	}
-	if (TelemetryText)
-	{
-		TelemetryText->SetColorAndOpacity(FSlateColor(NanInfCount > 0 ? StreetballUiTheme::PolicyBot : StreetballUiTheme::TextMuted));
-		TelemetryText->SetText(FText::FromString(FString::Printf(
-			TEXT("Reward: %.2f  |  Power: %.0f W (Exertion %.0f%%)  |  NaN/Inf: %d"),
-			EpisodeReward, PowerW, Exertion01 * 100.f, NanInfCount)));
-		TelemetryText->SetVisibility(bTelemetryVisible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		const FLinearColor BaseCol = bFallbackPolicy ? StreetballUiTheme::PolicyBot : StreetballUiTheme::PolicyRef;
+		const FLinearColor Col = (InputPulseTimer > 0.f)
+			? FMath::Lerp(BaseCol, StreetballUiTheme::AccentIndigo, InputPulseTimer / 0.16f)
+			: BaseCol;
+		PolicyFpsText->SetColorAndOpacity(FSlateColor(Col));
 	}
 }
 
 void UStreetballHUDWidget::SetModeHint(const FString& HintText)
 {
-	if (BottomBarText) BottomBarText->SetText(FText::FromString(HintText));
+	if (!BottomBarText || HintText == LastModeHint) return;
+	LastModeHint = HintText;
+	BottomBarText->SetText(FText::FromString(HintText));
 }
 
 int32 UStreetballHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry& Geo, const FSlateRect& Cull,
                                         FSlateWindowElementList& Out, int32 LayerId, const FWidgetStyle& Style, bool bParentEnabled) const
 {
 	LayerId = Super::NativePaint(Args, Geo, Cull, Out, LayerId, Style, bParentEnabled);
-	if (!bLoose) return LayerId;
-	// Countdown ring: bottom-left corner, sweeps down as the 3 s grace period runs out.
 	const FVector2D Size = Geo.GetLocalSize();
+	if (WipeTimer > 0.f && WipeDuration > 0.f)
+	{
+		const float U = FMath::Clamp(WipeTimer / WipeDuration, 0.f, 1.f);
+		const float Alpha = 0.55f * U * U;
+		const float BarW = Size.X * (1.f - U);
+		FLinearColor WipeColor = StreetballUiTheme::WipeOverlay;
+		WipeColor.A = Alpha;
+		FSlateDrawElement::MakeBox(
+			Out, LayerId + 3,
+			Geo.ToPaintGeometry(FVector2D(Size.X - BarW, Size.Y), FSlateLayoutTransform(FVector2D(BarW, 0.f))),
+			FCoreStyle::Get().GetBrush("WhiteBrush"), ESlateDrawEffect::None, WipeColor);
+	}
+	if (!bLoose) return LayerId + 3;
+	// Countdown ring: bottom-left corner, sweeps down as the 3 s grace period runs out.
 	const FVector2D C(90.f, Size.Y - 90.f);
 	const float R = 42.f;
 	const int32 Segs = 48;
@@ -277,10 +537,10 @@ int32 UStreetballHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		const float A = -PI / 2 + 2 * PI * i / Segs;
 		Arc.Add(C + FVector2D(FMath::Cos(A), FMath::Sin(A)) * R);
 	}
-	FSlateDrawElement::MakeLines(Out, LayerId + 1, Geo.ToPaintGeometry(), Back, ESlateDrawEffect::None, FLinearColor(1, 1, 1, 0.25f), true, 4.f);
+	FSlateDrawElement::MakeLines(Out, LayerId + 1, Geo.ToPaintGeometry(), Back, ESlateDrawEffect::None, StreetballUiTheme::CountdownTrack, true, 4.f);
 	if (Arc.Num() > 1)
 	{
-		FSlateDrawElement::MakeLines(Out, LayerId + 2, Geo.ToPaintGeometry(), Arc, ESlateDrawEffect::None, FLinearColor(1.f, 0.45f, 0.25f, 0.95f), true, 6.f);
+		FSlateDrawElement::MakeLines(Out, LayerId + 2, Geo.ToPaintGeometry(), Arc, ESlateDrawEffect::None, StreetballUiTheme::CountdownArc, true, 6.f);
 	}
 	return LayerId + 2;
 }
@@ -290,7 +550,6 @@ void UStreetballHUDWidget::SetSubtitle(const FString& Text)
 	if (!SubtitleText) return;
 	if (Text.IsEmpty())
 	{
-		if (!LastSubtitle.IsEmpty()) SubtitleText->SetVisibility(ESlateVisibility::Collapsed);
 		LastSubtitle.Reset();
 		return;
 	}

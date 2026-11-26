@@ -151,9 +151,10 @@ def maprange(g, src_handle, in_lo, in_hi, out_lo, out_hi):
 
 
 def impact_sound(name, wave_path, lpf_lo, lpf_hi, gain_lo, body_freq=None, body_decay=0.1, body_gain=0.5, body_freq_span=0.25, wave_len=0.6):
-    """Wave layer (Impact -> cutoff + gain) + optional sine body (Impact -> pitch + level)."""
+    """Wave layer (Impact + SurfaceHardness -> cutoff + gain) + optional sine body (Impact -> pitch + level)."""
     g = G(name)
     impact = g.graph_float("Impact", 0.5)
+    hardness = g.graph_float("SurfaceHardness", 0.5)
     wave = unreal.load_asset(wave_path)
     w = g.node("wave")
     g.set(w, "Wave Asset", wave)
@@ -161,7 +162,12 @@ def impact_sound(name, wave_path, lpf_lo, lpf_hi, gain_lo, body_freq=None, body_
     flt = g.node("biquad")
     g.set(flt, "Type", LOWPASS)
     g.link(w, "Out Mono", flt, "In")
-    g.link(maprange(g, impact, 0, 1, lpf_lo, lpf_hi), "Out Value", flt, "Cutoff Frequency")
+    cutoff_base = maprange(g, impact, 0, 1, lpf_lo, lpf_hi)
+    cutoff_hard = maprange(g, hardness, 0, 1, 0.75, 1.35)
+    cutoff_mul = g.node("mul_f")
+    g.link(cutoff_base, "Out Value", cutoff_mul, "PrimaryOperand")
+    g.link(cutoff_hard, "Out Value", cutoff_mul, "AdditionalOperands")
+    g.link(cutoff_mul, "Out", flt, "Cutoff Frequency")
     gain = g.node("mul_af")
     g.link(flt, "Out", gain, "PrimaryOperand")
     g.link(maprange(g, impact, 0, 1, gain_lo, 1.0), "Out Value", gain, "AdditionalOperands")

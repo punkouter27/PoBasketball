@@ -1,0 +1,18 @@
+{
+  "_doc": "Quixel Megascans (Fab, Standard License) used locally. Files are git-ignored (public repo, no redistribution). Put each downloaded 2K texture-set zip from Fab in ~/Downloads (or pass -Downloads) and run Scripts/import_megascans.py: it extracts the listed maps to Content/Art/Raw/Megascans/<id>/ and imports them to /Game/Project/Environments/Megascans/<id>/. AStreetballWorld reads 'targets' at startup: for each material it makes one dynamic instance and sets the texture/scalar parameters, but only when every texture of that target loads; otherwise the material stays procedural.",
+  "assets": [
+    {"id": "tjmnbdmcw", "name": "Asphalt", "listing": "https://www.fab.com/listings/eb97ec51-1041-46a4-831d-78178efd2651", "zip": "asphalt_tjmnbdmcw_2k.zip", "maps": {"BaseColor": "color", "Normal": "normal_gl"}},
+    {"id": "sexkaitb", "name": "Brick Wall Worn", "listing": "https://www.fab.com/listings/499d9ba7-f361-491c-b66e-c16c89bac34a", "zip": "brick_wall_worn_sexkaitb_2k.zip", "maps": {"BaseColor": "color", "Normal": "normal_gl"}},
+    {"id": "vlmpfhuc", "name": "Graffiti", "listing": "https://www.fab.com/listings/baa70e8b-b4a8-423b-b53e-63e9fe366ec9", "zip": "graffiti_vlmpfhuc_2k.zip", "maps": {"BaseColor": "color", "Opacity": "mask"}},
+    {"id": "vcqhadvl", "name": "Graffiti Tag", "listing": "https://www.fab.com/listings/ce63d5a8-c405-4617-a406-73348408d049", "zip": "graffiti_tag_vcqhadvl_2k.zip", "maps": {"BaseColor": "color", "Opacity": "mask"}}
+  ],
+  "targets": {
+    "/Game/Project/Environments/Materials/MI_CourtAsphalt.MI_CourtAsphalt": {
+      "textures": {
+        "ScanBaseColor": "/Game/Project/Environments/Megascans/tjmnbdmcw/T_tjmnbdmcw_BaseColor.T_tjmnbdmcw_BaseColor",
+        "ScanNormal": "/Game/Project/Environments/Megascans/tjmnbdmcw/T_tjmnbdmcw_Normal.T_tjmnbdmcw_Normal"
+      },
+      "scalars": {"ScanAmount": 1.0, "ScanTileCm": 200.0, "ScanBrightness": 0.9}
+    }
+  }
+}

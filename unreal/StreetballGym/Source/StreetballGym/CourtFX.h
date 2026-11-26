@@ -59,8 +59,11 @@ public:
 struct STREETBALLGYM_API FCourtFXCue
 {
 	ECourtFX Fx = ECourtFX::BallDust;
+	EStreetballSurface Surface = EStreetballSurface::Unknown;
 	FVector PositionUE = FVector::ZeroVector;
+	FVector NormalUE = FVector::UpVector;
 	float Scale = 1.f;
+	float ImpactSpeed = 0.f;
 };
 
 struct STREETBALLGYM_API FCourtFXMapping
@@ -81,7 +84,7 @@ public:
 	void Initialize(AActor* Owner, UCourtFXBank* InBank, const FVector RimCentersUE[2], int32 PoolPerFx = 4);
 	void Play(const FCourtFXCue& Cue);
 	/** Net reaction (Swish = ball through the net, Hit = rim/board knock) at game time Now. */
-	void KickNet(int32 RimIndex, bool bSwish, double Now);
+	void KickNet(int32 RimIndex, bool bSwish, double Now, float Intensity = 1.f);
 	/** Pigeons take off when the ball lands within PerchRadius of the perch (once per Cooldown). */
 	void NotifyBallLanding(const FVector& BallUE, double Now);
 

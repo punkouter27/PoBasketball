@@ -8,12 +8,15 @@ void FStreetballAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaS
 	if (const UStreetballAnimInstance* Inst = Cast<UStreetballAnimInstance>(InAnimInstance))
 	{
 		Targets = Inst->GetPendingTargets();
+		CurveNames.Reset(); CurveNames.Append(Inst->GetPendingCurveNames());
+		CurveValues.Reset(); CurveValues.Append(Inst->GetPendingCurveValues());
 	}
 }
 
 bool FStreetballAnimProxy::Evaluate(FPoseContext& Output)
 {
 	Output.ResetToRefPose();
+	for (int32 i = 0; i < FMath::Min(CurveNames.Num(), CurveValues.Num()); ++i) Output.Curve.Set(CurveNames[i], CurveValues[i]);
 	if (!Targets.bValid)
 	{
 		return true;

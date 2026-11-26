@@ -77,6 +77,16 @@ class L2Dribble(Level):
             self.hand[ids] = torch.where(env.rand(k) < 0.5, 1.0, -1.0)
             self.until_switch[ids] = torch.randint(2, 5, (k,), device=self.dev, generator=env.gen)
 
+    def task_mirror(self):
+        """2026-11-24. Only modes that use both hands are left/right symmetric. Slots: 0 hand (+1/-1, flips), 1 apex, 2 bounces
+        to the next switch, 3 speed, 4-5 anchor direction in the heading frame (y = left, flips), 6 anchor distance."""
+        if self.mode not in ("both", "crossover"):
+            return None
+        sign = [1.0] * obs_spec.N_TASK
+        sign[0] = -1.0
+        sign[5] = -1.0
+        return list(range(obs_spec.N_TASK)), sign
+
     def _spot(self) -> torch.Tensor:
         """World-space dribble spot for the active hand (N, 2)."""
         env = self.env
@@ -534,3 +544,20 @@ class L2DribbleTime(L2DribblePush):
         m["m/horizon_s"] = torch.full((self.N,), self.horizon, device=self.dev)
         m["m/clean_n"] = self.clean_n.float()
         return m
+
+
+class L2DribbleBoth(L2Dribble):
+    """Gate for the stationary dribble with either hand (2026-11-24): the hand is drawn per episode, no switches. The
+    right-hand gate's rules and threshold (85 %), half the episodes left-handed."""
+
+    name = "l2_both"
+    mode = "both"
+
+
+class L2DribbleBothTime(L2DribbleTime):
+    """TRAINING-ONLY (2026-11-24): l2a_time (the recipe that took the right hand to 100 %) with the hand drawn per episode
+    and the left/right symmetry loss available (task_mirror). Starts from the right-hand brain: the mirror term teaches the
+    left hand what the right hand already does."""
+
+    name = "l2_both_time"
+    mode = "both"

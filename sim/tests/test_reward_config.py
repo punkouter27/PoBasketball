@@ -10,7 +10,7 @@ from streetball import reward_config
 JSON = pathlib.Path(__file__).resolve().parents[2] / "shared" / "reward_config.json"
 
 
-def test_json_has_the_four_penalties_all_non_positive():
+def test_json_has_every_penalty_all_non_positive():
     cfg = json.loads(JSON.read_text(encoding="utf-8"))
     assert set(cfg["penalties"]) == set(reward_config.PENALTY_TERMS)
     for term, w in cfg["penalties"].items():

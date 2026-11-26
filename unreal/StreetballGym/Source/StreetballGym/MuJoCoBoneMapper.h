@@ -61,6 +61,9 @@ private:
 
 	UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh = nullptr;
 	UPROPERTY() TObjectPtr<UMuJoCoSim> Sim = nullptr;
+	/** Body rotations at the reference pose (qpos = 0) of RefSim, cached so a skin re-init never resets the sim. */
+	TArray<FQuat> RefRot;
+	TWeakObjectPtr<UMuJoCoSim> RefSim;
 	TArray<FDrivenBone> Driven;
 	int32 PelvisBody = INDEX_NONE;
 	int32 TorsoBody = INDEX_NONE;

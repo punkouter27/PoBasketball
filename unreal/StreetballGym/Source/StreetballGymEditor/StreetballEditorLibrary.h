@@ -7,6 +7,8 @@
 class USkeletalMesh;
 class UNiagaraSystem;
 class UMaterialInterface;
+class UTexture2D;
+class USoundWave;
 
 /**
  * Headless asset-authoring helpers for Python (unreal.StreetballEditorLibrary). Generic reflection access lets the
@@ -59,4 +61,12 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Streetball|Editor")
 	static UObject* CreateClothFromSection(USkeletalMesh* Mesh, int32 LodIndex, int32 SectionIndex, float MaxDistanceCm, float PinFraction, const FString& AssetName);
+
+	/** Apply standardized BC7/BC5 compression and max-size preset to an imported texture. */
+	UFUNCTION(BlueprintCallable, Category = "Streetball|Editor")
+	static bool ApplyTextureImportPreset(UTexture2D* Texture, bool bNormalMap, int32 MaxTextureSize = 2048);
+
+	/** Apply standardized 48 kHz streaming/compression preset to an imported sound wave. */
+	UFUNCTION(BlueprintCallable, Category = "Streetball|Editor")
+	static bool ApplyAudioImportPreset(USoundWave* Wave, int32 CompressionQuality = 75);
 };

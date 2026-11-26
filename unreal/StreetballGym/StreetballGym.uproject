@@ -35,7 +35,10 @@
 		},
 		{
 			"Name": "Tensorboard",
-			"Enabled": true
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
 			"Name": "PythonScriptPlugin",
@@ -75,11 +78,31 @@
 		},
 		{
 			"Name": "Fab",
-			"Enabled": true
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
 			"Name": "AlembicHairImporter",
-			"Enabled": true
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "MovieRenderPipeline",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "MetaHumanCharacter",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
 		}
 	]
 }

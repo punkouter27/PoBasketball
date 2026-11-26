@@ -1,10 +1,15 @@
 {
-  "_doc": "Reward penalty weights and curriculum gates for sim/streetball (read by sim/streetball/reward_config.py). Mirrored by the Unreal DataAsset UStreetballRewardConfig (unreal/StreetballGym/Source/StreetballGym/StreetballRewardConfig.h); keep both equal (sim/tests/test_reward_config.py). Weights are added to the reward as weight * term, so penalties are negative. foot_slip was added on 2026-11-20: the shipped policies in shared/policies were trained before it and were NOT retrained.",
+  "_doc": "Reward penalty weights and curriculum gates for sim/streetball (read by sim/streetball/reward_config.py). Mirrored by the Unreal DataAsset UStreetballRewardConfig (unreal/StreetballGym/Source/StreetballGym/StreetballRewardConfig.h); keep both equal (sim/tests/test_reward_config.py). Weights are added to the reward as weight * term, so penalties are negative. foot_slip was added on 2026-11-20 and power_abs, com_offset, com_vel_z_sq, ang_vel_xy_sq, short_swing on 2026-11-24 (weight 0 = off): the shipped policies in shared/policies were trained before them and were NOT retrained.",
   "penalties": {
     "torque_sq": -1e-05,
     "joint_ang_vel_sq": -0.001,
     "action_rate_sq": -0.05,
-    "foot_slip": -0.1
+    "foot_slip": -0.1,
+    "power_abs": 0.0,
+    "com_offset": -0.2,
+    "com_vel_z_sq": 0.0,
+    "ang_vel_xy_sq": -0.02,
+    "short_swing": 0.0
   },
   "level_overrides": {
     "l0_stand": {"joint_ang_vel_sq": -0.002}
@@ -13,7 +18,12 @@
     "torque_sq": "mean over actuators of actuator_force^2",
     "joint_ang_vel_sq": "mean over hinge joints of qvel^2 (rad/s)^2",
     "action_rate_sq": "mean over actions of (a_t - a_{t-1})^2",
-    "foot_slip": "sum over feet of contact * planar foot speed^2 (m/s)^2"
+    "foot_slip": "sum over feet of contact * planar foot speed^2 (m/s)^2",
+    "power_abs": "mean over actuators of |actuator_force * actuator_velocity| (W)",
+    "com_offset": "|CoM_xy - support centre_xy|^2 (m^2); support centre = mean of the foot corner sites of feet in contact (all corners when airborne)",
+    "com_vel_z_sq": "vertical CoM speed^2 (m/s)^2, finite difference between control steps",
+    "ang_vel_xy_sq": "pelvis roll and pitch rate^2, pelvis frame (rad/s)^2",
+    "short_swing": "sum over feet, at touchdown, of max(0, 0.35 s - swing time) (s)"
   },
   "curriculum": [
     {"stage": "l0_stand", "threshold": 0.95, "metric": "eval success rate (Level.pass_fraction)"},
@@ -22,6 +32,7 @@
     {"stage": "l2c_crossover", "threshold": 0.80, "metric": "eval success rate (Level.pass_fraction)"},
     {"stage": "l3a_moving_dribble", "threshold": 0.75, "metric": "eval success rate (Level.pass_fraction)"},
     {"stage": "l3b_scramble", "threshold": 0.80, "metric": "eval success rate (Level.pass_fraction)"},
-    {"stage": "l4_jump_shot", "threshold": 0.30, "metric": "eval success rate (Level.pass_fraction)"}
+    {"stage": "l4_jump_shot", "threshold": 0.30, "metric": "eval success rate (Level.pass_fraction)"},
+    {"stage": "l5_getup", "threshold": 0.80, "metric": "eval success rate (Level.pass_fraction)"}
   ]
 }

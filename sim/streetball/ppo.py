@@ -91,6 +91,9 @@ class PPOConfig:
     lr_max: float = 1e-3  # adaptive-LR ceiling; lower it for fine-tunes of a good actor
     lr_min: float = 1e-5  # adaptive-LR floor
     anchor_coef: float = 0.0  # >0: penalise the actor mean drifting from a frozen anchor actor (set_anchor)
+    # >0: symmetry loss sym_coef * mean(sum((mu(M_o o) - M_a mu(o))^2)), M = left/right mirror (set_mirror,
+    # streetball/mirror.py). 0 = off (2026-11-24; no shipped policy was trained with it).
+    sym_coef: float = 0.0
     adaptive_lr: bool = True
     hidden: tuple[int, ...] = (512, 256, 128)
     init_std: float = 0.5
@@ -111,6 +114,7 @@ class PPO:
         # stats; letting rollout data move them changes the policy with no gradient step (see docs/20261118).
         self.freeze_norm = False
         self.anchor = None
+        self.mirror = None  # (obs_perm, obs_sign, act_perm, act_sign) tensors, see set_mirror
         T = cfg.steps_per_env
         z = lambda *s: torch.zeros(*s, device=device)
         self.obs_buf = z(T, num_envs, n_obs)
@@ -131,6 +135,35 @@ class PPO:
         self.anchor = copy.deepcopy(self.ac.actor).eval()
         for p in self.anchor.parameters():
             p.requires_grad_(False)
+
+    def freeze_trunk_layers(self, n_layers: int) -> int:
+        """Freeze the first n_layers Linear modules of Actor.net (preserving locomotion/balance trunk)."""
+        if n_layers <= 0:
+            return 0
+        frozen = 0
+        for mod in self.ac.actor.net:
+            if isinstance(mod, nn.Linear):
+                if frozen >= n_layers:
+                    break
+                for p in mod.parameters():
+                    p.requires_grad_(False)
+                frozen += 1
+        return frozen
+
+    def set_mirror(self, m) -> None:
+        """m: a streetball.mirror.Mirror. Enables the symmetry loss when cfg.sym_coef > 0."""
+        dev = self.device
+        self.mirror = (
+            torch.as_tensor(m.obs_perm, device=dev, dtype=torch.long),
+            torch.as_tensor(m.obs_sign, device=dev, dtype=torch.float32),
+            torch.as_tensor(m.act_perm, device=dev, dtype=torch.long),
+            torch.as_tensor(m.act_sign, device=dev, dtype=torch.float32),
+        )
+
+    def symmetry_loss(self, obs: torch.Tensor, mean: torch.Tensor) -> torch.Tensor:
+        op, os_, ap, as_ = self.mirror
+        mu_mirrored_obs = self.ac.actor(obs[:, op] * os_)
+        return ((mu_mirrored_obs - mean[:, ap] * as_) ** 2).sum(-1).mean()
 
     # ---- rollout --------------------------------------------------------------
     @torch.no_grad()
@@ -212,6 +245,10 @@ class PPO:
                     anc = ((d.mean - mu0) ** 2).sum(-1).mean()
                     loss = loss + cfg.anchor_coef * anc
                     stats["loss/anchor"] = stats.get("loss/anchor", 0.0) + anc.item()
+                if self.mirror is not None and cfg.sym_coef > 0.0:
+                    sym = self.symmetry_loss(obs[idx], d.mean)
+                    loss = loss + cfg.sym_coef * sym
+                    stats["loss/symmetry"] = stats.get("loss/symmetry", 0.0) + sym.item()
                 if self.critic_only:
                     loss = cfg.value_coef * vloss
 

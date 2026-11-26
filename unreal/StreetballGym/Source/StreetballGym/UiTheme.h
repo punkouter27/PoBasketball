@@ -31,9 +31,16 @@ namespace StreetballUiTheme
 
 	inline const FLinearColor Background(0.05f, 0.08f, 0.11f, 0.78f);
 	inline const FLinearColor PanelBg(0.06f, 0.09f, 0.13f, 0.72f);
+	inline const FLinearColor WipeOverlay(0.043f, 0.059f, 0.090f, 1.f);
 	inline const FLinearColor TextPrimary(1.f, 1.f, 1.f, 1.f);
+	inline const FLinearColor TextStamp(1.f, 1.f, 1.f, 0.9f);
 	inline const FLinearColor TextMuted(0.75f, 0.80f, 0.82f, 1.f);
+	inline const FLinearColor TextShadow(0.f, 0.f, 0.f, 0.8f);
+	inline const FLinearColor SubtitleShadow(0.f, 0.f, 0.f, 0.85f);
 	inline const FLinearColor AccentGold(1.f, 0.85f, 0.30f, 1.f);
+	inline const FLinearColor AccentIndigo(0.388f, 0.400f, 0.945f, 1.f);
+	inline const FLinearColor CountdownTrack(1.f, 1.f, 1.f, 0.25f);
+	inline const FLinearColor CountdownArc(1.f, 0.45f, 0.25f, 0.95f);
 
 	// Standard RL policy badge palette
 	inline const FLinearColor PolicyBot(1.f, 0.25f, 0.20f, 1.f);     // RED = heuristic bot / fallback

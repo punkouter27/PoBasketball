@@ -44,7 +44,9 @@ public:
 	/** Same skin with the cardigan hem split into a Chaos Cloth section (Scripts/build_grandma_extras.py). Preferred. */
 	static constexpr const TCHAR* GrandmaClothMeshPath = TEXT("/Game/Project/Agents/Grandma/SK_Grandma_Cloth.SK_Grandma_Cloth");
 	static constexpr const TCHAR* GroomFlyawaysPath = TEXT("/Game/Project/Agents/Grandma/Groom/GR_Grandma_Flyaways.GR_Grandma_Flyaways");
-	static constexpr const TCHAR* GroomBrowsPath = TEXT("/Game/Project/Agents/Grandma/Groom/GR_Grandma_Brows.GR_Grandma_Brows");
+	static constexpr const TCHAR* MannyMeshPath = TEXT("/Game/Project/Agents/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple");
+	static constexpr const TCHAR* QuinnMeshPath = TEXT("/Game/Project/Agents/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple");
+	static constexpr const TCHAR* GroomBrowsPath =TEXT("/Game/Project/Agents/Grandma/Groom/GR_Grandma_Brows.GR_Grandma_Brows");
 	/**
 	 * Mesh priority: -StreetballCharacterMesh=<object path> (e.g. a MetaHuman body on the UE5 skeleton), then the cloth
 	 * grandma, the plain grandma, Manny. -StreetballCharacter=Manny forces Manny. -StreetballNoCloth skips the cloth mesh.
@@ -53,6 +55,49 @@ public:
 	FString ApplyMainCharacterMesh();
 	/** Cosmetic extras on the grandma skin: groom layers (bound to the mesh, or rigid on the head bone). */
 	void AttachExtras();
+	/**
+	 * Local-only MetaHuman grandma (2026-11-24; git-ignored, built by Scripts/build_grandma_metahuman.py +
+	 * import_grandma_metahuman.py): Content/Art/Exports/GrandmaMH/parts.json lists the re-proportioned body (on Manny's
+	 * joints, so the bone mapper drives it like the CC grandma), its outfit (leader pose), the native MetaHuman face
+	 * (ABP_Face copies the pose from its attach parent, the body) and the grooms bound to the face. Missing file or assets
+	 * = the CC grandma as before. -StreetballNoMetaHuman skips it.
+	 */
+	/** MetaHuman skins, each from its own parts.json (2026-11-24): 0 = the original grandma's face on her own clothed
+	 *  body, 1 = the Grace-preset grandma. The parameterless overload returns the first slot present. */
+	static constexpr int32 NumMetaHumanSlots = 2;
+	static bool LoadMetaHumanParts(int32 Slot, TSharedPtr<class FJsonObject>& Out);
+	static bool LoadMetaHumanParts(TSharedPtr<class FJsonObject>& Out);
+	static const TCHAR* MetaHumanSlotLabel(int32 Slot);
+	void AttachMetaHuman(const TSharedPtr<class FJsonObject>& Parts, int32 Slot);
+	/** Slot of the active skin, INDEX_NONE when the active skin is not a MetaHuman. */
+	int32 ActiveMetaHumanSlot() const;
+	bool IsMetaHuman() const { return ActiveMetaHumanSlot() != INDEX_NONE && FaceMesh != nullptr; }
+	/**
+	 * Live humanoid switch (Dribble Lab, 2026-11-24). Every skin is loaded once at startup (BuildSkins, from
+	 * ApplyMainCharacterMesh); SetSkin only swaps the mesh asset on the one body component and toggles the extras'
+	 * visibility, so nothing is spawned at runtime. All skins share Manny's joints; the caller re-initialises the bone
+	 * mapper (bind offsets differ per skin). Visual only: the MuJoCo body and the policies do not change.
+	 */
+	int32 NumSkins() const { return SkinMeshes.Num(); }
+	int32 GetActiveSkin() const { return ActiveSkin; }
+	const TArray<FString>& GetSkinNames() const { return SkinNames; }
+	bool SetSkin(int32 Index);
+	/**
+	 * Face mood (2026-11-24): Smile01 / Frown01 in [0, 1]. On the MetaHuman skin the weights become CTRL_expressions_*
+	 * curves read from Epic's ARKit mapping pose asset (MouthSmile, CheekSquint, MouthFrown, BrowDown, ...), emitted by
+	 * the body anim instance; ABP_Face copies them to the face and RigLogic shapes it. The CC grandma is handled by
+	 * FGrandmaVoicePlayer (morph targets). Other skins ignore it. Game thread, no allocation.
+	 */
+	void SetFaceMood(float Smile01, float Frown01);
+	int32 NumFaceCurves() const { return FaceCurveNames.Num(); }
+	/** Head bone in UE world space (face camera); falls back to the actor location + 1.6 m. */
+	FVector GetHeadLocationUE() const;
+	/** Unit vector the face points along (UE world), from the head bone's current rotation. */
+	FVector GetFaceDirectionUE() const;
+	static constexpr const TCHAR* ARKitMappingPath = TEXT("/Game/Project/Agents/GrandmaMH/Build/Common/Face/ARKit/PA_MetaHuman_ARKit_Mapping.PA_MetaHuman_ARKit_Mapping");
+	static constexpr uint8 SkinKindPlain = 0;
+	static constexpr uint8 SkinKindMetaHuman = 1;
+	static constexpr uint8 SkinKindGrandma = 2;
 	/** Face mesh whose morph targets the voice drives (the body itself for the CC grandma). */
 	USkeletalMeshComponent* GetFaceMesh() const { return Mesh; }
 	int32 NumGrooms() const;
@@ -60,6 +105,25 @@ public:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> Mesh;
 	UPROPERTY(VisibleAnywhere) TArray<TObjectPtr<UGroomComponent>> Grooms;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> FaceMesh;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> OutfitMesh;
+	UPROPERTY() TArray<TObjectPtr<USkeletalMesh>> SkinMeshes;
+	/** Per MetaHuman slot (FaceMesh / OutfitMesh point at the active one). */
+	UPROPERTY() TArray<TObjectPtr<USkeletalMeshComponent>> MHFaces;
+	UPROPERTY() TArray<TObjectPtr<USkeletalMeshComponent>> MHOutfits;
+private:
+	void BuildSkins();
+	void ApplySkinExtrasVisibility();
+	void AttachGrandmaGrooms(const USkeletalMesh* GrandmaMesh, bool bForceRigid);
+	void BuildFaceRig();
+	TArray<FName> FaceCurveNames;
+	TArray<float> FaceSmileW, FaceFrownW, FaceCurveValues;
+	mutable const USkeletalMesh* FaceDirMesh = nullptr;   // cache key for FaceDirInHead
+	mutable FVector FaceDirInHead = FVector(0.f, 1.f, 0.f);
+	TArray<FString> SkinNames;
+	TArray<uint8> SkinKinds;
+	TArray<int32> SkinMHSlot;   // per skin: MetaHuman slot or INDEX_NONE
+	int32 ActiveSkin = INDEX_NONE;
 };
 
 /** One visual proxy for a sim geom (static shapes for the court, the ball, and optional debug geoms). */
@@ -136,6 +200,7 @@ public:
 	int32 GetPresentationEventCount(EPresentationEvent E) const { return PresentationCounts[(int32)E]; }
 	bool IsAmbiencePlaying() const { return AudioPlayer.IsAmbiencePlaying(); }
 	int32 GetMaterialOverrideCount() const { return MaterialOverrideCount; }
+	int32 GetLocalScanCount() const { return LocalScanCount; }
 	float GetExertion01() const { return Exertion01; }
 	float GetLastPowerWatts() const { return LastPowerW; }
 
@@ -164,6 +229,29 @@ public:
 	void StepTimeScale(int32 DeltaIndex);
 	float GetTimeScale() const;
 
+	/**
+	 * Dribble Lab (2026-11-24): the game focuses on the dribble skills. Behaviours are director settings on the one
+	 * dribble family (same dribble.onnx): 0 right hand (tier 3), 1 left hand (tier 3), 2 crossover (tier 3, table hand
+	 * switches), 3 moving (tier 4, right hand). Turned on in BeginPlay for the real game only (automation worlds keep
+	 * the full tier run); -StreetballClassicHUD, -StreetballStartTier= or -StreetballDemoFeatures keep the classic HUD.
+	 */
+	static constexpr int32 NumDribbleBehaviours = 4;
+	static const TCHAR* DribbleBehaviourName(int32 Behaviour);
+	/** Passed its gate (docs/phase_reports/eval_*.md, docs/20261122/log.md): only the stationary right hand so far. */
+	static bool IsDribbleBehaviourTrained(int32 Behaviour) { return Behaviour == 0; }
+	void EnableDribbleFocus();
+	bool IsDribbleFocus() const { return bDribbleFocus; }
+	void SetDribbleBehaviour(int32 Behaviour);
+	int32 GetDribbleBehaviour() const { return DribbleBehaviour; }
+	/** Visual humanoid switch (same MuJoCo body and policies); re-initialises the bone mapper for the new skin. */
+	bool SetHumanoid(int32 SkinIndex);
+	void CycleHumanoid();
+	/** Session counters since the last behaviour switch (HUD; tests). */
+	int32 GetSessionResets() const { return ResetCount - SessionResetBase; }
+	int32 GetSessionBounces() const { return SessionBounces; }
+	double GetCurrentRunSeconds() const;
+	double GetBestRunSeconds() const { return FMath::Max(BestRunS, GetCurrentRunSeconds()); }
+
 	EStreetballAppMode GetAppMode() const { return AppMode; }
 	bool IsPaused() const { return bPaused; }
 	int32 GetNanInfCount() const { return NanInfCount; }
@@ -172,11 +260,15 @@ public:
 private:
 	void OnControlStep(UMuJoCoSim* InSim);
 	void OnPhysicsStep(UMuJoCoSim* InSim);
+	void HandlePlayerInput(float DeltaSeconds);
 	void UpdateVisuals();
 	void UpdatePresentation(float Dt);
 	void SetupPresentation();
 	void UpdateCaptureSchedule();
 	UMaterialInterface* MaterialOverrideFor(const FString& GeomName) const;
+	/** Local-only Megascans (Content/Art/megascans.json, git-ignored textures): swaps each listed override material for
+	 *  a dynamic instance with the scan textures, only when every texture of that target loads. Returns targets applied. */
+	int32 ApplyLocalScans();
 	void UpdateCameraAndHUD(float Dt);
 	/** Idle demo mode (StreetballShowcase): Watch mode, HUD hidden, showcase cameras; restored on input. */
 	void HandleDemoMode(bool bActive);
@@ -197,6 +289,7 @@ private:
 	/** Visual-only ground apron outside the fence (not part of the sim). */
 	UPROPERTY() TObjectPtr<AStreetballGeomActor> Surroundings;
 	UPROPERTY() TArray<TObjectPtr<AStreetballGeomActor>> GeomActors;
+	UPROPERTY() TArray<TObjectPtr<AStreetballGeomActor>> DynamicGeomActors;
 	UPROPERTY() TObjectPtr<AStreetballGeomActor> BallActor;
 	UPROPERTY() TObjectPtr<ABroadcastCamera> Camera;
 	UPROPERTY() TObjectPtr<UCourtAudioBank> AudioBank;
@@ -217,6 +310,7 @@ private:
 	TArray<EPresentationEvent> PendingPresentation;
 	int32 PresentationCounts[(int32)EPresentationEvent::Count] = {0};
 	int32 MaterialOverrideCount = 0;
+	int32 LocalScanCount = 0;
 	float Exertion01 = 0.f;
 	float LastPowerW = 0.f;
 	double NextExertionSweatT = 0.0;
@@ -226,9 +320,11 @@ private:
 	TArray<FString> RealPolicies;
 	FStreetballDirectorOutput DirOut;
 	FName LastPolicyName;
-	// pre-sized scratch for the control step (UU_AGENT: no heap allocation in the real-time loop)
+	// pre-sized scratch for the control step & render sync (UU_AGENT: no heap allocation in the real-time loop)
 	TArray<float> CtrlBuf;
 	TArray<double> QBuf, VBuf;
+	TArray<FVector> BodyPosBuf;
+	TArray<FQuat> BodyRotBuf;
 	int32 RootQAdr = INDEX_NONE, BallQAdr = INDEX_NONE, BallVAdr = INDEX_NONE;
 	int32 UnloggedResets = 0;                    // resets applied inside the step, logged from Tick
 	const TCHAR* LastResetReason = TEXT("");
@@ -253,4 +349,26 @@ private:
 	int32 ObsDumpRows = 0;
 	float EpisodeReward = 0.f;
 	float SmoothedFps = 60.f;
+	// Dribble Lab
+	void HandleDribbleUiRequest(int32 Kind, int32 Index);
+	bool bDribbleFocus = false;
+	int32 DribbleBehaviour = 0;
+	int32 SessionResetBase = 0;
+	int32 SessionBounces = 0;
+	int32 SessionCleanBounces = 0;
+	double LastResetSimTime = 0.0;
+	double BestRunS = 0.0;
+	// face mood (smile grows with the clean streak, frown on failure)
+	void UpdateFaceMood(float Dt);
+	float FaceSmile = 0.f, FaceFrown = 0.f;
+	int32 MoodResetCount = 0;
+	bool bMoodLoose = false;
+public:
+	float GetFaceSmile() const { return FaceSmile; }
+	float GetFaceFrown() const { return FaceFrown; }
+	/** Clean bounces in a row for a full grin; seconds a frown takes to fade. */
+	float FaceSmileFullStreak = 8.f;
+	float FaceFrownFadeS = 2.5f;
+	/** Tests: run the mood logic without the presentation tick. */
+	void TickFaceMoodForTest(float Dt) { UpdateFaceMood(Dt); }
 };

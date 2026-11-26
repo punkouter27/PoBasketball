@@ -94,9 +94,9 @@ def soft_material(path, additive=False, leaf=False):
 NET_HLSL = r"""
 float swish = saturate(1.0 - (T - SwishT) / 1.3); swish *= swish;
 float hit = saturate(1.0 - (T - HitT) / 0.7); hit *= hit;
-float amp = (5.5 * swish + 2.2 * hit + 0.25) * VC;
+float amp = (5.5 * swish * SwishI + 2.2 * hit * HitI + 0.25) * VC;
 float ph = T * 23.0 + WP.z * 0.18;
-return float3(sin(ph) * amp, cos(ph * 0.87) * amp, -abs(sin(ph * 0.5)) * swish * 3.0 * VC);
+return float3(sin(ph) * amp, cos(ph * 0.87) * amp, -abs(sin(ph * 0.5)) * swish * SwishI * 3.0 * VC);
 """
 
 
@@ -107,6 +107,7 @@ def net_material(path):
     vc = g.e(unreal.MaterialExpressionVertexColor)
     wp = sbmat.world_pos(g)
     wpo = g.custom(NET_HLSL, [("T", (t, "")), ("SwishT", (g.scalar("SwishTime", -100.0), "")), ("HitT", (g.scalar("HitTime", -100.0), "")),
+                              ("SwishI", (g.scalar("SwishIntensity", 1.0), "")), ("HitI", (g.scalar("HitIntensity", 1.0), "")),
                               ("VC", (vc, "R")), ("WP", (wp, ""))], unreal.CustomMaterialOutputType.CMOT_FLOAT3, "NetWobble")
     g.front(g.slab(albedo=(g.const3(0.88, 0.88, 0.85), ""), roughness=(g.const(0.85), "")))
     g.to(wpo, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
