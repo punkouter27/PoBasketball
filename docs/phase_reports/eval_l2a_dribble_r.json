@@ -1,6 +1,6 @@
 {
   "level": "l2a_dribble_r",
-  "checkpoint": "PoBasketball\\sim\\runs\\l2a_push_n16bq2\\model.pt",
+  "checkpoint": "C:\\Users\\usmh164798\\Downloads\\_CODEMATT\\PoBasketball\\sim\\runs\\l2a_dribble_r_q1\\model.pt",
   "episodes": 200,
   "push_scale": 1.0,
   "push_max_N": 80.0,
@@ -9,18 +9,35 @@
   "passed": false,
   "holds_100_straight": false,
   "nan_grads": 0,
-  "interface_sha": "ccfa18d6f9aaf2a5",
-  "physics_sha": "ac1c8d03c1e036df+1eba556a91fae556",
-  "fall_rate": 0.014999999664723873,
-  "mean_episode_s": 1.129499912261963,
+  "interface_sha": "c766c7d32fb36d2e",
+  "physics_sha": "bd7cf5274215544f+6fa7a3aaae076514",
+  "fall_rate": 0.0,
+  "mean_episode_s": 4.039999961853027,
   "metrics": {
-    "m/streak": 0.034932661801576614,
-    "m/bounces": 0.8482255935668945,
-    "m/apex": 0.6211186647415161,
+    "m/streak": 0.08341584354639053,
+    "m/bounces": 4.220841407775879,
+    "m/apex": 0.336668461561203,
     "m/switches": 0.0,
-    "m/in_control": 0.5892313122749329,
-    "m/palm_touch": 0.015033960342407227,
-    "m/reach": 0.4925447106361389
+    "m/in_control": 0.2524752616882324,
+    "m/palm_touch": 0.0,
+    "m/reach": 0.09904096275568008,
+    "m/pen_torque_sq": -0.019077368080615997,
+    "m/pen_joint_ang_vel_sq": -0.007126939948648214,
+    "m/pen_action_rate_sq": -0.002375412732362747,
+    "m/pen_foot_slip": -0.02207823283970356,
+    "m/pen_power_abs": 0.0,
+    "m/pen_com_offset": -0.028355121612548828,
+    "m/pen_com_vel_z_sq": 0.0,
+    "m/pen_ang_vel_xy_sq": -0.01109967939555645,
+    "m/pen_short_swing": 0.0
   },
-  "wall_s": 6.131889999996929
+  "wall_s": 4.599850700000388,
+  "fail_reasons": {
+    "fell": 0.0,
+    "ball_lost_countdown": 1.0,
+    "ball_over_1_5m": 0.0,
+    "pelvis_drifted": 0.0,
+    "out_of_time": 0.0,
+    "failed_without_falling": 1.0
+  }
 }
