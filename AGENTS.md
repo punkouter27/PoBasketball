@@ -60,6 +60,13 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, deployed
 - Engine: Unreal 5.8.4 with the `MuJoCoRuntime` plugin (libmujoco 4.0.0). Training: MuJoCo Warp in `sim/`.
 - `/docs` holds the step documents (`01_…`, `02_…`, `03_…`), `phase_reports/`, and daily logs under `docs/<YYYYMMDD>/`.
 - Shared contracts (`shared/obs_spec.json`, `shared/humanoid_spec.json`, assets in `sim/assets/`) are frozen; a change bumps the hashes in `docs/phase_reports/PhaseA_summary.md` and re-runs A5/A6/A8.
+- **Cross-app agent interface (UNITE).** `sim/streetball/role_obs.py` builds the portable **131-float /
+  28-role** observation and action map from `global/UNITE/creatures/streetball_humanoid/contract.json`,
+  and reproduces that creature's `golden_role_obs.npz` to 1e-5 (`sim/tests/test_role_obs.py`). It does
+  **not** replace `sim/streetball/obs.py`: the 119-float task observation (ball, palm, contact, level
+  block) is still what the trainer, the UE plugin and the web twin speak. A portable brain — any creature,
+  any app — is played with `python -m streetball.role_agent --policy <run dir>` from `sim/`; a brain trained
+  for another body is accepted with `foreign=True` and labelled, never silently called correct.
 - Headless Unreal: always go through `unreal/StreetballGym/Scripts/run_headless.ps1`; never pass string CVars through `-ExecCmds`; never use `-nullrhi`.
 - Content layout (moved through the editor on 2026-11-22, redirectors fixed up and deleted): everything cooked lives in
   `/Game/Project/` = `Content/Project/`:
