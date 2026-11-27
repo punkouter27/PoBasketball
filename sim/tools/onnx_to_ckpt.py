@@ -68,8 +68,8 @@ def rebuild(
         actor.norm.count.fill_(1e6)  # treat the normaliser as converged so fine-tuning does not jerk it
         layers = [m for m in actor.net if isinstance(m, torch.nn.Linear)]
         for lin, (w, b) in zip(layers, linears):
-            lin.weight.copy_(torch.from_numpy(np.ascontiguousarray(w)).float())
-            lin.bias.copy_(torch.from_numpy(b).float())
+            lin.weight.copy_(torch.from_numpy(np.array(w, copy=True, order="C")).float())
+            lin.bias.copy_(torch.from_numpy(np.array(b, copy=True)).float())
     actor.eval()
 
     sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])

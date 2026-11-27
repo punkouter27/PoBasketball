@@ -37,6 +37,7 @@ STAGES = [
     ("l2c_crossover", None, 60, ["--push-max", "80"]),
     ("l3a_moving_dribble", "dribble", 80, ["--push-max", "80"]),
     ("l3b_scramble", "scramble", 50, []),
+    ("l4_set_shot", None, 60, ["--push-max", "0"]),
     ("l4_jump_shot", "shot", 60, ["--push-max", "0"]),
 ]
 # Named plans (--plan): explicit stage list, each (level, family, minutes or None = rest, extra args,

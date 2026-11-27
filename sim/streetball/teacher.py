@@ -6,8 +6,8 @@ the dribble brain has never moved, so the legs have nothing to exploit and every
 and shares the observation space, the joint order, the action layout and the step rate, so the missing skill
 can be *composed* instead of discovered:
 
-    legs + torso + the non-dribbling arm   <- locomotion actor, fed the L1 task block [dir_x, dir_y, dist, speed]
-    the dribbling arm (+ optionally lumbar) <- dribble actor,    fed the L2 task block (dribble in place)
+    legs + torso                        <- locomotion actor, fed the L1 task block [dir_x, dir_y, dist, speed]
+    both arms + lumbar flexion          <- dribble actor,    fed the L2 task block (dribble in place)
 
 Both teachers are frozen and read the *same* environment observation; only the 12-float task block at the end
 differs, which is exactly the difference the level's `task_block()` would have produced for each of them. The
@@ -29,10 +29,10 @@ from streetball import obs as obs_spec
 from streetball.ppo import Actor
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-RUNS = ROOT / "runs"
 
-# arm joints per hand (humanoid_spec joint order: left arm 0-5, right arm 6-11, legs 12-25, lumbar 26-28)
+# humanoid_spec joint order: left arm 0-5, right arm 6-11, legs 12-25, lumbar 26-28
 ARM_JOINTS = {1: (6, 7, 8, 9, 10, 11), -1: (0, 1, 2, 3, 4, 5)}
+ALL_ARM_JOINTS = tuple(range(12))
 LUMBAR_FLEX = 26
 
 
@@ -42,12 +42,16 @@ class TeacherConfig:
 
     hand: int = 1  # +1 right (the stationary brain and l3a_walk are right-handed), -1 left
     apex_target: float = 0.8  # L2Dribble.apex_target == L3MovingDribble.apex_target
-    include_lumbar: bool = False  # the dribble brain also leans; the locomotion brain keeps the torso upright
+    both_arms: bool = True
+    include_lumbar: bool = True
     joints: tuple[int, ...] = field(default=(), compare=False)
 
     def __post_init__(self) -> None:
+        if self.hand not in ARM_JOINTS:
+            raise ValueError(f"hand must be +1 or -1, got {self.hand}")
         if not self.joints:
-            self.joints = ARM_JOINTS[self.hand] + ((LUMBAR_FLEX,) if self.include_lumbar else ())
+            arms = ALL_ARM_JOINTS if self.both_arms else ARM_JOINTS[self.hand]
+            self.joints = arms + ((LUMBAR_FLEX,) if self.include_lumbar else ())
 
     @property
     def joint_index(self) -> torch.Tensor:
@@ -79,15 +83,38 @@ def dribble_task_block(task: torch.Tensor, cfg: TeacherConfig) -> torch.Tensor:
 
 
 def load_actor(ckpt: pathlib.Path | str, device: torch.device, hidden=(512, 256, 128)) -> Actor:
-    """Load the deterministic actor of a train.py checkpoint (full or `--init-actor-only`)."""
-    sd = torch.load(ckpt, map_location=device, weights_only=False)
+    """Load a train.py checkpoint or rebuild an exported ONNX policy with its parity-checked weights."""
+    path = pathlib.Path(ckpt)
+    if path.suffix.lower() == ".onnx":
+        from tools.onnx_to_ckpt import rebuild
+
+        actor, diff = rebuild(path, hidden=hidden)
+        if diff >= 1e-5:
+            raise ValueError(f"ONNX actor reconstruction parity failed for {path}: max abs diff {diff:.2e}")
+        return actor.to(device).eval()
+    sd = torch.load(path, map_location=device, weights_only=False)
     actor = Actor(obs_spec.N_OBS, obs_spec.N_JOINTS, hidden).to(device)
     actor.load_state_dict({k[len("actor.") :]: v for k, v in sd["ac"].items() if k.startswith("actor.")})
     return actor.eval()
 
 
+def open_walk_inputs(actor: Actor) -> Actor:
+    """Make stationary-dribble task inputs safe for l3a_walk without changing its zero-command action."""
+    start = obs_spec.N_BASE
+    slots = (3, 4, 5, 6)
+    stds = (1.0, 1.0, 1.0, 3.0)
+    first = next(m for m in actor.net if isinstance(m, torch.nn.Linear))
+    with torch.no_grad():
+        for slot, std in zip(slots, stds):
+            i = start + slot
+            first.weight[:, i] = 0.0
+            actor.norm.mean[i] = 0.0
+            actor.norm.var[i] = std**2
+    return actor
+
+
 class CompositeTeacher:
-    """Frozen locomotion + dribble pair producing one dribble-family action (see the module docstring)."""
+    """Frozen locomotion + dribble pair producing one dribble-family action."""
 
     def __init__(self, locomotion: Actor, dribble: Actor, cfg: TeacherConfig | None = None):
         self.loco = locomotion.eval()
@@ -112,17 +139,17 @@ class CompositeTeacher:
 
     __call__ = act
 
-    def eval(self) -> "CompositeTeacher":
+    def eval(self) -> CompositeTeacher:
         return self
 
 
 def production_teacher(device: torch.device, cfg: TeacherConfig | None = None) -> CompositeTeacher:
-    """The pair used for l3a_walk: the shipped locomotion gait + the gate-passing stationary dribble brain
-    (`runs/dribble_anchor10/best.pt`, 98.7 % on l2a_dribble_r) as the arm."""
+    """Build the l3a_walk teacher from the shipped locomotion and stationary-dribble policies."""
     cfg = cfg or TeacherConfig()
+    policies = ROOT.parent / "shared" / "policies"
     return CompositeTeacher(
-        load_actor(RUNS / "production" / "locomotion.pt", device),
-        load_actor(RUNS / "dribble_anchor10" / "best.pt", device),
+        load_actor(policies / "locomotion.onnx", device),
+        load_actor(policies / "dribble.onnx", device),
         cfg,
     )
 
@@ -139,11 +166,13 @@ class BCEntryBuffer:
         self.capacity = capacity
         self.ptr = 0
         self.size = 0
+        self.total_added = 0
 
     def add(self, obs: torch.Tensor, act: torch.Tensor) -> None:
         k = obs.shape[0]
         if k == 0:
             return
+        self.total_added += k
         if k > self.capacity:  # keep the newest `capacity` rows
             obs, act, k = obs[-self.capacity :], act[-self.capacity :], self.capacity
         i = self.ptr
@@ -181,6 +210,14 @@ class RolloutStats:
             "metrics": {k: round(v, 4) for k, v in self.metrics.items()},
             "fail_reasons": {k: round(v, 4) for k, v in self.fail_reasons.items()},
         }
+
+
+def teacher_is_cloneable(stats: RolloutStats) -> bool:
+    return (
+        stats.episodes > 0
+        and stats.metrics.get("m/control_frac", 0.0) >= 0.9
+        and stats.metrics.get("m/dist_m", 0.0) >= 3.0
+    )
 
 
 @torch.no_grad()

@@ -15,7 +15,7 @@ from streetball.levels.l2_dribble import (
 )
 from streetball.levels.l3_pickup import L3Pickup
 from streetball.levels.l3_roam import L3DribbleWalk, L3DribbleWalkBoth, L3MovingDribble, L3Scramble
-from streetball.levels.l4_shot import L4JumpShot
+from streetball.levels.l4_shot import L4JumpShot, L4SetShot
 from streetball.levels.l5_getup import L5GetUp
 
 LEVELS: dict[str, type[Level]] = {
@@ -36,6 +36,7 @@ LEVELS: dict[str, type[Level]] = {
     L3DribbleWalkBoth.name: L3DribbleWalkBoth,
     L3Pickup.name: L3Pickup,
     L4JumpShot.name: L4JumpShot,
+    L4SetShot.name: L4SetShot,
     L5GetUp.name: L5GetUp,
 }
 

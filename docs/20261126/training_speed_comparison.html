@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PoBasketball training speed comparison</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --surface: #f7f8fa;
+      --panel: #fff;
+      --text: #17212b;
+      --muted: #627181;
+      --line: #dce3e9;
+      --blue: #2874c8;
+      --cyan: #45a5c7;
+      --purple: #7657c7;
+      --amber: #d38b23;
+      --green: #27836a;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --surface: #121920;
+        --panel: #1b2630;
+        --text: #e9f0f5;
+        --muted: #a4b2bf;
+        --line: #34424e;
+        --blue: #65a8f3;
+        --cyan: #67c3dd;
+        --purple: #b19cf0;
+        --amber: #efb85d;
+        --green: #66c3a7;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--surface);
+      color: var(--text);
+      font: 15px/1.5 system-ui, sans-serif;
+    }
+    main { width: min(1120px, calc(100% - 32px)); margin: 34px auto 48px; }
+    h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); line-height: 1.15; letter-spacing: -0.035em; }
+    h2 { margin: 0 0 16px; font-size: 19px; }
+    p { margin: 0; }
+    a { color: var(--blue); }
+    .eyebrow { color: var(--blue); font-size: 12px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    .intro { max-width: 760px; margin-top: 10px; color: var(--muted); }
+    .snapshot { margin-top: 8px; color: var(--muted); font-size: 13px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; margin: 24px 0; }
+    .tile, .panel { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    .tile { min-height: 108px; padding: 15px 17px; }
+    .tile .label { color: var(--muted); font-size: 12px; font-weight: 650; }
+    .tile .value { margin-top: 4px; font-size: 25px; font-weight: 760; letter-spacing: -.03em; }
+    .tile .detail { margin-top: 2px; color: var(--muted); font-size: 12px; }
+    .panel { padding: 20px; }
+    .chart-panel { margin-bottom: 16px; }
+    .chart-note { margin: -8px 0 19px; color: var(--muted); font-size: 13px; }
+    .axis, .bar-row { display: grid; grid-template-columns: minmax(175px, 230px) minmax(160px, 1fr) 82px; gap: 12px; align-items: center; }
+    .axis { margin-bottom: 7px; color: var(--muted); font-size: 11px; }
+    .ticks { display: flex; justify-content: space-between; }
+    .bar-row { margin: 13px 0; }
+    .machine { font-size: 13px; font-weight: 650; }
+    .machine small { display: block; color: var(--muted); font-size: 11px; font-weight: 450; }
+    .track { position: relative; height: 16px; overflow: hidden; border-radius: 99px; background: color-mix(in srgb, var(--line) 68%, transparent); }
+    .bar { height: 100%; min-width: 2px; border-radius: inherit; background: var(--blue); }
+    .bar.current { background: var(--blue); }
+    .bar.recent { background: var(--amber); }
+    .bar.old { background: var(--cyan); }
+    .bar.fast { background: var(--purple); }
+    .range { position: absolute; top: 0; bottom: 0; border: 1px solid var(--purple); border-radius: 99px; background: color-mix(in srgb, var(--purple) 35%, transparent); }
+    .bar-value { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 720; }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 20px; color: var(--muted); font-size: 12px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--blue); }
+    .swatch.recent { background: var(--amber); }
+    .swatch.old { background: var(--cyan); }
+    .swatch.fast { background: var(--purple); }
+    .swatch.range { border: 1px solid var(--purple); background: color-mix(in srgb, var(--purple) 35%, transparent); }
+    .grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 9px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .callout { border-left: 3px solid var(--amber); padding: 3px 0 3px 13px; color: var(--muted); font-size: 13px; }
+    .callout strong { color: var(--text); }
+    .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin-top: 15px; }
+    .fact { border-top: 1px solid var(--line); padding-top: 8px; }
+    .fact .label { color: var(--muted); font-size: 11px; }
+    .fact .value { margin-top: 2px; font-weight: 680; }
+    .sources { margin-top: 20px; color: var(--muted); font-size: 12px; }
+    .sources a { margin-right: 12px; }
+    .foot { margin-top: 16px; color: var(--muted); font-size: 11px; }
+    @media (max-width: 680px) {
+      main { width: min(100% - 20px, 1120px); margin-top: 22px; }
+      .panel { padding: 15px; }
+      .axis, .bar-row { grid-template-columns: 128px minmax(100px, 1fr) 66px; gap: 7px; }
+      .machine { font-size: 12px; }
+      .grid { grid-template-columns: 1fr; }
+      table { font-size: 12px; }
+      th, td { padding: 8px 5px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">PoBasketball · PPO throughput</div>
+    <h1>Training speed across laptops</h1>
+    <p class="intro">Policy-training steps per second, with the current L1 locomotion run compared against recorded laptop runs. The historical measurements use different tasks and GPU-sharing conditions, so treat this as a directional comparison.</p>
+    <p class="snapshot">Snapshot: Nov 26, 2026 at 13:26 local · current run is still in progress</p>
+  </header>
+
+  <section class="tiles" aria-label="Current run summary">
+    <div class="tile"><div class="label">Current overall average</div><div class="value">16.4k</div><div class="detail">steps/sec · weighted by iteration time</div></div>
+    <div class="tile"><div class="label">Recent 10 iterations</div><div class="value">7.1k</div><div class="detail">steps/sec · slowdown in this window</div></div>
+    <div class="tile"><div class="label">Latest iteration</div><div class="value">7.9k</div><div class="detail">steps/sec · varies between iterations</div></div>
+    <div class="tile"><div class="label">Run progress</div><div class="value">39.5M</div><div class="detail">steps · 40.1 min elapsed · 4,096 envs</div></div>
+  </section>
+
+  <section class="panel chart-panel" aria-labelledby="chart-title">
+    <h2 id="chart-title">Recorded PPO training throughput</h2>
+    <p class="chart-note">Common scale from 0 to 40k policy-steps/sec. The RTX 5070 Ti shared result is shown as a range.</p>
+    <div class="axis" aria-hidden="true">
+      <span></span>
+      <div class="ticks"><span>0</span><span>10k</span><span>20k</span><span>30k</span><span>40k</span></div>
+      <span></span>
+    </div>
+    <div class="bar-row">
+      <div class="machine">RTX 2000 Ada · current average<small>L1 PPO · 4,096 envs</small></div>
+      <div class="track" role="img" aria-label="16,400 steps per second"><div class="bar current" style="width:41%"></div></div>
+      <div class="bar-value">16.4k</div>
+    </div>
+    <div class="bar-row">
+      <div class="machine">RTX 2000 Ada · recent 10<small>Current run · variable performance</small></div>
+      <div class="track" role="img" aria-label="7,100 steps per second"><div class="bar recent" style="width:17.75%"></div></div>
+      <div class="bar-value">7.1k</div>
+    </div>
+    <div class="bar-row">
+      <div class="machine">RTX 2060 Laptop<small>Prior recorded training run</small></div>
+      <div class="track" role="img" aria-label="Approximately 16,000 steps per second"><div class="bar old" style="width:40%"></div></div>
+      <div class="bar-value">~16k</div>
+    </div>
+    <div class="bar-row">
+      <div class="machine">RTX 5070 Ti · shared<small>Full PPO loop, GPU shared with tests/UE</small></div>
+      <div class="track" role="img" aria-label="18,000 to 25,000 steps per second"><div class="range" style="left:45%;width:17.5%"></div></div>
+      <div class="bar-value">18–25k</div>
+    </div>
+    <div class="bar-row">
+      <div class="machine">RTX 5070 Ti · alone<small>Full PPO loop · 4,096 envs</small></div>
+      <div class="track" role="img" aria-label="38,000 steps per second"><div class="bar fast" style="width:95%"></div></div>
+      <div class="bar-value">~38k</div>
+    </div>
+    <div class="legend" aria-label="Chart legend">
+      <span><i class="swatch"></i>Current overall average</span>
+      <span><i class="swatch recent"></i>Recent current-run window</span>
+      <span><i class="swatch old"></i>RTX 2060 record</span>
+      <span><i class="swatch fast"></i>RTX 5070 Ti</span>
+      <span><i class="swatch range"></i>Shaded bar = shared-GPU range</span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="table-title">
+      <h2 id="table-title">Comparison grid</h2>
+      <table>
+        <thead><tr><th>System</th><th>Recorded rate</th><th>Context / relative speed</th></tr></thead>
+        <tbody>
+          <tr><td><strong>RTX 2000 Ada Laptop</strong><br>8 GB</td><td>16.4k avg<br>7.1k recent</td><td>Current L1 run; about 3% above the RTX 2060's historical rate overall, but recent iterations are slower.</td></tr>
+          <tr><td><strong>RTX 2060 Laptop</strong><br>6 GB</td><td>~16k</td><td>Prior training measurement; a different run/task, so the small lead for the current run is not a controlled benchmark.</td></tr>
+          <tr><td><strong>RTX 5070 Ti Laptop</strong><br>12 GB</td><td>18–25k shared<br>~38k alone</td><td>Nov 20 run noted ~20k. Current average is just below the shared range; about 43% of the standalone result.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" aria-labelledby="snapshot-title">
+      <h2 id="snapshot-title">Current run snapshot</h2>
+      <p class="callout"><strong>First iteration was 33.5k.</strong> That startup burst is transient, not a steady-state rate. The whole-run average is more useful, while the recent-iteration average shows current variability.</p>
+      <div class="facts">
+        <div class="fact"><div class="label">Level</div><div class="value">l1_traverse</div></div>
+        <div class="fact"><div class="label">Budget</div><div class="value">480 minutes</div></div>
+        <div class="fact"><div class="label">Training settings</div><div class="value">4,096 envs · push curriculum</div></div>
+        <div class="fact"><div class="label">GPU sample</div><div class="value">70°C · 3.0 / 8.2 GB</div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="sources">
+    <strong>Sources:</strong>
+    <a href="../20261118/log.md">RTX 2060 run note</a>
+    <a href="../phase_reports/PhaseC_setup.md">RTX 5070 Ti PPO benchmark</a>
+    <a href="../20261120/log.md">Nov 20 laptop run notes</a>
+    <a href="log.md">Current run setup</a>
+    <a href="../../sim/runs/l1_teacher_gate_8h/log.csv">Current run CSV</a>
+    <a href="../../sim/runs/l1_teacher_gate_8h/console.log">Current run console log</a>
+  </div>
+  <p class="foot">Snapshot only; the live run continues after this page was generated. Throughput means PPO policy-steps/sec, not physics-only steps/sec. Historical values are approximate and not head-to-head benchmarks.</p>
+</main>
+</body>
+</html>
