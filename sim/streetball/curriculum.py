@@ -54,6 +54,7 @@ LADDER: list[tuple[str, float, list[str], str | None]] = [
     ("l2c_crossover", 300e6, [*DRIBBLE_TRANSFER_ARGS, "--sym-coef", "0.05"], None),
     ("l3a_moving_dribble", 500e6, [*DRIBBLE_TRANSFER_ARGS, "--sym-coef", "0.05"], "dribble"),
     ("l3b_scramble", 300e6, [], "scramble"),
+    ("l4_set_shot", 250e6, ["--push-max", "0"], None),
     ("l4_jump_shot", 500e6, [], "shot"),
 ]
 

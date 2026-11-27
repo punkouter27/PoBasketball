@@ -129,3 +129,13 @@ def test_randomisation_varies(env):
     assert masses.std() > 0.1 and fric.std() > 0.05 and kp.std() > 5.0
     assert (fric >= 0.6).all() and (fric <= 1.1).all()
     assert env.delay_action.float().mean().item() > 0.2
+
+
+def test_set_shot_level_spawns_close_and_disables_jump_reward():
+    shot_env = StreetballEnv(
+        make("l4_set_shot"),
+        EnvConfig(num_envs=32, seed=3, randomization=RandomizationConfig(push_force=(0.0, 0.0))),
+    )
+    dist = (shot_env.qpos[:, shot_env.root_q : shot_env.root_q + 2] - shot_env.level.rim[:2]).norm(dim=-1)
+    assert (dist >= 1.5).all() and (dist <= 3.0).all()
+    assert not shot_env.level.allow_jump

@@ -1,4 +1,4 @@
-"""L4 Pull-up jump shot (PRD Tier 5).
+"""L4 jump-shot family (PRD Tier 5).
 
 Each episode is one shot: start dribbling at a random spot inside the 6.75 m arc facing
 the east hoop (±30°). After a random 1-3 s the shoot trigger turns on; the athlete must
@@ -24,6 +24,8 @@ class L4JumpShot(L2Dribble):
     name = "l4_jump_shot"
     prd_tier = 5
     episode_s = 8.0
+    shot_distance_range = (2.0, 6.5)
+    allow_jump = True
     rim_h = 3.05
     rim_r = 0.2286
 
@@ -45,9 +47,9 @@ class L4JumpShot(L2Dribble):
     def on_reset(self, ids: torch.Tensor) -> None:
         env = self.env
         k = ids.numel()
-        # spot inside the arc: 2.0-6.5 m from the rim, random angle in the half court
+        # spot inside the arc, random angle in the half court
         ang = env.rand(k, lo=0.35, hi=2.80)  # radians around the rim, away from the baseline
-        dist = env.rand(k, lo=2.0, hi=6.5)
+        dist = env.rand(k, lo=self.shot_distance_range[0], hi=self.shot_distance_range[1])
         xy = torch.stack([self.rim[0] - dist * torch.sin(ang), self.rim[1] + dist * torch.cos(ang)], -1)
         xy[:, 0] = xy[:, 0].clamp(max=self.rim[0] - 1.5)
         yaw = torch.atan2(self.rim[1] - xy[:, 1], self.rim[0] - xy[:, 0]) + env.rand(k, lo=-0.5, hi=0.5)
@@ -110,7 +112,8 @@ class L4JumpShot(L2Dribble):
         self.hold_steps = torch.where(self.triggered & both & ~self.released, self.hold_steps + 1, self.hold_steps)
         pelvis_z = env.p_pelvis[:, 2]
         in_air = env.foot_contact.sum(dim=1) == 0
-        self.jumped |= self.triggered & self.gathered & in_air & (pelvis_z > env.nominal_root_z + 0.15)
+        if self.allow_jump:
+            self.jumped |= self.triggered & self.gathered & in_air & (pelvis_z > env.nominal_root_z + 0.15)
         # release: ball leaves both palms while above shoulder height after a gather
         no_contact = pc.sum(dim=1) == 0
         newly_released = self.triggered & self.gathered & ~self.released & no_contact & (ball_z > 1.6)
@@ -144,9 +147,14 @@ class L4JumpShot(L2Dribble):
         # pure-RL wrist-snap follow-through on release + upright torso posture
         wf = env.joint_pos()[:, env.wrist_flex_idx].amax(dim=1)
         r_wrist_snap = torch.exp(-(((wf - 0.85) / 0.35) ** 2)) * self.released.float()
+        jump_term = (
+            2.0 * (self.triggered & self.gathered & in_air & ~self.released).float()
+            if self.allow_jump
+            else -2.0 * (self.triggered & in_air).float()
+        )
         r_post = (
             1.0 * both.float() * (~self.released).float()  # gather / hold
-            + 2.0 * (self.triggered & self.gathered & in_air & ~self.released).float()  # jump with ball
+            + jump_term
             + 3.0 * r_aim
             + 10.0 * r_land
             + 50.0 * newly_scored.float()
@@ -180,3 +188,11 @@ class L4JumpShot(L2Dribble):
 
     def episode_success(self) -> torch.Tensor:
         return self.scored & ~self.env.fallen
+
+
+class L4SetShot(L4JumpShot):
+    """Training-only close set shot: two-hand gather and release from 1.5-3 m without jumping."""
+
+    name = "l4_set_shot"
+    shot_distance_range = (1.5, 3.0)
+    allow_jump = False
