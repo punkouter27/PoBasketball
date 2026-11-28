@@ -1,8 +1,8 @@
 """The role-ordered interface for this app: 131 observations in, 28 role actions out.
 
-RULES.md R6-R8/R13/R14 in ``global/UNITE/RULES.md``. This is the basketball half of the same
+RULES.md R6-R8/R13/R14 in ``PoPunkouterSoftware/docs/unite/RULES.md``. This is the basketball half of the same
 contract PoRobotTrain implements: the layout, the mask, the defaults, the gains and the action
-scales all come from ``global/UNITE/creatures/streetball_humanoid/contract.json``, so a brain
+scales all come from ``PoPunkouterSoftware/docs/unite/creatures/streetball_humanoid/contract.json``, so a brain
 trained anywhere against that interface can be driven here without re-deriving what float 87 means.
 
 It deliberately does **not** replace ``obs.py``. That 119-float layout is this game's task
@@ -16,7 +16,7 @@ The two are different questions. "Can this body be driven by a shared brain?" is
 "what does the ball look like right now?" stays in ``obs.py``.
 
 Every implementation must reproduce the creature's ``golden_role_obs.npz`` to 1e-5 — the reference
-builder in ``global/UNITE/tools/role_obs.py`` is the authority, this file is one implementation of
+builder in ``PoPunkouterSoftware/docs/unite/tools/role_obs.py`` is the authority, this file is one implementation of
 it, and ``sim/tests/test_role_obs.py`` is the proof.
 """
 
@@ -48,7 +48,7 @@ CREATURE = "streetball_humanoid"
 DEFAULT_GAIT_PERIOD_S = 0.8
 MOVING_COMMAND_THRESHOLD = 0.1
 
-UNITE = pathlib.Path(__file__).resolve().parents[3] / "global" / "UNITE"
+UNITE = pathlib.Path(__file__).resolve().parents[3] / "PoPunkouterSoftware" / "docs" / "unite"
 CONTRACT_PATH = UNITE / "creatures" / CREATURE / "contract.json"
 GOLDEN_PATH = UNITE / "creatures" / CREATURE / "golden_role_obs.npz"
 
@@ -77,13 +77,13 @@ class RoleState:
 
 
 def available() -> bool:
-    """False on a checkout without ``global/UNITE`` (CI, a fresh clone)."""
+    """False on a checkout without ``PoPunkouterSoftware/docs/unite`` (CI, a fresh clone)."""
     return CONTRACT_PATH.is_file()
 
 
 def load_contract() -> dict:
     if not available():
-        raise ContractMismatch(f"no contract at {CONTRACT_PATH}; the role interface needs global/UNITE")
+        raise ContractMismatch(f"no contract at {CONTRACT_PATH}; the role interface needs PoPunkouterSoftware/docs/unite")
     return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
 
 

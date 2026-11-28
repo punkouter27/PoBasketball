@@ -61,7 +61,7 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, deployed
 - `/docs` holds the step documents (`01_…`, `02_…`, `03_…`), `phase_reports/`, and daily logs under `docs/<YYYYMMDD>/`.
 - Shared contracts (`shared/obs_spec.json`, `shared/humanoid_spec.json`, assets in `sim/assets/`) are frozen; a change bumps the hashes in `docs/phase_reports/PhaseA_summary.md` and re-runs A5/A6/A8.
 - **Cross-app agent interface (UNITE).** `sim/streetball/role_obs.py` builds the portable **131-float /
-  28-role** observation and action map from `global/UNITE/creatures/streetball_humanoid/contract.json`,
+  28-role** observation and action map from `PoPunkouterSoftware/docs/unite/creatures/streetball_humanoid/contract.json`,
   and reproduces that creature's `golden_role_obs.npz` to 1e-5 (`sim/tests/test_role_obs.py`). It does
   **not** replace `sim/streetball/obs.py`: the 119-float task observation (ball, palm, contact, level
   block) is still what the trainer, the UE plugin and the web twin speak. A portable brain — any creature,

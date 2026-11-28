@@ -1,6 +1,6 @@
 """Play a portable UNITE brain on this app's own court (131 observations -> 28 role actions).
 
-    uv run python -m streetball.role_agent --policy ..\\global\\UNITE\\runs\\ppo-r1-edu-stand
+    uv run python -m streetball.role_agent --policy ..\\PoPunkouterSoftware\\docs\\unite\\runs\\ppo-r1-edu-stand
     uv run python -m streetball.role_agent --policy <dir> --steps 500 --command 0.3,0,0 --json out.json
 
 This is the consumer side of the role interface: it builds the 131 floats from the MuJoCo scene

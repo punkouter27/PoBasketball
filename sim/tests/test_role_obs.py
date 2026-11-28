@@ -1,6 +1,6 @@
 """The role interface must reproduce the creature's golden observations and refuse a foreign brain.
 
-The golden is written by ``global/UNITE/tools/role_obs.py`` — the reference implementation this module
+The golden is written by ``PoPunkouterSoftware/docs/unite/tools/role_obs.py`` — the reference implementation this module
 must agree with to 1e-5. A checkout without ``global/`` skips instead of inventing a layout.
 """
 
@@ -17,7 +17,7 @@ CONTRACT = role_obs.CONTRACT_PATH
 GOLDEN = role_obs.GOLDEN_PATH
 TOLERANCE = 1e-5
 
-pytestmark = pytest.mark.skipif(not role_obs.available(), reason="global/UNITE is not present in this checkout")
+pytestmark = pytest.mark.skipif(not role_obs.available(), reason="PoPunkouterSoftware/docs/unite is not present in this checkout")
 
 
 @pytest.fixture(scope="module")
