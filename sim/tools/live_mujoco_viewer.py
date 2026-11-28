@@ -1,6 +1,7 @@
 """Show a CPU MuJoCo preview driven by the latest checkpoint in a training run.
 
     uv run python tools/live_mujoco_viewer.py runs/l1_traverse_q1
+    uv run python tools/live_mujoco_viewer.py runs/l3_approach_run
 
 The viewer is a separate single-world preview; it does not display the trainer's
 vectorized MuJoCo Warp worlds.
@@ -26,17 +27,19 @@ from streetball.ppo import Actor
 
 SUBSTEPS = 10
 RELOAD_SECONDS = 2.0
+SUPPORTED_LEVELS = {"l1_traverse", "l3_approach"}
 
 
-def load_actor(actor: Actor, checkpoint: pathlib.Path) -> tuple[int, tuple[int, int]]:
+def load_actor(actor: Actor, checkpoint: pathlib.Path) -> tuple[str, int, tuple[int, int]]:
     state = torch.load(checkpoint, map_location="cpu", weights_only=False)
-    if state.get("level") != "l1_traverse":
-        raise ValueError(f"{checkpoint} is not an l1_traverse checkpoint")
+    level = state.get("level")
+    if level not in SUPPORTED_LEVELS:
+        raise ValueError(f"{checkpoint} has unsupported level {level!r}; expected one of {sorted(SUPPORTED_LEVELS)}")
     actor_state = {k.removeprefix("actor."): v for k, v in state["ac"].items() if k.startswith("actor.")}
     actor.load_state_dict(actor_state)
     actor.eval()
     stat = checkpoint.stat()
-    return int(state.get("steps", 0)), (stat.st_mtime_ns, stat.st_size)
+    return level, int(state.get("steps", 0)), (stat.st_mtime_ns, stat.st_size)
 
 
 def main() -> None:
@@ -50,7 +53,7 @@ def main() -> None:
     data = mujoco.MjData(model)
     index = obs_spec.ObsIndex(model)
     actor = Actor(obs_spec.N_OBS, obs_spec.N_JOINTS)
-    steps, loaded_stat = load_actor(actor, checkpoint)
+    level, steps, loaded_stat = load_actor(actor, checkpoint)
     print(f"Loaded {checkpoint.name} at {steps / 1e6:.1f}M training steps", flush=True)
 
     key = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, "stand")
@@ -62,35 +65,49 @@ def main() -> None:
     speed_command = 1.5
     episode_time = 0.0
     reached = 0
+    settle_time = 0.0
 
     def reset_episode() -> None:
-        nonlocal waypoint, speed_command, episode_time, reached, previous_action
+        nonlocal waypoint, speed_command, episode_time, reached, previous_action, settle_time
         mujoco.mj_resetDataKeyframe(model, data, key)
         data.qpos[root_q : root_q + 2] = [0.0, 0.0]
         data.qpos[root_q + 3 : root_q + 7] = [1.0, 0.0, 0.0, 0.0]
         data.qpos[index.qadr] += rng.normal(0.0, 0.03, obs_spec.N_JOINTS)
-        data.qpos[ball_q : ball_q + 3] = [0.0, 8.0, 0.1205]
+        if level == "l3_approach":
+            distance = rng.uniform(1.5, 5.0)
+            angle = rng.uniform(-1.75, 1.75)
+            waypoint = np.array([distance * np.cos(angle), distance * np.sin(angle)])
+            data.qpos[ball_q : ball_q + 3] = [waypoint[0], waypoint[1], 0.1205]
+        else:
+            data.qpos[ball_q : ball_q + 3] = [0.0, 8.0, 0.1205]
         data.qvel[:] = 0.0
         data.ctrl[:] = index.nominal
         previous_action = np.zeros(obs_spec.N_JOINTS)
         episode_time = 0.0
         reached = 0
-        waypoint = rng.uniform([-13.0, -6.5], [13.0, 6.5])
-        speed_command = float(rng.uniform(1.2, 3.0))
+        settle_time = 0.0
+        if level == "l1_traverse":
+            waypoint = rng.uniform([-13.0, -6.5], [13.0, 6.5])
+            speed_command = float(rng.uniform(1.2, 3.0))
         mujoco.mj_forward(model, data)
 
     def task_block() -> np.ndarray:
-        rel = waypoint - data.qpos[root_q : root_q + 2]
+        target = data.qpos[ball_q : ball_q + 2] if level == "l3_approach" else waypoint
+        rel = target - data.qpos[root_q : root_q + 2]
         distance = float(np.linalg.norm(rel))
         heading = obs_spec.heading_mat(data.qpos[root_q + 3 : root_q + 7])
         direction = rel / max(distance, 1e-6)
         task = np.zeros(obs_spec.N_TASK)
-        task[:4] = [
+        task[:3] = [
             direction @ heading[:2, 0],
             direction @ heading[:2, 1],
             min(distance, 10.0),
-            speed_command,
         ]
+        task[3] = (
+            float(np.clip(0.2 + 0.35 * max(distance - 0.5, 0.0), 0.2, 1.3))
+            if level == "l3_approach"
+            else speed_command
+        )
         return task
 
     reset_episode()
@@ -112,7 +129,9 @@ def main() -> None:
                         time.sleep(0.2)
                         stable = checkpoint.stat()
                         if current_stat == (stable.st_mtime_ns, stable.st_size):
-                            steps, loaded_stat = load_actor(actor, checkpoint)
+                            new_level, steps, loaded_stat = load_actor(actor, checkpoint)
+                            if new_level != level:
+                                raise ValueError(f"checkpoint level changed from {level!r} to {new_level!r}")
                             print(f"Reloaded checkpoint at {steps / 1e6:.1f}M steps", flush=True)
                 except (OSError, RuntimeError, EOFError) as exc:
                     print(f"Checkpoint reload deferred: {exc}", flush=True)
@@ -127,13 +146,22 @@ def main() -> None:
             previous_action = action
             episode_time += control_dt
 
-            if np.linalg.norm(waypoint - data.qpos[root_q : root_q + 2]) < 0.5:
+            target = data.qpos[ball_q : ball_q + 2] if level == "l3_approach" else waypoint
+            distance = np.linalg.norm(target - data.qpos[root_q : root_q + 2])
+            if level == "l1_traverse" and distance < 0.5:
                 reached += 1
                 waypoint = rng.uniform([-13.0, -6.5], [13.0, 6.5])
                 speed_command = float(rng.uniform(1.2, 3.0))
+            if level == "l3_approach":
+                speed = np.linalg.norm(data.qvel[root_q : root_q + 2])
+                settle_time = settle_time + control_dt if distance <= 0.5 and speed <= 0.25 else 0.0
             root_pos = data.qpos[root_q : root_q + 3]
             viewer.cam.lookat[:] = [root_pos[0], root_pos[1], 0.8]
-            if reached >= 10 or episode_time >= 90.0 or root_pos[2] < 0.55:
+            if (
+                (level == "l1_traverse" and (reached >= 10 or episode_time >= 90.0))
+                or (level == "l3_approach" and (settle_time >= 0.5 or episode_time >= 12.0))
+                or root_pos[2] < 0.55
+            ):
                 reset_episode()
 
             viewer.sync()
